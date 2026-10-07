@@ -1430,6 +1430,61 @@ def validate_text_style_policy(assignment: dict[str, Any]) -> None:
     assignment["text_style_policy"] = policy
 
 
+def sequence_warnings(matrix: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Signals that cases share a panel or tier recipe, by position and regardless of order."""
+    grouped: dict[tuple, list[str]] = {}
+    for row in matrix:
+        columns = row["columns"]
+        grouped.setdefault(("repeated_panel_sequence", tuple(c["panel_count"] for c in columns)), []).append(row["case"])
+        if all(c["exaggeration"] for c in columns):
+            grouped.setdefault(("repeated_tier_sequence", tuple(c["exaggeration"] for c in columns)), []).append(row["case"])
+            # Order-free pairing: shuffling images must not hide the same panel-by-tier recipe.
+            pairing = tuple(sorted(f"{c['panel_count']}:{c['exaggeration']}" for c in columns))
+            grouped.setdefault(("repeated_panel_tier_sequence", pairing), []).append(row["case"])
+    return [{"code": code, "sequence": list(value), "cases": cases}
+            for (code, value), cases in grouped.items() if len(cases) >= 2]
+
+
+def line_warnings(matrix: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    repeated: dict[str, list[dict[str, Any]]] = {}
+    for row in matrix:
+        for column in row["columns"]:
+            for line in set(column["dialogue"]):
+                repeated.setdefault(line, []).append({"case": row["case"], "index": column["index"]})
+    return [{"code": "repeated_line", "value": line, "positions": positions}
+            for line, positions in repeated.items() if len(positions) > 1]
+
+
+def draft_summary(paths: list[Path]) -> dict[str, Any]:
+    """Cross-case signals from planning drafts, available before the single confirmation."""
+    matrix = []
+    for path in paths:
+        value = read_json(path)
+        if not uses_tournament(value):
+            raise RunError(f"{path.name} is not a tournament planning draft")
+        summary = plan_summary(value)
+        tiers = exaggeration_tiers() if summary["exaggeration_policy"] is not None else None
+        ideas = {idea["id"]: idea for idea in value["creative_pool"]}
+        matrix.append({"case": value.get("run_name") or path.stem, "columns": [
+            {"index": index, "idea_id": option["idea_id"], "direction": option["direction"],
+             "mechanism": ideas[option["idea_id"]]["mechanism"], "panel_count": option["panel_count"],
+             "exaggeration": option.get("exaggeration"),
+             "tier": tier_label(option, tiers) if tiers else None,
+             "staging": option["staging"], "dialogue": option["key_lines"]}
+            for index, option in enumerate(value["proposal"]["options"], 1)]})
+    cases = [row["case"] for row in matrix]
+    if len(set(cases)) != len(cases):
+        raise RunError("batch drafts need distinct run_name values")
+    warnings = sequence_warnings(matrix) + line_warnings(matrix)
+    columns = [column for row in matrix for column in row["columns"]]
+    return {
+        "structurally_valid": True, "creative_review_required": True, "creative_approval": None,
+        "matrix": matrix, "warnings": warnings, "image_count": len(columns),
+        "directions": dict(sorted(Counter(column["direction"] for column in columns).items())),
+        "exaggerations": dict(sorted(Counter(column["exaggeration"] for column in columns if column["exaggeration"]).items())),
+    }
+
+
 def design_summary(assignments: list[dict[str, Any]]) -> dict[str, Any]:
     images = [image for assignment in assignments for image in assignment["images"]]
     matrix = []
@@ -1453,18 +1508,10 @@ def design_summary(assignments: list[dict[str, Any]]) -> dict[str, Any]:
                 "dialogue": image["core_text"],
             })
         matrix.append({"case": assignment["run_name"], "columns": columns})
-    warnings = []
+    warnings = sequence_warnings(matrix)
     slots: dict[tuple, list[str]] = {}
-    sequences: dict[tuple, list[str]] = {}
-    tier_sequences: dict[tuple, list[str]] = {}
     repetitions: dict[tuple, list[dict[str, Any]]] = {}
     for row in matrix:
-        sequence = tuple(column["panel_count"] for column in row["columns"])
-        sequences.setdefault(sequence, []).append(row["case"])
-        if all(column["exaggeration"] for column in row["columns"]):
-            # Order-free pairing: shuffling images must not hide the same panel-by-tier recipe.
-            pairing = tuple(sorted((column["panel_count"], column["exaggeration"]) for column in row["columns"]))
-            tier_sequences.setdefault(pairing, []).append(row["case"])
         for column in row["columns"]:
             slot = (column["index"], column["layout"], column["template"])
             slots.setdefault(slot, []).append(row["case"])
@@ -1477,24 +1524,10 @@ def design_summary(assignments: list[dict[str, Any]]) -> dict[str, Any]:
         if len(cases) >= 2:
             warnings.append({"code": "same_index_layout_template", "index": index,
                              "layout": layout, "template": template, "cases": cases})
-    for sequence, cases in sequences.items():
-        if len(cases) >= 2:
-            warnings.append({"code": "repeated_panel_sequence", "sequence": list(sequence), "cases": cases})
-    for pairing, cases in tier_sequences.items():
-        if len(cases) >= 2:
-            warnings.append({"code": "repeated_panel_tier_sequence",
-                             "pairing": [f"{panels}:{tier}" for panels, tier in pairing], "cases": cases})
     for (field, value), positions in repetitions.items():
         if len(positions) >= 2:
             warnings.append({"code": f"repeated_{field}", "value": json.loads(value), "positions": positions})
-    repeated_lines: dict[str, list[dict[str, Any]]] = {}
-    for row in matrix:
-        for column in row["columns"]:
-            for line in set(column["dialogue"]):
-                repeated_lines.setdefault(line, []).append({"case": row["case"], "index": column["index"]})
-    for line, positions in repeated_lines.items():
-        if len(positions) > 1:
-            warnings.append({"code": "repeated_line", "value": line, "positions": positions})
+    warnings.extend(line_warnings(matrix))
     return {
         "structurally_valid": True,
         "creative_review_required": len(assignments) > 1 or bool(warnings),
@@ -2348,6 +2381,14 @@ def cmd_validate(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def cmd_validate_batch(args: argparse.Namespace) -> dict[str, Any]:
+    drafts = getattr(args, "draft", None) or []
+    if bool(drafts) == bool(args.assignment):
+        raise RunError("validate-batch takes either --draft planning drafts or --assignment files, not both")
+    if drafts:
+        summary = draft_summary([Path(path).resolve() for path in drafts])
+        return {"valid": True, "stage": "planning", "structurally_valid": True, "creative_approval": None,
+                "creative_review_required": True, "runs": [row["case"] for row in summary["matrix"]],
+                "design_summary": summary}
     assignments = [validate_assignment(Path(path).resolve()) for path in args.assignment]
     names = [assignment["run_name"] for assignment in assignments]
     if len(set(names)) != len(names):
@@ -2599,7 +2640,8 @@ def parser() -> argparse.ArgumentParser:
     validate.add_argument("--assignment", required=True)
     validate.set_defaults(handler=cmd_validate)
     batch = commands.add_parser("validate-batch")
-    batch.add_argument("--assignment", action="append", required=True)
+    batch.add_argument("--assignment", action="append", help="Confirmed assignment; repeat for each source")
+    batch.add_argument("--draft", action="append", help="Planning draft before the confirmation; repeat for each source")
     batch.set_defaults(handler=cmd_validate_batch)
     plan = commands.add_parser("plan-execution", help="Resolve observed capacity before the execution confirmation; no workers are started")
     plan.add_argument("--ready-images", type=int, required=True)

@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import unicodedata
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,15 +23,21 @@ from typing import Any
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = SKILL_ROOT / "references" / "asset-catalog.json"
 EXPRESSION_PRESETS_PATH = SKILL_ROOT / "references" / "expression-presets.json"
+EXAGGERATION_TIERS_PATH = SKILL_ROOT / "references" / "exaggeration-tiers.json"
 PROVIDERS = ("codex", "openai", "nano-banana", "seedream")
 FORM_ORDER = ("standard", "compact", "semi-chibi", "chibi", "super-deformed")
 FORMS = set(FORM_ORDER)
 ASSET_CATALOG_SCHEMA_VERSION = 3
-EXPRESSION_PRESETS_SCHEMA_VERSION = 1
-ASSIGNMENT_SCHEMA_VERSION = 13
+EXPRESSION_PRESETS_SCHEMA_VERSION = 2
+EXAGGERATION_TIERS_SCHEMA_VERSION = 1
+ASSIGNMENT_SCHEMA_VERSION = 14
 # Frozen runs from these versions may still be generated and finalized, never newly initialized.
-RESUMABLE_SCHEMA_VERSIONS = {10, 11, 12, ASSIGNMENT_SCHEMA_VERSION}
-QA_CONTRACT_VERSION = 9
+RESUMABLE_SCHEMA_VERSIONS = {10, 11, 12, 13, ASSIGNMENT_SCHEMA_VERSION}
+# Tournament contracts: v13 predates exaggeration tiers, v14 adds them.
+TOURNAMENT_SCHEMA_VERSIONS = {13, ASSIGNMENT_SCHEMA_VERSION}
+QA_CONTRACT_VERSION = 10
+# Frozen v13 runs keep reviewing under QA contract 9, which has no E1 exaggeration gate.
+QA_CONTRACT_VERSIONS = {9, QA_CONTRACT_VERSION}
 MANIFEST_SCHEMA_VERSION = 1
 INPUT_TYPES = ("text", "image", "screenshot", "chat-log", "dialogue", "other")
 TEXT_STYLES = {
@@ -40,7 +47,7 @@ TEXT_STYLES = {
     "10_manga-impact",
 }
 FULL_GATES = {"J1", "K1", "I1", "C1", "P1", "T1", "A1", "V1"}
-CONFIGURABLE_GATES = FULL_GATES | {"S1", "O1", "B1", "X1", "H1"}
+CONFIGURABLE_GATES = FULL_GATES | {"S1", "O1", "B1", "X1", "H1", "E1"}
 COMPONENT_GATES = {"I1", "P1", "T1", "A1", "V1"}
 ADVANCE_ERRORS = {"unavailable", "authentication", "quota", "rate_limit", "timeout", "service", "capability"}
 MAX_CANDIDATES = 3
@@ -57,13 +64,18 @@ DIRECTION_LABELS = {
     "recognition": "共鸣", "character": "角色梗",
 }
 RHYTHM_TYPES = {"triple", "pause", "callback", "deadpan"}
+# Lowest to highest; the order compares a panel tier with the landing tier.
+TIER_ORDER = ("C", "B", "A")
+PERFORMANCE_LEVELS = ("grounded", "heightened", "punchline_peak", "manga_burst")
+DELIVERIES = {"speech", "thought", "caption", "label", "sfx"}
 SAME_DIRECTION_LIMIT = 4
 MAX_PARALLELISM = 10
 IMAGE_FIELDS = {
     "name", "id", "idea_id", "source_rank", "execution", "execution_note",
     "composition", "proportion_check", "qa_contract_version",
     "fact_anchor", "premise", "punchline", "why_funny", "personality",
-    "panel_count", "layout", "intensity", "output", "expression_plan",
+    "panel_count", "layout", "intensity", "exaggeration", "landing_panel",
+    "contrast", "effects_plan", "output", "expression_plan",
     "action_plan", "style", "costume", "background", "core_text",
     "text_style", "text_style_reason", "dialogue_plan", "cast_plan",
     "proportion", "proportion_sha256", "identity_anchor_form", "references",
@@ -192,7 +204,12 @@ def is_legacy(value: dict[str, Any]) -> bool:
 
 def uses_tournament(value: dict[str, Any]) -> bool:
     # Both independent branches introduced v12 with different approval contracts.
-    return value.get("schema_version") == 13 or (value.get("schema_version") == 12 and "worker_plan" in value)
+    return (value.get("schema_version") in TOURNAMENT_SCHEMA_VERSIONS
+            or (value.get("schema_version") == 12 and "worker_plan" in value))
+
+
+def is_tiered(value: dict[str, Any]) -> bool:
+    return value.get("schema_version") == ASSIGNMENT_SCHEMA_VERSION
 
 
 def selection_summary(value: dict[str, Any]) -> dict[str, Any]:
@@ -259,6 +276,12 @@ def validate_approval(value: dict[str, Any]) -> dict[str, Any]:
                     or image.get("panel_count") != option["panel_count"]
                     or image.get("core_text") != option["key_lines"]):
                 raise RunError("Each image must preserve its confirmed premise, panel_count and key_lines, execution=1")
+            if is_tiered(value):
+                contrast = image.get("contrast")
+                planned = None if not isinstance(contrast, dict) else {
+                    "axes": contrast.get("axes"), "lowered_to": contrast.get("lowered_to")}
+                if image.get("exaggeration") != option["exaggeration"] or planned != option.get("contrast"):
+                    raise RunError("Each image must preserve its confirmed exaggeration tier and contrast")
         return summary
     summary = selection_summary(value)
     confirmation = value.get("confirmation")
@@ -462,16 +485,43 @@ def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
         text(policy.get("user_instruction"), "panel_policy.user_instruction")
     elif {option["panel_count"] for option in options} != {1, 2, 4}:
         raise RunError("Five comics must cover three panel counts: 1, 2 and 4")
+    tier_policy = exaggeration_policy(value, options) if is_tiered(value) else None
     if "images" in value:
         images = value["images"]
         if (not isinstance(images, list) or any(not isinstance(i, dict) for i in images)
                 or Counter(i.get("idea_id") for i in images) != Counter(selected)):
             raise RunError("images must contain five selected ideas exactly once each")
-    return worker_summary(value, selected, ranking, policy)
+    return worker_summary(value, selected, ranking, policy, tier_policy)
+
+
+def exaggeration_policy(value: dict[str, Any], options: list[dict[str, Any]]) -> dict[str, Any]:
+    """Each confirmed option carries its tier; by default the five cover A, B and C."""
+    tiers = exaggeration_tiers()
+    for option in options:
+        tier = option.get("exaggeration")
+        if tier not in TIER_ORDER:
+            raise RunError("proposal.exaggeration must be A, B or C")
+        contrast = option.get("contrast")
+        if contrast is not None:
+            if not isinstance(contrast, dict) or set(contrast) != {"axes", "lowered_to"}:
+                raise RunError("proposal.contrast must be null or {axes, lowered_to}")
+            contrast_axes(contrast["axes"], tiers, "proposal.contrast.axes")
+            if contrast["lowered_to"] not in TIER_ORDER or tier_rank(contrast["lowered_to"]) >= tier_rank(tier):
+                raise RunError("proposal.contrast.lowered_to must be below the option's tier")
+    policy = value.get("exaggeration_policy", {"mode": "narrative"})
+    if not isinstance(policy, dict) or policy.get("mode") not in {"narrative", "user-override"}:
+        raise RunError("exaggeration_policy.mode must be narrative or user-override")
+    if policy["mode"] == "user-override":
+        text(policy.get("user_instruction"), "exaggeration_policy.user_instruction")
+    elif set(policy) != {"mode"}:
+        raise RunError("narrative exaggeration_policy only accepts mode")
+    elif {option["exaggeration"] for option in options} != set(TIER_ORDER):
+        raise RunError("Five comics must cover exaggeration tiers A, B and C")
+    return policy
 
 
 def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dict[str, Any]],
-                   policy: dict[str, Any]) -> dict[str, Any]:
+                   policy: dict[str, Any], tier_policy: dict[str, Any] | None = None) -> dict[str, Any]:
     plan = value.get("worker_plan")
     if not isinstance(plan, dict) or plan.get("coordinator") != "main":
         raise RunError("worker_plan requires coordinator=main")
@@ -504,22 +554,54 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
                                           "selection_reason", "worker_plan")}
     payload.update(tie_breaks=value.get("tie_breaks", []), panel_policy=policy,
                    execution=execution, input=value["input"])
+    if tier_policy is not None:
+        # Only v14 binds the tier policy, so historical v12/v13 confirmation hashes stay unchanged.
+        payload["exaggeration_policy"] = tier_policy
     return {"proposal_count": 5, "image_count": 5, "choices": rows, "adjustments": [],
             "worker_plan": plan, "maximum_total": 15, "standings": ranking,
             "execution": execution,
             "options": proposal["options"], "panel_policy": policy,
+            "exaggeration_policy": tier_policy,
             "summary_sha256": contract_hash(payload)}
+
+
+def distribution_line(options: list[dict[str, Any]], panel_policy: dict[str, Any],
+                      tier_policy: dict[str, Any]) -> str:
+    panels = Counter(item["panel_count"] for item in options)
+    tiers = Counter(item["exaggeration"] for item in options)
+
+    def mark(policy: dict[str, Any]) -> str:
+        return "（用户指定）" if policy.get("mode") == "user-override" else "✓"
+
+    return ("> 格数分布：" + " · ".join(f"{count} 格 ×{panels[count]}" for count in (1, 2, 4))
+            + " " + mark(panel_policy) + " ｜ 档位分布："
+            + " · ".join(f"{tier} ×{tiers[tier]}" for tier in reversed(TIER_ORDER)) + " " + mark(tier_policy))
 
 
 def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None) -> str:
     summary = summary or plan_summary(value)
-    lines = ["| 序号 | 创意描述 | 核心场景 | 方向｜笑点 | 格数／分镜 | 关键台词 | 入选理由 |",
-             "|---|---|---|---|---|---|---|"]
-    for index, item in enumerate(value["proposal"]["options"], 1):
-        cells = [str(index), item["title"] + "：" + item["premise"], item["scene"],
-                 DIRECTION_LABELS[item["direction"]] + "：" + item["twist"],
-                 f"{item['panel_count']} 格：{item['staging']}", "\n".join(item["key_lines"]), item["selection_reason"]]
-        lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
+    options = value["proposal"]["options"]
+    tier_policy = summary.get("exaggeration_policy")
+    if tier_policy is not None:
+        tiers = exaggeration_tiers()
+        lines = ["| 序号 | 创意 | 方向 | 格数 | 档位 | 场景／分镜 | 关键台词 | 入选理由 |",
+                 "|---|---|---|---|---|---|---|---|"]
+        for index, item in enumerate(options, 1):
+            cells = [str(index), item["title"] + "：" + item["premise"],
+                     DIRECTION_LABELS[item["direction"]] + "：" + item["twist"], str(item["panel_count"]),
+                     tier_label(item, tiers), item["scene"] + "\n" + item["staging"],
+                     "\n".join(item["key_lines"]), item["selection_reason"]]
+            lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
+        lines.extend(["", distribution_line(options, value.get("panel_policy", {"mode": "narrative"}), tier_policy),
+                      "", "档位：A 日漫冲击 · B 漫画式爆发 · C 克制冷幽默；括号内为刻意压低的维度。"])
+    else:
+        lines = ["| 序号 | 创意描述 | 核心场景 | 方向｜笑点 | 格数／分镜 | 关键台词 | 入选理由 |",
+                 "|---|---|---|---|---|---|---|"]
+        for index, item in enumerate(options, 1):
+            cells = [str(index), item["title"] + "：" + item["premise"], item["scene"],
+                     DIRECTION_LABELS[item["direction"]] + "：" + item["twist"],
+                     f"{item['panel_count']} 格：{item['staging']}", "\n".join(item["key_lines"]), item["selection_reason"]]
+            lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
     lines.extend(["", "共 **5 个创意，各 1 张，共 5 张图片**。每张最多 3 次产图调用，共最多 15 次。", "",
                   "生图通道：Codex ImageGen → OpenAI → Nano Banana → Seedream。", "",
                   execution_markdown(summary["execution"]), "",
@@ -532,6 +614,8 @@ def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None) 
         lines.append("- main：串行生成全部五张漫画，并逐张检查、记录。")
     if value.get("panel_policy", {}).get("mode") == "user-override":
         lines.extend(["", "格数按用户指定覆盖默认三种格数：" + markdown_cell(value["panel_policy"]["user_instruction"])])
+    if (tier_policy or {}).get("mode") == "user-override":
+        lines.extend(["", "档位按用户指定覆盖默认 A/B/C 覆盖：" + markdown_cell(tier_policy["user_instruction"])])
     lines.extend(["", "**确认按以上创意、张数和 sub-agent 分配开始生成吗？**"])
     return "\n".join(lines) + "\n"
 
@@ -752,18 +836,25 @@ def normalize_named_mode(
     return {"mode": mode, "description": description}
 
 
-def normalize_background(value: Any, label: str) -> dict[str, Any]:
+def normalize_background(value: Any, label: str, tier: str, tiers: dict[str, Any]) -> dict[str, Any]:
+    """An unresolved background follows the tier; a user-resolved one always wins."""
+    default = tiers["tiers"][tier]["default_background"]
     if value is None:
-        value = {"mode": "solid", "description": DEFAULT_BACKGROUND}
+        value = {"mode": "solid" if tier == "C" else "custom", "description": default, "origin": "tier"}
     if isinstance(value, str):
-        value = {"mode": "custom", "description": value}
+        value = {"mode": "custom", "description": value, "origin": "user"}
     if not isinstance(value, dict):
         raise RunError(f"{label} must be an object")
     mode = value.get("mode", "solid")
     if mode not in BACKGROUND_MODES:
         raise RunError(f"{label}.mode must be one of: {', '.join(sorted(BACKGROUND_MODES))}")
-    description = text(value.get("description", DEFAULT_BACKGROUND), f"{label}.description")
-    return {"mode": mode, "description": description}
+    origin = value.get("origin")
+    if origin not in {"tier", "user"}:
+        raise RunError(f"{label}.origin must be tier or user")
+    description = text(value.get("description", default), f"{label}.description")
+    if origin == "tier" and tier == "C" and (mode, description) != ("solid", DEFAULT_BACKGROUND):
+        raise RunError(f"{label} from tier C must be the solid {DEFAULT_BACKGROUND} default")
+    return {"mode": mode, "description": description, "origin": origin}
 
 
 def effective_subagents(execution: dict[str, Any], parallelism: int, count: int) -> int:
@@ -852,8 +943,7 @@ def expression_presets() -> tuple[dict[str, dict[str, Any]], set[str]]:
         or not isinstance(entries, list)
         or not entries
         or not isinstance(performance_levels, list)
-        or set(performance_levels) != {"grounded", "heightened", "punchline_peak"}
-        or len(performance_levels) != 3
+        or tuple(performance_levels) != PERFORMANCE_LEVELS
     ):
         raise RunError("Invalid expression presets")
     presets: dict[str, dict[str, Any]] = {}
@@ -869,6 +959,125 @@ def expression_presets() -> tuple[dict[str, dict[str, Any]], set[str]]:
         string_list(entry.get("forbidden_cues"), f"{preset_id}.forbidden_cues")
         presets[preset_id] = entry
     return presets, set(performance_levels)
+
+
+def exaggeration_tiers() -> dict[str, Any]:
+    value = read_json(EXAGGERATION_TIERS_PATH)
+    axes, tiers, anchors = value.get("axes"), value.get("tiers"), value.get("identity_anchors")
+    if (
+        value.get("schema_version") != EXAGGERATION_TIERS_SCHEMA_VERSION
+        or tuple(value.get("order", ())) != TIER_ORDER
+        or not isinstance(axes, list) or not isinstance(tiers, dict) or set(tiers) != set(TIER_ORDER)
+        or not isinstance(anchors, list) or type(value.get("identity_anchor_minimum")) is not int
+    ):
+        raise RunError("Invalid exaggeration tiers")
+    axis_ids = [item.get("id") for item in axes if isinstance(item, dict)]
+    if len(set(axis_ids)) != len(axes) or any(not isinstance(item.get("label_zh"), str) for item in axes):
+        raise RunError("Exaggeration axes need unique ids and labels")
+    for tier, spec in tiers.items():
+        if not isinstance(spec, dict) or set(spec.get("axes", {})) != set(axis_ids):
+            raise RunError(f"Exaggeration tier {tier} must describe every axis")
+        markers = spec.get("markers")
+        if not isinstance(markers, list) or not markers or any(
+                not isinstance(marker, dict) or not set(marker.get("axes", [])) <= set(axis_ids) for marker in markers):
+            raise RunError(f"Exaggeration tier {tier} has invalid markers")
+        if not set(spec.get("allowed_performance", [])) <= set(PERFORMANCE_LEVELS):
+            raise RunError(f"Exaggeration tier {tier} allows an unknown performance level")
+    return value
+
+
+def tier_rank(tier: str) -> int:
+    return TIER_ORDER.index(tier)
+
+
+def contrast_axes(value: Any, tiers: dict[str, Any], label: str) -> list[str]:
+    axes = string_list(value, label)
+    if len(set(axes)) != len(axes) or not set(axes) <= {item["id"] for item in tiers["axes"]}:
+        raise RunError(f"{label} must name distinct exaggeration axes")
+    return axes
+
+
+def tier_label(item: dict[str, Any], tiers: dict[str, Any]) -> str:
+    """Render a tier and any lowered axes, such as A（脸→C）."""
+    contrast = item.get("contrast")
+    if not contrast:
+        return item["exaggeration"]
+    labels = {axis["id"]: axis["label_zh"] for axis in tiers["axes"]}
+    return f"{item['exaggeration']}（{'、'.join(labels[axis] for axis in contrast['axes'])}→{contrast['lowered_to']}）"
+
+
+def required_markers(image: dict[str, Any], tiers: dict[str, Any]) -> list[dict[str, Any]]:
+    """Landing markers still owed after contrast and user-background waivers."""
+    lowered = set((image.get("contrast") or {}).get("axes", []))
+    user_background = image.get("background", {}).get("origin") == "user"
+    return [marker for marker in tiers["tiers"][image["exaggeration"]]["markers"]
+            if not set(marker["axes"]) <= lowered
+            and not (user_background and marker.get("waived_by_user_background"))]
+
+
+def axis_tier(image: dict[str, Any], panel: int, panel_tier: str, axis: str) -> str:
+    contrast = image.get("contrast")
+    if contrast and panel == image["landing_panel"] and axis in contrast["axes"]:
+        return contrast["lowered_to"]
+    return panel_tier
+
+
+def visible_characters(value: str) -> int:
+    # Dashes, punctuation and spaces stretch a sound effect without adding characters.
+    return sum(not unicodedata.category(char).startswith(("P", "Z")) for char in value)
+
+
+def normalize_exaggeration(image: dict[str, Any], tiers: dict[str, Any], label: str) -> None:
+    tier = image["exaggeration"]
+    panels = image["panel_count"]
+    landing = image.get("landing_panel", panels)
+    if type(landing) is not int or not 1 <= landing <= panels:
+        raise RunError(f"{label}.landing_panel must name a panel")
+    image["landing_panel"] = landing
+    contrast = image.get("contrast")
+    if contrast is not None:
+        if not isinstance(contrast, dict) or set(contrast) != {"panel", "axes", "lowered_to", "reason"}:
+            raise RunError(f"{label}.contrast must be null or {{panel, axes, lowered_to, reason}}")
+        if contrast["panel"] != landing:
+            raise RunError(f"{label}.contrast.panel must be the landing panel")
+        contrast_axes(contrast["axes"], tiers, f"{label}.contrast.axes")
+        if contrast["lowered_to"] not in TIER_ORDER or tier_rank(contrast["lowered_to"]) >= tier_rank(tier):
+            raise RunError(f"{label}.contrast.lowered_to must be below the image tier")
+        text(contrast["reason"], f"{label}.contrast.reason")
+    image["contrast"] = contrast
+    panel_tiers = {}
+    for entry in image["expression_plan"]:
+        panel_tier = entry.get("tier")
+        if panel_tier not in TIER_ORDER:
+            raise RunError(f"{label}.expression_plan.tier must be A, B or C")
+        if tier_rank(panel_tier) > tier_rank(tier):
+            raise RunError(f"{label}.expression_plan setup panels cannot exceed the landing tier")
+        if entry["panel"] == landing and panel_tier != tier:
+            raise RunError(f"{label}.expression_plan landing panel tier must equal exaggeration")
+        face_tier = axis_tier(image, entry["panel"], panel_tier, "expression")
+        if entry["performance"] not in tiers["tiers"][face_tier]["allowed_performance"]:
+            raise RunError(f"{label}.expression_plan performance {entry['performance']} exceeds tier {face_tier}")
+        panel_tiers[entry["panel"]] = panel_tier
+    if panels == 1 and image["expression_plan"][0]["performance"] == "manga_burst" \
+            and image["proportion_check"] != "visible-only":
+        raise RunError(f"{label} single-panel manga_burst deformation requires visible-only proportion review")
+    effects = image.get("effects_plan", [])
+    if not isinstance(effects, list):
+        raise RunError(f"{label}.effects_plan must be a list")
+    axis_ids = {item["id"] for item in tiers["axes"]}
+    for effect in effects:
+        if not isinstance(effect, dict) or set(effect) != {"axis", "effect"} or effect["axis"] not in axis_ids:
+            raise RunError(f"{label}.effects_plan entries must be {{axis, effect}} on a known axis")
+        text(effect["effect"], f"{label}.effects_plan.effect")
+    if tier != "C" and not effects:
+        raise RunError(f"{label}.effects_plan must declare the landing panel's key effects")
+    image["effects_plan"] = effects
+    for panel, panel_tier in panel_tiers.items():
+        sound = [image["core_text"][line["text_index"]] for line in image["dialogue_plan"]
+                 if line["delivery"] == "sfx" and line["panel"] == panel]
+        limit = tiers["tiers"][axis_tier(image, panel, panel_tier, "sfx")]["sfx_limit"]
+        if len(sound) > limit["count"] or any(visible_characters(item) > limit["max_characters"] for item in sound):
+            raise RunError(f"{label} panel {panel} exceeds its tier's drawn sound-effect limit")
 
 
 def catalog() -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]], str]:
@@ -1192,14 +1401,16 @@ def validate_design(image: dict[str, Any], participants: set[str], label: str) -
         speaker = text(line.get("speaker"), f"{label}.dialogue_plan.speaker")
         if speaker not in participants | {"whalechan", "narrator", "device"}:
             raise RunError(f"{label}.dialogue_plan has an unknown speaker")
-        if line.get("delivery") not in {"speech", "thought", "caption", "label"}:
+        if line.get("delivery") not in DELIVERIES:
             raise RunError(f"{label}.dialogue_plan.delivery is invalid")
         if line["delivery"] == "label":
             # Writing that belongs to an object (a tag, a sign, a poem scroll) is drawn on that prop.
             text(line.get("prop"), f"{label}.dialogue_plan.prop")
-        # The narrator owns captions and printed writing that belongs to no character.
-        if speaker == "narrator" and line["delivery"] not in {"caption", "label"}:
-            raise RunError(f"{label}.narrator must use caption or label delivery")
+        # The narrator owns captions, printed writing that belongs to no character, and drawn sound effects.
+        if speaker == "narrator" and line["delivery"] not in {"caption", "label", "sfx"}:
+            raise RunError(f"{label}.narrator must use caption, label or sfx delivery")
+        if line["delivery"] == "sfx" and speaker != "narrator":
+            raise RunError(f"{label}.dialogue_plan sound effects belong to the narrator")
         if speaker in members and panel not in members[speaker]["panels"]:
             raise RunError(f"{label}.dialogue_plan speaker is absent from its declared panel")
 
@@ -1233,6 +1444,7 @@ def design_summary(assignments: list[dict[str, Any]]) -> dict[str, Any]:
                 "mechanism": ideas[image["idea_id"]]["mechanism"],
                 "direction": ideas[image["idea_id"]]["direction"],
                 "rhythm": (image.get("rhythm") or {}).get("type"),
+                "exaggeration": image.get("exaggeration"),
                 "panel_count": image["panel_count"], "layout": image["layout"],
                 "shot": composition["shot"], "staging": composition["staging"],
                 "text_placement": composition["text_placement"],
@@ -1244,10 +1456,15 @@ def design_summary(assignments: list[dict[str, Any]]) -> dict[str, Any]:
     warnings = []
     slots: dict[tuple, list[str]] = {}
     sequences: dict[tuple, list[str]] = {}
+    tier_sequences: dict[tuple, list[str]] = {}
     repetitions: dict[tuple, list[dict[str, Any]]] = {}
     for row in matrix:
         sequence = tuple(column["panel_count"] for column in row["columns"])
         sequences.setdefault(sequence, []).append(row["case"])
+        if all(column["exaggeration"] for column in row["columns"]):
+            # Order-free pairing: shuffling images must not hide the same panel-by-tier recipe.
+            pairing = tuple(sorted((column["panel_count"], column["exaggeration"]) for column in row["columns"]))
+            tier_sequences.setdefault(pairing, []).append(row["case"])
         for column in row["columns"]:
             slot = (column["index"], column["layout"], column["template"])
             slots.setdefault(slot, []).append(row["case"])
@@ -1263,6 +1480,10 @@ def design_summary(assignments: list[dict[str, Any]]) -> dict[str, Any]:
     for sequence, cases in sequences.items():
         if len(cases) >= 2:
             warnings.append({"code": "repeated_panel_sequence", "sequence": list(sequence), "cases": cases})
+    for pairing, cases in tier_sequences.items():
+        if len(cases) >= 2:
+            warnings.append({"code": "repeated_panel_tier_sequence",
+                             "pairing": [f"{panels}:{tier}" for panels, tier in pairing], "cases": cases})
     for (field, value), positions in repetitions.items():
         if len(positions) >= 2:
             warnings.append({"code": f"repeated_{field}", "value": json.loads(value), "positions": positions})
@@ -1284,6 +1505,7 @@ def design_summary(assignments: list[dict[str, Any]]) -> dict[str, Any]:
         "text_styles": dict(sorted(Counter(image["text_style"] for image in images).items())),
         "directions": dict(sorted(Counter(column["direction"] for row in matrix for column in row["columns"]).items())),
         "rhythm_images": sum(image.get("rhythm") is not None for image in images),
+        "exaggerations": dict(sorted(Counter(image["exaggeration"] for image in images if image.get("exaggeration")).items())),
         "cast_images": {
             representation: sum(any(item["representation"] == representation for item in image["cast_plan"]) for image in images)
             for representation in ("physical", "avatar", "offscreen", "absent")
@@ -1295,6 +1517,7 @@ def validate_assignment(path: Path) -> dict[str, Any]:
     assignment = read_json(path)
     assets, form_profiles, catalog_hash = catalog()
     presets, performance_levels = expression_presets()
+    tiers = exaggeration_tiers()
     if assignment.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
         raise RunError(f"schema_version must be {ASSIGNMENT_SCHEMA_VERSION}")
     run_name = text(assignment.get("run_name"), "run_name")
@@ -1419,9 +1642,10 @@ def validate_assignment(path: Path) -> dict[str, Any]:
         allowed_layouts = {1: {"single"}, 2: {"top-bottom", "left-right"}, 4: {"2x2"}}
         if layout not in allowed_layouts[panels]:
             raise RunError(f"{label}.layout is invalid for {panels} panels")
-        intensity = image.get("intensity")
-        if intensity not in {"B", "C"}:
-            raise RunError(f"{label}.intensity must be B or C")
+        if "intensity" in image:
+            raise RunError(f"{label}.intensity belongs to schema v13; use exaggeration A, B or C")
+        if image.get("exaggeration") not in TIER_ORDER:
+            raise RunError(f"{label}.exaggeration must be A, B or C")
         image["output"] = normalize_output(image, label)
         image["style"] = normalize_named_mode(
             image.get("style"), STYLE_MODES, "canonical", DEFAULT_STYLE, f"{label}.style"
@@ -1429,13 +1653,15 @@ def validate_assignment(path: Path) -> dict[str, Any]:
         image["costume"] = normalize_named_mode(
             image.get("costume"), COSTUME_MODES, "canonical", DEFAULT_COSTUME, f"{label}.costume"
         )
-        image["background"] = normalize_background(image.get("background"), f"{label}.background")
+        image["background"] = normalize_background(
+            image.get("background"), f"{label}.background", image["exaggeration"], tiers)
         image["core_text"] = string_list(image.get("core_text"), f"{label}.core_text")
         text_style = image.get("text_style")
         if text_style not in TEXT_STYLES:
             raise RunError(f"{label}.text_style is invalid")
         image["text_style"] = text_style
         validate_design(image, participants, label)
+        normalize_exaggeration(image, tiers, label)
         proportion, anchor_form = normalize_proportion(image, form_profiles, label)
         image["proportion"] = proportion
         image["identity_anchor_form"] = anchor_form
@@ -1536,7 +1762,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
         raise RunError("Frozen assignment SHA-256 mismatch")
     images = assignment.get("images")
     validate_approval(assignment)
-    if assignment["schema_version"] == ASSIGNMENT_SCHEMA_VERSION or (
+    if assignment["schema_version"] in TOURNAMENT_SCHEMA_VERSIONS or (
             assignment["schema_version"] == 12 and "subagent_count" in assignment["execution"]):
         execution = manifest.get("execution", {})
         if any(execution.get(key) != item for key, item in assignment["execution"].items()):
@@ -1552,8 +1778,9 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     for image in images:
         if not isinstance(image, dict) or set(image) - IMAGE_FIELDS:
             raise RunError("Frozen image specification has unsupported fields")
-        if image.get("qa_contract_version") != QA_CONTRACT_VERSION:
-            raise RunError(f"Frozen image qa_contract_version must be {QA_CONTRACT_VERSION}")
+        expected_qa = {QA_CONTRACT_VERSION} if is_tiered(assignment) else QA_CONTRACT_VERSIONS
+        if image.get("qa_contract_version") not in expected_qa:
+            raise RunError(f"Frozen image qa_contract_version must be one of {sorted(expected_qa)}")
         references = image.get("references")
         if not isinstance(references, list) or not references:
             raise RunError("Frozen image references must be a non-empty list")
@@ -1682,6 +1909,36 @@ def validate_design_evidence(evidence: dict[str, Any], image: dict[str, Any]) ->
             string_list(actual.get("observed_cues"), f"{key}.observed_cues")
 
 
+def validate_exaggeration_evidence(evidence: dict[str, Any], image: dict[str, Any]) -> None:
+    """E1 evidence: owed landing markers observed, nothing beyond the palette, identity kept through deformation."""
+    tiers = exaggeration_tiers()
+    check = evidence.get("exaggeration_check")
+    if not isinstance(check, dict):
+        raise RunError("PASS requires evidence.exaggeration_check")
+    if check.get("tier") != image["exaggeration"] or check.get("landing_panel") != image["landing_panel"]:
+        raise RunError("exaggeration_check must name the frozen tier and landing panel")
+    markers = check.get("markers")
+    owed = [marker["id"] for marker in required_markers(image, tiers)]
+    if not isinstance(markers, list) or [item.get("id") if isinstance(item, dict) else None for item in markers] != owed:
+        raise RunError("exaggeration_check.markers must cover the owed landing markers in order")
+    for item in markers:
+        text(item.get("observed"), f"exaggeration_check.{item['id']}.observed")
+    if check.get("palette_violations") != []:
+        raise RunError("exaggeration_check.palette_violations must be empty for PASS")
+    if check.get("style_spill") is not False:
+        raise RunError("exaggeration_check.style_spill must be false for PASS")
+    deformed = [entry["panel"] for entry in image["expression_plan"] if entry["performance"] == "manga_burst"]
+    anchors = check.get("identity_anchors")
+    known = {anchor["id"] for anchor in tiers["identity_anchors"]}
+    if not isinstance(anchors, list) or [item.get("panel") if isinstance(item, dict) else None for item in anchors] != deformed:
+        raise RunError("exaggeration_check.identity_anchors must cover every manga_burst panel")
+    for item in anchors:
+        seen = string_list(item.get("anchors"), "exaggeration_check.identity_anchors.anchors")
+        if not set(seen) <= known or len(set(seen)) < tiers["identity_anchor_minimum"]:
+            raise RunError(f"Deformed panel {item['panel']} needs at least "
+                           f"{tiers['identity_anchor_minimum']} visible identity anchors")
+
+
 def validate_qa(
     path: Path,
     expected_hash: str,
@@ -1691,8 +1948,9 @@ def validate_qa(
     value = read_json(path)
     if not isinstance(image_spec, dict):
         raise RunError("Visual QA requires the frozen image specification")
-    if image_spec.get("qa_contract_version") != QA_CONTRACT_VERSION:
-        raise RunError(f"Image qa_contract_version must be {QA_CONTRACT_VERSION}")
+    if image_spec.get("qa_contract_version") not in QA_CONTRACT_VERSIONS:
+        raise RunError(f"Image qa_contract_version must be one of {sorted(QA_CONTRACT_VERSIONS)}")
+    tiered = image_spec["qa_contract_version"] == QA_CONTRACT_VERSION
     required = {"core_text", "dialogue_plan", "panel_count", "expression_plan",
                 "cast_plan", "text_style", "proportion_check", "proportion", "proportion_sha256"}
     missing = required - set(image_spec)
@@ -1739,7 +1997,7 @@ def validate_qa(
                          for line in image_spec["dialogue_plan"] if line["panel"] in panel_numbers]
     if value.get("verdict") == "PASS" and transcript != expected_text:
         raise RunError("observation.text_transcription does not match the assignment")
-    gates_required = COMPONENT_GATES if component else CONFIGURABLE_GATES
+    gates_required = COMPONENT_GATES if component else CONFIGURABLE_GATES if tiered else CONFIGURABLE_GATES - {"E1"}
     verdict = value.get("verdict")
     gates = value.get("gates")
     if verdict not in {"PASS", "FAIL"} or not isinstance(gates, dict) or set(gates) != gates_required:
@@ -1814,6 +2072,8 @@ def validate_qa(
                 forbidden = observed.get("forbidden_cues_present")
                 if forbidden != []:
                     raise RunError("expression_match.forbidden_cues_present must be empty for PASS")
+            if tiered:
+                validate_exaggeration_evidence(evidence, image_spec)
     else:
         if not any(item.strip() for item in defects):
             raise RunError("FAIL requires concrete defects")
@@ -2018,6 +2278,8 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
         f"- Template distribution: {summary['text_styles']}",
         f"- Direction distribution: {summary['directions']}",
         f"- Images with a rhythm layer: {summary['rhythm_images']} of {summary['image_count']}",
+        f"- Exaggeration distribution: {summary['exaggerations'] or 'none (pre-v14 intensity)'}",
+        f"- Exaggeration policy: {assignment.get('exaggeration_policy', {'mode': 'narrative'}) if is_tiered(assignment) else 'none'}",
         f"- Images by cast representation (may overlap): {summary['cast_images']}",
         "- Pre-generation review: verify each template fits its joke and every omitted/offscreen role has a narrative reason. Counts alone do not establish design quality.",
     ])
@@ -2032,13 +2294,23 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
         "", f"## {len(assignment['images'])} tasks", "",
     ])
     for image in assignment["images"]:
-        lines.append(f"- `{image['id']}`: rank {image['source_rank']}, execution {image['execution']}, {image['panel_count']} panel(s), {image['intensity']}, {image['punchline']}")
+        if "exaggeration" in image:
+            performance = f"tier {tier_label(image, exaggeration_tiers())}, landing panel {image['landing_panel']}"
+        else:
+            performance = f"intensity {image['intensity']}"
+        lines.append(f"- `{image['id']}`: rank {image['source_rank']}, execution {image['execution']}, {image['panel_count']} panel(s), {performance}, {image['punchline']}")
         lines.extend([
             f"  - Idea: {image['idea_id']}; execution note: {image['execution_note']}",
             "  - Composition: " + json.dumps(image["composition"], ensure_ascii=False),
             f"  - Proportion check: {image['proportion_check']}",
             "  - Rhythm: " + (json.dumps(image["rhythm"], ensure_ascii=False) if image["rhythm"] else "none"),
         ])
+        if "exaggeration" in image:
+            lines.append("  - Panel tiers: " + ", ".join(f"{entry['panel']}={entry['tier']}" for entry in image["expression_plan"]))
+            lines.append("  - Landing effects: " + json.dumps(image["effects_plan"], ensure_ascii=False))
+            if image["contrast"]:
+                lines.append("  - Contrast: " + json.dumps(image["contrast"], ensure_ascii=False))
+            lines.append(f"  - Background origin: {image['background']['origin']}")
         lines.append(
             "  - Render: "
             f"style={image['style']['mode']}; costume={image['costume']['mode']}; "
@@ -2300,6 +2572,11 @@ def cmd_finalize(args: argparse.Namespace) -> dict[str, Any]:
             for item in selection_summary(assignment)["choices"]
         ],
         "final_paths": [manifest["images"][key]["final_path"] for key in passed],
+        # Tier coverage binds the plan; a tier lost to an exhausted budget is reported, never reassigned.
+        "missing_tiers": sorted(
+            {image["exaggeration"] for image in assignment["images"] if image.get("exaggeration")}
+            - {image["exaggeration"] for image in assignment["images"] if image.get("exaggeration") and image["id"] in passed},
+            key=tier_rank, reverse=True),
         "unverified_provider_audits": [
             key for key in passed
             if any(item.get("verdict") == "PASS" and (item.get("provider_audit") or {}).get("usable", True) is None

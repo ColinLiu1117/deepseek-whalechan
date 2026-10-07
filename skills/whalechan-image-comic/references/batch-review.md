@@ -4,7 +4,7 @@ Run this before the first image call in a multi-source batch and again on the se
 
 ## Compare sources, not slots
 
-Start with each source's actual turn, comic target, tone, language differences and user corrections. Compare the five selected ideas within each source and across sources in a case-by-position matrix. Each source contributes five images, one per idea; check both the unique creative payoff and the 1/2/4-panel coverage (or the recorded user override). Inspect mechanism, setup/reveal timing, panel count/layout, shot, character staging, text placement and lettering. Also compare across positions: shuffling images can disguise the same recipe.
+Start with each source's actual turn, comic target, tone, language differences and user corrections. Compare the five selected ideas within each source and across sources in a case-by-position matrix. Each source contributes five images, one per idea; check both the unique creative payoff and the 1/2/4-panel and A/B/C tier coverage (or the recorded user overrides). Two coverage rules over five images invite a fixed recipe, such as every source pairing a one-panel A with a four-panel B; `validate-batch` flags repeated panel-by-tier sequences, and each repeat needs a source-specific reason or a revision. Inspect mechanism, setup/reveal timing, panel count/layout, exaggeration tier, shot, character staging, text placement and lettering. Also compare across positions: shuffling images can disguise the same recipe.
 
 `validate-batch` provides structural signals, not semantic verdicts. Same-position layouts/templates, identical panel sequences and repeated staging deserve inspection. A repeated visual identity is expected. Neither repeated structure nor every image passing structural checks is automatically wrong; the question is whether each decision follows its source. Different template counts are not proof of different jokes.
 
@@ -13,7 +13,7 @@ Inspect repeated key lines, complete dialogue sequences and final punchlines as 
 Use two counterfactual checks:
 
 - **Dialogue substitution:** could another case's dialogue replace this one without materially changing the picture? If yes, explain what makes the scene source-specific or redesign it.
-- **Ordinal removal:** hide image numbers. Can you still justify each shot, panel count and text treatment from the selected premise? Changing order should only change identifiers, not creative choices.
+- **Ordinal removal:** hide image numbers. Can you still justify each shot, panel count, tier and text treatment from the selected premise? Changing order should only change identifiers, not creative choices.
 
 ## Review record
 

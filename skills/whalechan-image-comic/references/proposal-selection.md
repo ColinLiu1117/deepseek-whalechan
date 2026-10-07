@@ -4,24 +4,26 @@ Complete creative planning before the single generation gate: freeze ten candida
 
 ## Display the complete plan
 
-Show one seven-column Markdown table per source, with five rows:
+Show one eight-column Markdown table per source, with five rows:
 
-| 序号 | 创意描述 | 核心场景 | 方向｜笑点 | 格数／分镜 | 关键台词 | 入选理由 |
-|---|---|---|---|---|---|---|
-| 1 | 具体创意 | 画面中的事件 | 方向及笑点如何落地 | 格数、镜头、互动 | 准备上图的关键文字 | 对决中体现的具体优势 |
-| 2 | … | … | … | … | … | … |
-| 3 | … | … | … | … | … | … |
-| 4 | … | … | … | … | … | … |
-| 5 | … | … | … | … | … | … |
+| 序号 | 创意 | 方向 | 格数 | 档位 | 场景／分镜 | 关键台词 | 入选理由 |
+|---|---|---|---|---|---|---|---|
+| 1 | 具体创意 | 方向及笑点如何落地 | 1 | A | 画面事件、镜头、互动 | 准备上图的关键文字 | 对决中体现的具体优势 |
+| 2 | … | … | 2 | C | … | … | … |
+| 3 | … | … | 4 | B | … | … | … |
+| 4 | … | … | 2 | A（脸→C） | … | … | … |
+| 5 | … | … | 1 | C | … | … | … |
 
-Numbers identify rows, not mechanisms or layouts. Name the actual comedy direction; optionally mark a native-direction idea with “（原）” and explain the marker. Do not assign stars or impose native/character quotas. Keep cells concise, escape pipes and use `<br>` for line breaks.
+> 格数分布：1 格 ×2 · 2 格 ×2 · 4 格 ×1 ✓ ｜ 档位分布：A ×2 · B ×1 · C ×2 ✓
+
+Numbers identify rows, not mechanisms, layouts or tiers. Name the actual comedy direction; optionally mark a native-direction idea with “（原）” and explain the marker. Write a declared contrast as the tier followed by the lowered axes, such as “A（脸→C）”. The helper computes the distribution line and marks each coverage policy as satisfied or user-overridden. Do not assign stars or impose native/character quotas. Keep cells concise, escape pipes and use `<br>` for line breaks.
 
 Below the table, show:
 
 - Five ideas, one image each, five total images per source; for multiple sources include each source's count and the grand total.
 - Worker-to-image assignments, concrete sub-agent count, requested and effective concurrency, and the coordinator's planning, QA, recording and delivery duties. With zero sub-agents, state that the main agent executes all five images serially and explain the limiting reason; a one-sub-agent plan also runs sequentially.
 - A maximum of three image-producing calls per image, fifteen per source, and the provider route.
-- Any explicit user overrides, including a nondefault panel-count policy.
+- Any explicit user overrides, including a nondefault panel-count or exaggeration policy.
 
 Then ask once:
 

@@ -18,6 +18,8 @@ Default to `semi-chibi`. The five forms are recommended presets; a user may inst
 
 Draw one ageless humanoid Whale-chan with the permanent identity above. Default to bold near-black navy contours, clean rounded shapes, restrained cel shading, and glossy accents, but replace those rendering choices when `style.mode` is `custom`.
 
+An `A`-tier `manga_burst` panel may deform the face and silhouette freely — blank eyes, giant mouths, chibi shifts, a face-only gekiga rendering. Identity then rests on the anchors rather than the face: keep at least three of hair, fin ears, ahoge, tail and maid outfit clearly visible, and keep any gekiga rendering on the face instead of the whole canvas.
+
 Default to the complete ornate navy-and-white maid outfit: white frilled headpiece, navy bow with blue gem, dark navy bodice and sleeves, white frilled collar and apron with small blue whale emblem, muted-gold details, white socks, and dark-blue strap shoes. When `costume.mode` is `custom`, match the frozen custom costume instead and do not require canonical garments.
 
 ## Personality serves the source

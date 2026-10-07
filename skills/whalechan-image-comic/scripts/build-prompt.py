@@ -19,8 +19,8 @@ def build_prompt(assignment: dict, image: dict) -> str:
     if assignment.get("schema_version") not in manage.RESUMABLE_SCHEMA_VERSIONS:
         raise manage.RunError(f"Prompt construction requires schema_version {manage.ASSIGNMENT_SCHEMA_VERSION}")
     manage.validate_approval(assignment)
-    if image.get("qa_contract_version") != manage.QA_CONTRACT_VERSION:
-        raise manage.RunError(f"Image qa_contract_version must be {manage.QA_CONTRACT_VERSION}")
+    if image.get("qa_contract_version") not in manage.QA_CONTRACT_VERSIONS:
+        raise manage.RunError(f"Image qa_contract_version must be one of {sorted(manage.QA_CONTRACT_VERSIONS)}")
     if image.get("proportion_check") not in {"measured", "visible-only"}:
         raise manage.RunError("Image proportion_check must be measured or visible-only")
     if image not in assignment["images"]:
@@ -56,12 +56,18 @@ def build_prompt(assignment: dict, image: dict) -> str:
     sections.append("COMPOSITION: " + json.dumps(image["composition"], ensure_ascii=False)
                     + "\nEXECUTION: " + image["execution_note"]
                     + "\nThis framing and placement override sample layouts in typography references.")
+    tiers = manage.exaggeration_tiers() if "exaggeration" in image else None
+    if tiers:
+        sections.append(exaggeration_section(image, tiers))
     for action, expression in zip(image["action_plan"], image["expression_plan"], strict=True):
         preset = presets[expression["preset"]]
-        sections.append(
-            f"PANEL {action['panel']}: {action['action']}\nEXPRESSION: {expression['preset']}, {expression['performance']}. "
-            f"Visible cues: {', '.join(preset['face_cues'])}. Forbidden cues: {', '.join(preset['forbidden_cues'])}."
-        )
+        line = (f"PANEL {action['panel']}: {action['action']}\nEXPRESSION: {expression['preset']}, {expression['performance']}. "
+                f"Visible cues: {', '.join(preset['face_cues'])}. Forbidden cues: {', '.join(preset['forbidden_cues'])}.")
+        if expression["performance"] == "manga_burst":
+            burst = tiers["manga_burst"]
+            line += (f"\nMANGA BURST: push this emotion into open manga deformation, such as {', '.join(burst['cues'])}. "
+                     + burst["guard"])
+        sections.append(line)
     sections.append(
         "PROPORTION: " + json.dumps(image["proportion"], ensure_ascii=False)
         + "\nPreserve this skeleton across panels, including small or distant full-body figures in multi-panel layouts; never elongate them. "
@@ -80,6 +86,12 @@ def build_prompt(assignment: dict, image: dict) -> str:
     sections.append("EXACT VISIBLE TEXT, including punctuation, in reading order:\n" + json.dumps(image["core_text"], ensure_ascii=False, indent=2))
     for line in image["dialogue_plan"]:
         wording = json.dumps(image["core_text"][line["text_index"]], ensure_ascii=False)
+        if line["delivery"] == "sfx":
+            sections.append(
+                f"TEXT {line['text_index']} in panel {line['panel']}: drawn sound effect, wording={wording}. "
+                "Hand-letter it into the scene with no balloon, tail or speaker; it is the only sound effect writing in that panel unless another one is listed."
+            )
+            continue
         if line["delivery"] == "label":
             sections.append(
                 f"TEXT {line['text_index']} in panel {line['panel']}: written on {line['prop']} by {line['speaker']}; "
@@ -116,6 +128,39 @@ def build_prompt(assignment: dict, image: dict) -> str:
         "OUTPUT: opaque RGB PNG. " + json.dumps(image["output"], ensure_ascii=False) + ". Recommended resolution is not an exact-size requirement; explicit dimensions are.",
     ]
     return "\n\n".join(sections) + "\n"
+
+
+def exaggeration_section(image: dict, tiers: dict) -> str:
+    """Spell out the frozen tier on every axis so the provider performs the planned intensity."""
+    tier, landing = image["exaggeration"], image["landing_panel"]
+    spec = tiers["tiers"][tier]
+    contrast = image.get("contrast")
+    lowered = dict.fromkeys(contrast["axes"], contrast["lowered_to"]) if contrast else {}
+    lines = [f"EXAGGERATION: tier {tier} ({spec['label']}) on landing panel {landing}. {spec['summary']}",
+             f"LANDING PANEL {landing} PALETTE:"]
+    for axis in tiers["axes"]:
+        axis_tier = lowered.get(axis["id"], tier)
+        note = f" (deliberately held at tier {axis_tier})" if axis["id"] in lowered else ""
+        lines.append(f"- {axis['label']}: {tiers['tiers'][axis_tier]['axes'][axis['id']]}{note}")
+    lines.append("Stay inside this palette; do not add: " + "; ".join(spec["forbidden"]) + ".")
+    if contrast:
+        lines.append(f"CONTRAST: {contrast['reason']}")
+    lines.append("KEY LANDING EFFECTS: " + ("; ".join(f"{item['axis']}: {item['effect']}" for item in image["effects_plan"])
+                                           or "none beyond the palette"))
+    setups = [entry for entry in image["expression_plan"] if entry["panel"] != landing]
+    if setups:
+        lines.append("SETUP PANELS: build toward the landing and never exceed it. "
+                     + " ".join(f"Panel {entry['panel']} at tier {entry['tier']}: {tiers['tiers'][entry['tier']]['summary']}"
+                                for entry in setups))
+    if tier == "A" and "background" not in lowered:
+        lines.append("SCENE WRITING: every sign, screen, page, spine and label in the scene is blank or turned away; "
+                     "the only writing is the exact visible text.")
+    if any(entry["performance"] == "manga_burst" for entry in image["expression_plan"]):
+        anchors = ", ".join(anchor["description"] for anchor in tiers["identity_anchors"])
+        lines.append(f"DEFORMATION IDENTITY: in deformed panels the face may break from her usual look; keep at least "
+                     f"{tiers['identity_anchor_minimum']} of these clearly visible: {anchors}. "
+                     "A heavy gekiga rendering stays on the face; the body, background and other panels keep the frozen style.")
+    return "\n".join(lines)
 
 
 def adapter_reference(reference: dict) -> dict:

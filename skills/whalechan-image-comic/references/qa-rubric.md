@@ -4,7 +4,7 @@ Reject when any applicable gate fails. Inspect the original-resolution candidate
 
 ## Design review before generation
 
-Before the single user confirmation, verify the fixed ten-candidate pool, all 45 comparisons, the recorded tie decisions and the five selected ideas. Review one planned image per idea, the 1/2/4-panel coverage or explicit user override, and worker allocation. Compare key lines and final payoffs across the five: a shared source question is acceptable, while repeated answers and consequences need specific justification or revision within the idea. Do not add a creative PASS/FAIL admission gate or generate extra candidates. Show the completed plan, image total and allocation together. After confirmation, preserve its core scenes, comic turns and locked wording; material plan changes require confirmation of the revised plan, not a second routine gate.
+Before the single user confirmation, verify the fixed ten-candidate pool, all 45 comparisons, the recorded tie decisions and the five selected ideas. Review one planned image per idea, the 1/2/4-panel and A/B/C tier coverage or explicit user overrides, and worker allocation. Check that each tier fits its execution rather than rank or panel count, that setup panels build toward the landing, and that an `A` on a bittersweet source uses mock epic or a reasoned contrast. Compare key lines and final payoffs across the five: a shared source question is acceptable, while repeated answers and consequences need specific justification or revision within the idea. Do not add a creative PASS/FAIL admission gate or generate extra candidates. Show the completed plan, image total and allocation together. After confirmation, preserve its core scenes, comic turns and locked wording; material plan changes require confirmation of the revised plan, not a second routine gate.
 
 Before freezing the assignment, compare the source analysis with the original material and user corrections, then compare each execution, composition and `text_style_reason` with that interpretation. English does not imply casual-dialogue typography. Select lettering for the execution's meaning. Honor a quoted uniformity instruction without mistaking template rotation for creative variety.
 
@@ -33,16 +33,17 @@ Run `scripts/validate-image.py` with the assignment's `resolution.mode`, `aspect
   - `character`: the source event visibly triggers the trait, and the source stays recognizable.
   - With a declared rhythm: it lands on its stated panel; repetition is parallel and the last beat deviates; a pause or deadpan beat has room to read. Do not check rhythm on images that declare none.
 - `K1 anchor`: viewer can identify the source event from the comic.
-- `I1 identity`: permanent face, eye identity, hair mass, fin ears, ahoge, coherent tail, and humanoid identity remain recognizable. Custom style, costume, or proportion is judged against the frozen assignment rather than canonical defaults.
+- `I1 identity`: permanent face, eye identity, hair mass, fin ears, ahoge, coherent tail, and humanoid identity remain recognizable. In a panel planned at `manga_burst`, judge the face by its deformation instead: at least three of hair, fin ears, ahoge, tail and maid outfit stay clearly visible. Custom style, costume, or proportion is judged against the frozen assignment rather than canonical defaults.
 - `C1 character`: Whale-chan's delivery, action or reaction is specific and recognizable rather than a generic decorative pose. Do not require her to win or benefit when that changes the source. Abstract cast stays subordinate but performs its assigned speech, action or reaction. A required physical partner is not replaced by a card avatar or disembodied voice.
 - `P1 panels`: count, layout, order, continuity, and timing match the assignment. Every panel has a distinct narrative job; each later beat changes or sharpens the earlier meaning instead of merely repeating it.
 - `T1 text`: exact language and wording are complete, readable, correctly ordered, and visually match the selected template's lettering, emphasis and frame treatment. Speech tails, thought connectors, captions and prop labels preserve every line's assigned speaker and delivery; a label appears legibly on its named prop.
 - `A1 anatomy`: hands, feet, limbs, tail, props, contacts, and character count are coherent. Furniture and props fit the selected skeleton; anatomy is not stretched or hidden to force the layout.
-- `V1 visual`: action, expression, timing or juxtaposition contributes to the joke beyond decorating text. Every crop is intentional. Each panel matches its expression preset and performance level. No watermark, copied sample joke, empty bubble or caption bar, decorative or stray UI, pseudo-text, unexplained symbol, meaningless object, accidental crop, or malformed edge.
+- `V1 visual`: action, expression, timing or juxtaposition contributes to the joke beyond decorating text. Every crop is intentional. Each panel matches its expression preset and performance level. No watermark, copied sample joke, empty bubble or caption bar, decorative or stray UI, pseudo-text, unexplained symbol, meaningless object, accidental crop, or malformed edge. Effect lines and manpu marks inside the panel's tier palette are performance, not unexplained symbols.
 - `S1 style`: matches the frozen canonical or custom art style and only references carrying `style`.
 - `O1 costume`: matches the frozen canonical or custom outfit; custom clothing is not rejected for omitting maid garments.
-- `B1 background`: matches the frozen solid or custom background and only references carrying `background`.
+- `B1 background`: matches the frozen solid or custom background and only references carrying `background`. A tier-default `A` scene shows no readable or pseudo writing on any sign, screen, page, spine or label.
 - `X1 action`: every panel performs its frozen free-text action with coherent pose, contact, direction, and prop interaction.
+- `E1 exaggeration` (QA contract 10): the landing panel shows every owed marker of its tier from `exaggeration-tiers.json`, skipping markers waived by `contrast` or a user-resolved background; no axis on any panel goes beyond that panel's tier palette (lowered axes use the lower palette); a gekiga face never spreads into a whole-canvas style shift; setup panels stay at or below the landing. A polished comic that lands below its tier fails, and so does a `C` that was quietly decorated.
 - `H1 proportion`: for `measured`, candidate-bound landmarks fall inside the frozen interval and proportions remain consistent across panels. For a planned `visible-only` shot, use `NA` with visible-proportion evidence and the limitation; do not assert an unmeasured whole-body ratio. Missing landmarks in a promised measurable shot fail instead of becoming NA.
 
 ## Visual QA JSON
@@ -78,7 +79,8 @@ The following illustrates a completed measured review, not default values to pre
     "O1": "PASS",
     "B1": "PASS",
     "X1": "PASS",
-    "H1": "PASS"
+    "H1": "PASS",
+    "E1": "PASS"
   },
   "evidence": {
     "why_funny": "one concrete sentence",
@@ -129,7 +131,19 @@ The following illustrates a completed measured review, not default values to pre
         "observed_cues": ["half-lidded eyes", "one raised mouth corner"],
         "forbidden_cues_present": []
       }
-    ]
+    ],
+    "exaggeration_check": {
+      "tier": "B",
+      "landing_panel": 1,
+      "markers": [
+        {"id": "B-action", "observed": "she slams both palms on the desk, papers jumping"},
+        {"id": "B-face", "observed": "wide shouting mouth and strained brows at punchline_peak"},
+        {"id": "B-effects", "observed": "vibration lines around the desk and one anger mark"}
+      ],
+      "palette_violations": [],
+      "style_spill": false,
+      "identity_anchors": []
+    }
   },
   "defects": [],
   "targeted_retry": null
@@ -141,5 +155,7 @@ A measured PASS requires all gates PASS, matching hashes, concrete comedy eviden
 For `proportion_check: visible-only`, a PASS instead requires `H1: NA`, all other gates PASS, and `form_evidence` with `mode: visible-only`, `candidate_sha256`, a specific `reason` why whole-body measurement is inapplicable, and nonempty `observed_cues` describing visible proportions. Do not include an invented `calculated_head_ratio`. Record the limitation in delivery; visible-only review is not numeric ratio verification. Other gates do not accept NA.
 
 For full comics, `text_style_match` names the frozen template and concrete visible cues; `dialogue_match` has one ordered entry per planned line with matching `text_index`, `panel`, `speaker`, `delivery` and non-empty `observed_cues`. `cast_match` has one entry per planned participant with matching `participant`, `representation`, `panels` and concrete `observed_cues` describing the figure, avatar, offscreen attribution or verified absence. It is `[]` only for an empty cast plan. A picture of an avatar cannot be recorded as a physical figure. A correct transcript alone does not prove correct typography or attribution.
+
+For QA contract 10, `exaggeration_check` names the frozen `tier` and `landing_panel`, lists the owed markers in the tiers file's order with what was actually observed, records `palette_violations: []` and `style_spill: false`, and gives `identity_anchors` as `{panel, anchors}` for every `manga_burst` panel, with at least three anchor ids from `hair`, `fin_ears`, `ahoge`, `tail`, `maid_outfit`. In a multi-panel image, measure proportion on a panel without deformation. Frozen contract-9 images have no `E1` and no `exaggeration_check`.
 
 A FAIL requires at least one failed gate, specific observable defects, and one primary targeted correction. Do not write “improve it.”

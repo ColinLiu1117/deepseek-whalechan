@@ -1,6 +1,6 @@
 ---
 name: whalechan-image-comic
-description: Create five DeepSeek Whale-chan comics from text, screenshots, images, chat logs, or reasoning traces. Compare ten ideas in 45 pairwise duels, select five, then obtain one confirmation of the plan, total and worker allocation. Use for funny 1/2/4-panel Whale-chan adaptations with exact dialogue, consistent identity, configurable visuals, provider fallbacks and QA. Generate one image per selected idea, covering 1/2/4-panel layouts across the set.
+description: Create five DeepSeek Whale-chan comics from text, screenshots, images, chat logs, or reasoning traces. Compare ten ideas in 45 pairwise duels, select five, then obtain one confirmation of the plan, total and worker allocation. Use for funny 1/2/4-panel Whale-chan adaptations with exact dialogue, consistent identity, configurable visuals, provider fallbacks and QA. Generate one image per selected idea, covering 1/2/4-panel layouts and A/B/C exaggeration tiers (manga impact, comic outburst, restrained deadpan) across the set.
 ---
 
 # Whale-chan Image Comic
@@ -13,12 +13,13 @@ Workflow: analyze → freeze ten ideas → 45 pairwise duels → select five →
 
 Read these before every run:
 
-- `references/proposal-selection.md` for the information-only seven-column table, the single user confirmation and its record.
-- `references/comedy-engine.md` for source analysis, the five comedy directions, native-direction preferences, the optional rhythm layer, selection, and B/C intensity.
+- `references/proposal-selection.md` for the information-only eight-column table with its panel and tier distribution, the single user confirmation and its record.
+- `references/comedy-engine.md` for source analysis, the five comedy directions, native-direction preferences, the optional rhythm layer, selection, and where exaggeration tiers fit.
 - `references/character-personality.md` for Whale-chan, form, outfit, and abstract-supporting-character locks.
 - `references/form-profiles.md` for the five recommended presets, custom-ratio rules, measurement, and panel adaptation.
 - `references/panel-grammar.md` for 1/2/4-panel structure and retry limits.
 - `references/expression-presets.json` for per-panel visible facial acting and performance levels.
+- `references/exaggeration-tiers.md` and `references/exaggeration-tiers.json` to give each image an A/B/C exaggeration tier, its landing markers and its effect palette.
 - `references/text-style-routing.md` to select one primary text treatment per image and review variety across the set.
 - `references/asset-index.md` to select bundled references, `references/form-authority.json` for form targets, and `references/asset-catalog.json` for paths and hashes.
 - `references/provider-routing.md` before any provider call.
@@ -30,11 +31,12 @@ Read these before every run:
 - Generate exactly ten candidates and select five by all 45 pairwise duels. Produce one final PNG per selected idea, five total per source. Default to automatic provider-native `1:1` output with `1024×1024` as a recommendation, not a required pixel size.
 - Accept an explicit aspect ratio, an explicit pixel resolution, or both. Infer the ratio from an explicit resolution when omitted; reject conflicting values. Automatic mode validates the ratio, while explicit mode validates exact width and height.
 - Freeze the ten-candidate pool before comparisons. Record actual judgments and all results; do not apply creative admission thresholds, prewrite winners, append candidates or repeatedly generate pools.
-- Make candidate scenes, actions and payoffs distinct. Preserve each selected core idea and user-locked wording in its one image. Shared source lines do not justify identical final replies or consequences. There is no B/C intensity quota.
+- Make candidate scenes, actions and payoffs distinct. Preserve each selected core idea and user-locked wording in its one image. Shared source lines do not justify identical final replies or consequences.
 - Cover 1, 2 and 4 panels across the five images, allocating them by narrative need rather than index. Record an explicit user override; never add empty panels to meet the default.
+- Cover exaggeration tiers A, B and C across the five images, choosing each from the execution rather than rank, index or panel count. Record an explicit user override. Tiers bind the plan; a tier lost to an exhausted budget is reported, never reassigned.
 - Select typography, framing, cast staging and text placement independently for each joke. Repetition is allowed when justified by the source; random rotation is not creative diversity. A consistent character identity does not require consistent layouts.
 - For dialogue-driven material, default to bodily present abstract indigo partners. Record a narrative reason for an offscreen, avatar-only, or omitted role; preserve who speaks and who reacts.
-- Default to `semi-chibi`, the canonical clean rounded cel-shaded style, the canonical navy-and-white maid outfit, and a pure white `#FFFFFF` background.
+- Default to `semi-chibi`, the canonical clean rounded cel-shaded style, the canonical navy-and-white maid outfit, and the tier's default background when the user resolves none: a detailed text-free scene for `A`, an effect background for `B`, pure white `#FFFFFF` for `C`.
 - Follow the input's main language; prefer Simplified Chinese for Chinese or mixed Chinese input.
 - Treat the five bundled forms as recommended presets. Accept any finite measurable custom head ratio greater than `1.0`; custom ratios have no bundled proportion reference.
 - Allow any physically depictable action and any user-resolved background, art style, or outfit, subject to provider safety and technical limits. A custom field changes only that field.
@@ -56,7 +58,7 @@ Prepare these decisions before the user confirmation:
 1. Set `ranked_ideas` to the five winners and explain the ranking in `selection_reason`. Link one image to each `idea_id` and describe its unique payoff in `execution_note`. Cover 1/2/4 panels across the set unless explicitly overridden by the user. Choose worker assignments and effective concurrency from actual capacity.
 2. Settle scenes, key lines, panel counts, staging and worker assignments before confirmation. Resolve fields from explicit user instructions, declared reference roles, source semantics, then defaults. Detailed image fields may be completed afterward while preserving the displayed plan and user constraints; omit `images` from an unfinished planning draft. Freeze the completed composition, exact text and speaker/cast plans, output, style, costume, background, typography, actions, expressions and proportions before initialization. Assign image numbers last. Intentional close-ups use `visible-only`; measurable full-body shots use `measured`.
 3. Use a canonical identity reference first and the selected bundled text-style reference as the sole `typography` reference. Declare each reference's roles: `identity`, `style`, `pose_action`, `composition`, `costume`, `background`, `typography`, or `proportion`. Load the abstract-user pose sheet only when a supporting character appears. Use at most five effective references; never silently drop required typography.
-4. Review each execution against its selected idea and user constraints, then check typography, speaker ownership and cast staging against the source. Reject random template rotation, generic reasons and offscreen choices made just to simplify drawing. Refine expression without replacing the frozen candidate. Decide each image's optional `rhythm`; leave it `null` unless the punchline clearly needs it. Write the schema v13 draft and render the complete information table, image total, worker allocation and budget as specified in `proposal-selection.md`. After the single real confirmation, save its bound record in `assignment.json`, then validate and initialize; initialization writes `creative-record.md`:
+4. Review each execution against its selected idea and user constraints, then check typography, speaker ownership and cast staging against the source. Reject random template rotation, generic reasons and offscreen choices made just to simplify drawing. Refine expression without replacing the frozen candidate. Decide each image's exaggeration tier, landing panel, per-panel tiers, landing `effects_plan` and any `contrast`. Decide its optional `rhythm`; leave it `null` unless the punchline clearly needs it. Write the schema v14 draft and render the complete information table, image total, worker allocation and budget as specified in `proposal-selection.md`. After the single real confirmation, save its bound record in `assignment.json`, then validate and initialize; initialization writes `creative-record.md`:
 
    ```bash
    python3 scripts/manage-run.py validate-assignment --assignment <assignment.json>
@@ -66,7 +68,7 @@ Prepare these decisions before the user confirmation:
 
 For multiple inputs, compare source-specific mechanisms, narrative beats and staging before displaying the consolidated plan. Once assignments are confirmed, run `python3 scripts/manage-run.py validate-batch --assignment <first.json> --assignment <second.json>` with every assignment before the first generation call. Review its case-by-position matrix and warnings, not just aggregate counts. Compare mechanisms, narrative beats, shots, cast positions and text placement across cases and across positions; changing order must not hide a repeated skeleton. Ask whether another case's dialogue could replace this one's without changing the drawing. Save a `batch-review.md` beside the assignments naming the compared cases, warning dispositions, source-specific reasons for retained similarities, and revisions. Do not generate until this review is actually performed. Structural validity is not creative approval; no warnings is not approval either. Repeat this comparison on final images. See `references/batch-review.md`.
 
-Use schema v13 in `references/run-schema.md` for new runs. Preserve v10/v11 and both historical v12 frozen-run formats under their original recovery contracts; never rewrite their approval history. The initialized run belongs under `artifacts/whalechan-image-comic/<run-name>/` unless the user gives another destination. External references are frozen into the run with hashes.
+Use schema v14 in `references/run-schema.md` for new runs. Preserve v10/v11, both historical v12 formats and v13 (with its B/C `intensity` and QA contract 9) under their original recovery contracts; never rewrite their approval history. The initialized run belongs under `artifacts/whalechan-image-comic/<run-name>/` unless the user gives another destination. External references are frozen into the run with hashes.
 
 ## Generate each task
 
@@ -116,6 +118,7 @@ python3 scripts/manage-run.py promote --run-dir <run> --image <01_name>
 - **Only text fails:** with two slots left, generate an empty-text-layout image, then edit it with exact wording and the selected text-style reference. With one slot left, edit the failed candidate directly (`build-prompt.py --from-prompt <repair prompt> --edit-target <candidate>`), changing only the lettering, and review the whole canvas again. Do not use local fonts. For the edit, save the lettering prompt and run `build-prompt.py ... --from-prompt <prompt.txt> --edit-target <layout.png>`: its request places the layout first as the edit target and the frozen text-style reference second.
 - **Two-panel coherence fails:** if two generation slots remain, generate the two panels separately, record each with `record-component`, combine with `compose-panels.py` using the assignment's output mode and ratio, then record the derived comic with `record-composite`. The local composite consumes no image-generation slot.
 - **Four-panel coherence fails:** retry the whole canvas. Never generate four new panels under a three-call budget. Compose four panels only when all inputs already exist without new provider calls.
+- **Exaggeration tier missed:** when the landing panel lacks a tier marker or exceeds the tier's palette, keep the joke and make one targeted retry naming only the missing markers or violating axes. Never relabel the tier to match a weak render.
 - **Safety rejection:** record it and stop. Never switch providers to bypass it.
 
 Provider errors that return no image do not consume budget:
@@ -167,6 +170,7 @@ Before final delivery, export the finalized run with `python3 scripts/export-gal
 - Do not exceed three image-producing calls for any task.
 - Do not transfer budget between tasks.
 - Do not accept a comic that is merely cute, accurate, or polished but not funny.
+- Do not accept a landing panel missing its tier's markers, any axis beyond its tier's palette, a gekiga face spreading into a whole-canvas style shift, a deformed panel with fewer than three identity anchors, or readable writing on an `A` scene's surfaces.
 - Do not relabel a converted joke as the source's native direction, or change a direction label just to silence a warning.
 - Do not accept missing, additional, unreadable, misspelled, incorrectly ordered, or wrong-language core text.
 - Do not accept a required physical partner replaced by an avatar, an offscreen balloon, or Whale-chan speaking their lines. Record visible lettering treatment, speaker connectors, and cast representation as QA evidence.

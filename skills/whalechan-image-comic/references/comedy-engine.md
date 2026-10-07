@@ -63,14 +63,13 @@ Rank by points, then by points in direct matches among candidates tied on total 
 
 Make exactly one image for each selected idea, linked by `idea_id`. Explain its unique payoff in `execution_note`. A shared source question can recur, but compare answers, final lines and visible consequences across all five. Pose, font and background swaps alone do not establish independence. Fix expression within the frozen idea rather than hiding a replacement in a rewrite.
 
-Choose framing, cast placement, text placement and lettering from each joke, assigning image numbers last. The set must cover 1, 2 and 4 panels unless the user explicitly overrides that policy; do not add empty beats or map rank to panel count. Review the complete five-image plan, then show the information table, image total and worker allocation for the single confirmation in `proposal-selection.md`.
+Choose framing, cast placement, text placement, lettering and exaggeration tier from each joke, assigning image numbers last. The set must cover 1, 2 and 4 panels and tiers A, B and C unless the user explicitly overrides either policy; do not add empty beats or map rank to panel count or tier. Review the complete five-image plan, then show the information table, image total and worker allocation for the single confirmation in `proposal-selection.md`.
 
-## Control intensity without a quota
+## Perform each idea at a tier
 
-- `B`: restrained or moderate delivery, including gentle, dry, bittersweet or sharp verbal humor.
-- `C`: heightened delivery, stronger status reversal, accusation, absurd consequence or exaggerated reaction.
+Direction says where the laugh lives; exaggeration says how hard it is performed. After selecting five ideas, give each image a tier — `A` manga impact, `B` comic outburst, `C` restrained deadpan — and cover all three across the run unless the user overrides it. The tier belongs to the execution, so never let it enter the duels or follow rank or panel count. See `exaggeration-tiers.md`.
 
-Choose intensity from the source's tone and the execution. A quiet close-up may be the strongest punchline. Never use vulnerable groups, private information, hate, discrimination, sexual humiliation or actual harm as a shortcut to a joke. Random cruelty is not a punchline.
+A quiet close-up may still be the strongest punchline, and a trivial event may deserve full impact. Never use vulnerable groups, private information, hate, discrimination, sexual humiliation or actual harm as a shortcut to a joke, at any tier. Random cruelty is not a punchline.
 
 ## Keep text disciplined
 

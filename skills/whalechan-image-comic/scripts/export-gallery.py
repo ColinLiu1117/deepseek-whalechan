@@ -27,6 +27,21 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def tier_label(spec):
+    """Show a comic's exaggeration tier (v14) or historical intensity (v13 and earlier)."""
+    tier = spec.get("exaggeration")
+    if not tier:
+        return f"强度 {spec['intensity']}" if spec.get("intensity") else ""
+    contrast = spec.get("contrast")
+    if not contrast:
+        return f"档位 {tier}"
+    tiers_path = SKILL_ROOT / "references" / "exaggeration-tiers.json"
+    labels = ({axis["id"]: axis["label_zh"] for axis in read_json(tiers_path)["axes"]}
+              if tiers_path.is_file() else {})
+    axes = "、".join(labels.get(axis, axis) for axis in contrast["axes"])
+    return f"档位 {tier}（{axes}→{contrast['lowered_to']}）"
+
+
 def as_text(value):
     if value is None:
         return ""
@@ -40,7 +55,7 @@ class RunReader:
         self.warnings = []
         self.assignment = read_json(run / "assignment.json")
         self.manifest = read_json(run / "manifest.json")
-        if self.assignment.get("schema_version") not in ({10, 11, 12, 13} if COMIC else {5, 6}):
+        if self.assignment.get("schema_version") not in ({10, 11, 12, 13, 14} if COMIC else {5, 6}):
             raise GalleryError(f"Unsupported assignment schema: {run.name}")
         if self.manifest.get("schema_version") != (1 if COMIC else 3):
             raise GalleryError(f"Unsupported manifest schema: {run.name}")
@@ -134,6 +149,7 @@ class RunReader:
             self.warnings.append(f"{spec['id']}：{reason}")
         return {"id": spec["id"], "name": spec.get("name", spec["id"]),
                 "note": spec.get("execution_note", ""), "status": state.get("status"),
+                "tier": tier_label(spec) if COMIC else "",
                 "final": final, "final_sha256": state.get("final_sha256"),
                 "origin": origin, "attempts": attempts,
                 "calls": sum(item.get("consumes_candidate_budget", True) is not False

@@ -115,6 +115,7 @@ function card(image, collection) {
   const meta = el("div", "meta");
   const delivered = image.status === "passed";
   meta.append(badge(delivered ? "已通过" : image.calls ? "未通过" : "未产出", delivered ? "good" : "warn"), badge(`产图 ${image.calls} 次`));
+  if (image.tier) meta.append(badge(image.tier));
   if (image.final?.width) meta.append(badge(`${image.final.width} × ${image.final.height}`));
   body.append(meta);
   if (image.note) body.append(el("p", "note", image.note));

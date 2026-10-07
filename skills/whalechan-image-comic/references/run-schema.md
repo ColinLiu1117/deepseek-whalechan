@@ -1,18 +1,18 @@
-# Run schema v13
+# Run schema v14
 
-Use this contract for new assignments and frozen prompt construction. Visual QA remains version 9. Generate exactly ten ideas, compare all 45 pairs, select five ideas for one image each, then request one execution confirmation covering the final table, count and worker allocation. Candidate quality is judged comparatively; do not add PASS/FAIL gates or replenish the pool automatically.
+Use this contract for new assignments and frozen prompt construction. New images use visual QA contract 10, which adds the E1 exaggeration gate; frozen v13 images keep contract 9. Generate exactly ten ideas, compare all 45 pairs, select five ideas for one image each, then request one execution confirmation covering the final table, count and worker allocation. Candidate quality is judged comparatively; do not add PASS/FAIL gates or replenish the pool automatically.
 
-New assignments must use v13. Already initialized v10, v11 and both historical v12 formats may still build prompts, record candidates, promote and finalize under their original contracts; new `validate-assignment` and `init` reject those versions. Never rewrite historical assignments or manufacture v13 confirmations. Reject unsupported versions.
+New assignments must use v14. v14 replaces the image `intensity` (B/C) with an A/B/C `exaggeration` tier; see [Exaggeration](#exaggeration-tiers). Already initialized v10, v11, both historical v12 formats and v13 may still build prompts, record candidates, promote and finalize under their original contracts; v13 keeps `intensity`, which is never mapped onto the new tiers. New `validate-assignment` and `init` reject those versions. Never rewrite historical assignments or manufacture v14 confirmations. Reject unsupported versions.
 
 Two branches independently used v12. Distinguish them by their original shape: `worker_plan` identifies the single-gate ten-idea tournament contract with a five-worker ceiling and no `execution.subagent_count`; `selection` identifies the two-gate selection contract with `execution.subagent_count` and a ten-worker ceiling. Preserve each format's normalization, confirmation hashes and runtime authorization. Do not reinterpret a stored version number as permission to migrate either shape; mixed shapes are invalid.
 
-Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Directions](#comedy-directions) · [Confirmation](#final-plan-and-one-user-gate) · [Images](#image-fragment) · [Output](#output-size-and-aspect-ratio) · [Text](#visible-text) · [Dialogue](#participant-and-dialogue-contract) · [Preflight](#preflight-and-prompt-construction) · [Visual fields](#custom-visual-fields) · [References](#typed-references) · [Execution](#execution)
+Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Directions](#comedy-directions) · [Confirmation](#final-plan-and-one-user-gate) · [Images](#image-fragment) · [Exaggeration](#exaggeration-tiers) · [Output](#output-size-and-aspect-ratio) · [Text](#visible-text) · [Dialogue](#participant-and-dialogue-contract) · [Preflight](#preflight-and-prompt-construction) · [Visual fields](#custom-visual-fields) · [References](#typed-references) · [Execution](#execution)
 
 ## Root contract
 
 ```json
 {
-  "schema_version": 13,
+  "schema_version": 14,
   "run_name": "refrigerator-permission-loophole",
   "input": {
     "type": "text",
@@ -43,6 +43,7 @@ Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Di
   "confirmation": {},
   "images": [],
   "panel_policy": {"mode": "narrative"},
+  "exaggeration_policy": {"mode": "narrative"},
   "worker_plan": {
     "coordinator": "main",
     "max_parallelism": 1,
@@ -67,7 +68,7 @@ The example is a root fragment; populate candidates, tournament records, final o
 
 Each of five images links to a different selected `idea_id`, retains its `premise` verbatim and uses `execution: 1`. `source_rank` follows the selected order; conflicting values are rejected. Match the displayed option's `panel_count` and exact ordered `key_lines` in `core_text`. Require an individual `execution_note` describing the idea's distinct visible payoff. Shared source wording is allowed; changing lettering, pose or panel count alone does not establish a different joke.
 
-Default `panel_policy` is `{"mode":"narrative"}` and requires all three supported counts, 1, 2 and 4, across the five images. Only a real user instruction permits `{"mode":"user-override","user_instruction":"All five comics must be single-panel closeups."}`. The override relaxes panel variety, not five distinct ideas or five images. Typography and intensity have no quotas.
+Default `panel_policy` is `{"mode":"narrative"}` and requires all three supported counts, 1, 2 and 4, across the five images. Only a real user instruction permits `{"mode":"user-override","user_instruction":"All five comics must be single-panel closeups."}`. The override relaxes panel variety, not five distinct ideas or five images. Default `exaggeration_policy` is `{"mode":"narrative"}` and requires tiers A, B and C across the five options; only a real user instruction permits `{"mode":"user-override","user_instruction":"五张都用 C 档，安静一点。"}`. Typography has no quota.
 
 ## Tournament and ranking
 
@@ -126,17 +127,19 @@ Author the selected five options in ranking order. These are information rows, n
       "is_native": false,
       "twist": "取出食物变成接管整个容器。",
       "panel_count": 1,
+      "exaggeration": "A",
+      "contrast": null,
       "staging": "单格全景：用户许可的气泡旁，鲸鱼娘已经推走整台冰箱。",
-      "key_lines": ["可以吃冰箱里的东西", "收到，冰箱归我了"],
+      "key_lines": ["可以吃冰箱里的东西", "收到，冰箱归我了", "咚——！"],
       "selection_reason": "实物移动使权限偷换比同池中口头争辩的创意更直观。"
     }]
   }
 }
 ```
 
-Each `premise`, `scene` and `direction` matches its pool idea; `twist` equals that idea's `punchline`, preserving the candidate that won. `is_native` is boolean and equals whether the idea direction matches the non-null source direction. No native or character count is forced. `twist` describes any comic landing, not necessarily a reversal. Remove `choice`, ratings, recommended choices, recommendation reasons and root `selection`. Explicit wording revisions may update final `key_lines` within the same idea; do not disguise a replacement premise as a wording edit.
+Each `premise`, `scene` and `direction` matches its pool idea; `twist` equals that idea's `punchline`, preserving the candidate that won. `is_native` is boolean and equals whether the idea direction matches the non-null source direction. No native or character count is forced. `exaggeration` is `A`, `B` or `C`; `contrast` is `null` or `{axes, lowered_to}` and must match the image's contrast. `twist` describes any comic landing, not necessarily a reversal. Remove `choice`, ratings, recommended choices, recommendation reasons and root `selection`. Explicit wording revisions may update final `key_lines` within the same idea; do not disguise a replacement premise as a wording edit.
 
-`render-proposal --draft <file>` and `summarize-selection --draft <file>` are read-only views of this same complete planning record. Both return a seven-column table (序号、创意描述、核心场景、方向｜笑点、格数／分镜、关键台词、入选理由), five images total, worker allocations, one execution-confirmation question and `summary_sha256`. The old summary command name does not create a second gate. Drafts do not need full `images` or a confirmation yet.
+`render-proposal --draft <file>` and `summarize-selection --draft <file>` are read-only views of this same complete planning record. Both return an eight-column table (序号、创意、方向、格数、档位、场景／分镜、关键台词、入选理由) followed by the panel and tier distribution line, five images total, worker allocations, one execution-confirmation question and `summary_sha256`. The old summary command name does not create a second gate. Drafts do not need full `images` or a confirmation yet.
 
 Show the table, five images per source, combined batch total, worker allocation and per-image budget before asking whether to execute. Planning-only requests stop here without formal initialization or image calls. The sole confirmation record is:
 
@@ -150,9 +153,9 @@ Show the table, five images per source, combined batch total, worker allocation 
 }
 ```
 
-Hash canonical JSON using SHA-256 (`ensure_ascii=False`, sorted keys, separators `,` and `:`). The plan hash binds `input`, `proposal`, `creative_pool`, `duels`, `ranked_ideas`, `selection_reason`, `worker_plan`, `tie_breaks`, `panel_policy` and normalized `execution`. An edit to any bound content invalidates the old confirmation. Redisplay the revised plan and obtain a real reply; never refresh a stored confirmation hash yourself. Scripts check consistency, not whether a quoted reply actually happened or meant approval.
+Hash canonical JSON using SHA-256 (`ensure_ascii=False`, sorted keys, separators `,` and `:`). The plan hash binds `input`, `proposal`, `creative_pool`, `duels`, `ranked_ideas`, `selection_reason`, `worker_plan`, `tie_breaks`, `panel_policy`, `exaggeration_policy` and normalized `execution`. v12 and v13 hashes never included `exaggeration_policy`. An edit to any bound content invalidates the old confirmation. Redisplay the revised plan and obtain a real reply; never refresh a stored confirmation hash yourself. Scripts check consistency, not whether a quoted reply actually happened or meant approval.
 
-Full visual `images` are constructed after confirmation and excluded from that planning hash. Their idea links, premises, panel counts and exact visible text must match the approved plan; internal composition details cannot change its comic turn. Initialization, frozen loading and prompt construction enforce the same contract. Five tasks allow at most 15 image calls, three per task. Delivery groups results and missing tasks by their five ideas. See `proposal-selection.md` for interaction details.
+Full visual `images` are constructed after confirmation and excluded from that planning hash. Their idea links, premises, panel counts, exaggeration tiers, contrasts and exact visible text must match the approved plan; internal composition details cannot change its comic turn. Initialization, frozen loading and prompt construction enforce the same contract. Five tasks allow at most 15 image calls, three per task. Delivery groups results and missing tasks by their five ideas. See `proposal-selection.md` for interaction details.
 
 ## Image fragment
 
@@ -169,7 +172,7 @@ Full visual `images` are constructed after confirmation and excluded from that p
     "text_placement": "Short permission bubble beside the owner; ownership claim beside the moving cart.",
     "reason": "Showing the entire stolen appliance makes the scope expansion visible."
   },
-  "proportion_check": "measured",
+  "proportion_check": "visible-only",
   "fact_anchor": "The user permits Whale-chan to eat the refrigerator's contents",
   "premise": "She treats the entire refrigerator as her lunch container.",
   "punchline": "She wheels away the whole refrigerator",
@@ -177,7 +180,13 @@ Full visual `images` are constructed after confirmation and excluded from that p
   "personality": ["hungry", "smug"],
   "panel_count": 1,
   "layout": "single",
-  "intensity": "C",
+  "exaggeration": "A",
+  "landing_panel": 1,
+  "contrast": null,
+  "effects_plan": [
+    {"axis": "effect_lines", "effect": "concentration lines converge on the departing refrigerator"},
+    {"axis": "world_reaction", "effect": "the user is knocked to their knees by the gust"}
+  ],
   "rhythm": null,
   "output": {
     "format": "png",
@@ -188,7 +197,7 @@ Full visual `images` are constructed after confirmation and excluded from that p
     }
   },
   "expression_plan": [
-    {"panel": 1, "preset": "smug", "performance": "punchline_peak"}
+    {"panel": 1, "preset": "smug", "performance": "manga_burst", "tier": "A"}
   ],
   "action_plan": [
     {"panel": 1, "action": "Whale-chan pushes the entire refrigerator away on a cart while the blank indigo user on the left points in disbelief."}
@@ -202,15 +211,17 @@ Full visual `images` are constructed after confirmation and excluded from that p
     "description": "canonical navy-and-white ornate maid outfit"
   },
   "background": {
-    "mode": "solid",
-    "description": "pure white #FFFFFF"
+    "mode": "custom",
+    "description": "low-angle kitchen with an open pantry and tiled floor; every label and screen blank",
+    "origin": "tier"
   },
-  "core_text": ["可以吃冰箱里的东西", "收到，冰箱归我了"],
+  "core_text": ["可以吃冰箱里的东西", "收到，冰箱归我了", "咚——！"],
   "text_style": "03_blue-banner",
   "text_style_reason": "Her oversized confident ownership claim overturns the user's modest permission.",
   "dialogue_plan": [
     {"text_index": 0, "panel": 1, "speaker": "user", "delivery": "speech"},
-    {"text_index": 1, "panel": 1, "speaker": "whalechan", "delivery": "speech"}
+    {"text_index": 1, "panel": 1, "speaker": "whalechan", "delivery": "speech"},
+    {"text_index": 2, "panel": 1, "speaker": "narrator", "delivery": "sfx"}
   ],
   "cast_plan": [
     {
@@ -251,7 +262,19 @@ Full visual `images` are constructed after confirmation and excluded from that p
 }
 ```
 
-Missing optional render fields normalize to the defaults shown above. `rhythm` defaults to `null`; when declared it is `{"type": "triple" | "pause" | "callback" | "deadpan", "panel": <landing panel>, "reason": "why the punchline needs it"}`. When a set of two or more images has rhythm on more than half of them, `validate-assignment` requires a `{"code": "rhythm_majority", "reason": "..."}` entry in the root `warning_dispositions`. `idea_id`, `execution_note`, `composition`, `proportion_check`, `core_text`, `text_style`, `text_style_reason`, `dialogue_plan`, `cast_plan`, `action_plan` and `expression_plan` are required. All four composition fields are nonempty strings. `proportion_check` is `measured` or `visible-only`, chosen from the planned shot. Action and expression plans contain exactly one consecutive entry per panel. Speaker and cast decisions are never inferred from missing fields. Normalized images carry `qa_contract_version: 9`. Every QA record is checked against the complete frozen image specification.
+Missing optional render fields normalize to the defaults shown above. `rhythm` defaults to `null`; when declared it is `{"type": "triple" | "pause" | "callback" | "deadpan", "panel": <landing panel>, "reason": "why the punchline needs it"}`. When a set of two or more images has rhythm on more than half of them, `validate-assignment` requires a `{"code": "rhythm_majority", "reason": "..."}` entry in the root `warning_dispositions`. `idea_id`, `execution_note`, `composition`, `proportion_check`, `core_text`, `text_style`, `text_style_reason`, `dialogue_plan`, `cast_plan`, `action_plan` and `expression_plan` are required. All four composition fields are nonempty strings. `proportion_check` is `measured` or `visible-only`, chosen from the planned shot. Action and expression plans contain exactly one consecutive entry per panel. Speaker and cast decisions are never inferred from missing fields. Normalized images carry `qa_contract_version: 10`. Every QA record is checked against the complete frozen image specification.
+
+## Exaggeration tiers
+
+`references/exaggeration-tiers.json` is the authority for each tier's ten axes, landing markers, allowed performance levels, sound-effect limits and default background; `exaggeration-tiers.md` explains how to choose them.
+
+- `exaggeration`: `A`, `B` or `C`, the tier of the landing panel. It matches the confirmed option.
+- `landing_panel`: the panel where the punchline lands; defaults to the last panel.
+- `expression_plan[].tier`: each panel's tier. Setup panels never exceed the landing tier, the landing panel equals `exaggeration`, and each `performance` must be allowed by its tier (`C` up to `heightened`, `B` adds `punchline_peak`, `A` adds `manga_burst`).
+- `contrast`: `null` or `{panel, axes, lowered_to, reason}` on the landing panel. `axes` names distinct axes from the tiers file; `lowered_to` is below the image tier. Lowered axes use the lower tier's palette, and landing markers whose axes are all lowered are waived.
+- `effects_plan`: the landing panel's key effects as `{axis, effect}`; required for `A` and `B`, optional for `C`.
+- Drawn sound effects (`delivery: sfx`) per panel stay within that panel's tier limit: `A` two of at most four characters, `B` one, `C` none. Punctuation and dashes do not count as characters.
+- A single-panel image whose face reaches `manga_burst` uses `proportion_check: visible-only`; in a multi-panel image, measure a panel without deformation.
 
 ## Output size and aspect ratio
 
@@ -326,7 +349,7 @@ Each image's `cast_plan` contains exactly one entry for every input participant,
 
 Physical and avatar roles require the bundled abstract-user pose sheet. Offscreen/absent-only plans must not load it. A card avatar is counted separately and cannot satisfy a physical-character plan. `cast_plan` is the sole source of participant representation and staging.
 
-Each `dialogue_plan` entry contains `{text_index, panel, speaker, delivery}`. It covers each `core_text` item exactly once, ordered from zero, with nondecreasing panel numbers. `speaker` is `whalechan`, an input participant, `narrator`, or the in-scene `device`; `delivery` is `speech`, `thought`, `caption`, or `label`. Narrators use captions, or labels for printed writing that belongs to no character. A `label` is writing that belongs to an object — a tag, sign, screen title or a short legible excerpt of a poem scroll — drawn on it without a bubble or tail; it also requires `prop`, naming that object, and `speaker` names who wrote it. A prop needs a `label` only when its readable content is part of the joke (a poem, a sign, a title, a tag the punchline points at); then it carries a legible excerpt and any further writing is drawn as clearly non-letter strokes. Ordinary documents whose words do not matter are drawn with plain gray bars and need no label. A supporting speaker must be physical, avatar or offscreen in the assigned panel, never absent. These checks establish consistency; source fidelity and the reason for an omission remain design-review responsibilities.
+Each `dialogue_plan` entry contains `{text_index, panel, speaker, delivery}`. It covers each `core_text` item exactly once, ordered from zero, with nondecreasing panel numbers. `speaker` is `whalechan`, an input participant, `narrator`, or the in-scene `device`; `delivery` is `speech`, `thought`, `caption`, `label` or `sfx`. Narrators use captions, labels for printed writing that belongs to no character, or `sfx` for drawn sound effects; `sfx` always belongs to the narrator and is hand-lettered into the scene without a balloon or tail. A `label` is writing that belongs to an object — a tag, sign, screen title or a short legible excerpt of a poem scroll — drawn on it without a bubble or tail; it also requires `prop`, naming that object, and `speaker` names who wrote it. A prop needs a `label` only when its readable content is part of the joke (a poem, a sign, a title, a tag the punchline points at); then it carries a legible excerpt and any further writing is drawn as clearly non-letter strokes. Ordinary documents whose words do not matter are drawn with plain gray bars and need no label. A supporting speaker must be physical, avatar or offscreen in the assigned panel, never absent. These checks establish consistency; source fidelity and the reason for an omission remain design-review responsibilities.
 
 ## Preflight and prompt construction
 
@@ -336,7 +359,7 @@ Each `dialogue_plan` entry contains `{text_index, panel, speaker, delivery}`. It
 
 ## Custom visual fields
 
-`style.mode` and `costume.mode` are `canonical` or `custom`. Custom mode requires a description and replaces only that field. `background.mode` is `solid` or `custom`; any resolved color, gradient, scene, environment, texture, or graphic field is allowed.
+`style.mode` and `costume.mode` are `canonical` or `custom`. Custom mode requires a description and replaces only that field. `background.mode` is `solid` or `custom`; any resolved color, gradient, scene, environment, texture, or graphic field is allowed. `background.origin` is `tier` when the background follows the image's tier default, or `user` when the user resolved it. An omitted background normalizes to the tier default with `origin: tier`; a tier-C default must be the solid `pure white #FFFFFF`.
 
 Custom ratio example:
 

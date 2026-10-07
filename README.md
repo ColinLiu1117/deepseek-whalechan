@@ -34,8 +34,8 @@
 - [Core Agent Skill Library](#-core-agent-skill-library)
 - [Installation & Environment Setup](#-installation--environment-setup)
 - [Quickstart Guide](#-quickstart-guide)
-- [Local Command-Line Toolchain](#-local-command-line-toolchain)
-- [Project Roadmap](#-project-roadmap)
+- [Local Command-Line Toolchain](#local-command-line-toolchain)
+- [Project Roadmap](#project-roadmap)
 - [Contributing Guide](#-contributing-guide)
 - [License Information](#-license-information)
 - [Character IP & Fanwork Copyright Attribution](#-character-ip--fanwork-copyright-attribution)
@@ -161,7 +161,7 @@ Dedicated to generating identity-locked, well-composed, clean-background WebP il
 
 ### Multi-Panel Comedy Comic Comparison
 
-Extracting an identifiable **Fact Anchor** from technical chats, error logs, CoT traces, or user rants, and preserving the source's humor and tone through Whale-chan's actions, language, reactions, and timing. Jokes are planned in five comedy directions — reversal, exposure, escalation, recognition, and character gag — with the source's own direction considered during comparison. Self-serving **"Theft of Meaning"** is one reversal tactic when it fits the source.
+Extracting an identifiable **Fact Anchor** from technical chats, error logs, CoT traces, or user rants, and preserving the source's humor and tone through Whale-chan's actions, language, reactions, and timing. Jokes are planned in five comedy directions — reversal, exposure, escalation, recognition, and character gag — with the source's own direction considered during comparison. Self-serving **"Theft of Meaning"** is one reversal tactic when it fits the source. How hard a joke is performed is a separate A/B/C exaggeration tier, independent of its direction: A manga impact (detailed scene, concentration lines, deformed faces, drawn sound effects), B comic outburst (desk-slamming accusations, situations spiralling), C restrained deadpan (carried by the line, a glance or negative space).
 
 <p align="center">
   <img src="assets/readme/en/whalechan-comic-fat-whale-wordplay.webp" alt="Whale-chan Comic Fat Whale Wordplay" width="480">
@@ -192,7 +192,7 @@ The project provides two specialized, out-of-the-box Agent Skills under the [`sk
 | Skill Name | Role & Core Function | Workflow Mechanism & Technical Features |
 | :--- | :--- | :--- |
 | [`whalechan-image-character`](skills/whalechan-image-character/) | **Character Portraits & Themed Illustrations**<br>Generates high-consistency, strictly verified, identity-locked Whale-chan solo, prop, and scene illustrations. | • **Standardized Pipeline**: Seven-column proposal selection ➔ Scope & budget confirmation ➔ Assignment expansion & freeze ➔ Generation & QA<br>• **Dual QA System**: Deterministic image format checks, skeletal joint fitting, and native-res visual QA matrix |
-| [`whalechan-image-comic`](skills/whalechan-image-comic/) | **Multi-Panel Comedy Comics**<br>Ranks ten ideas through 45 pairwise duels and makes one comic for each of the five winners. | • **One User Gate**: Show the five-idea table, five-image total and worker allocation ➔ Confirm once ➔ Generate and verify<br>• **Five Comedy Directions**: Reversal, exposure, escalation, recognition and character gag, compared without creative admission thresholds or repeated candidate pools<br>• **Multi-Panel Grammar**: Cover 1-, 2- and 4-panel layouts across the set, allocating by narrative need<br>• **Visual Typesetting**: 10 blue-white text templates, explicit dialogue ownership and abstract supporting-character staging |
+| [`whalechan-image-comic`](skills/whalechan-image-comic/) | **Multi-Panel Comedy Comics**<br>Ranks ten ideas through 45 pairwise duels and makes one comic for each of the five winners. | • **One User Gate**: Show the five-idea table, five-image total and worker allocation ➔ Confirm once ➔ Generate and verify<br>• **Five Comedy Directions**: Reversal, exposure, escalation, recognition and character gag, compared without creative admission thresholds or repeated candidate pools<br>• **Multi-Panel Grammar**: Cover 1-, 2- and 4-panel layouts across the set, allocating by narrative need<br>• **Three Exaggeration Tiers**: Cover A manga impact, B comic outburst and C restrained deadpan across the set, tiered on the landing panel, with optional contrast that deliberately lowers one axis<br>• **Visual Typesetting**: 10 blue-white text templates, explicit dialogue ownership and abstract supporting-character staging |
 
 Both Skills show the image total and planned sub-agent count before execution: at Gate 2 for character images and at the single confirmation for comics. After confirmation, they default to parallel generation with up to 10 sub-agents, limited by available runtime slots, provider capacity and ready images. Explicit serial requests are supported; the main agent handles generation when delegation is unavailable. Parallel execution does not increase the confirmed image count or candidate budget.
 
@@ -347,6 +347,8 @@ Example result:
 
 <br>
 
+<a id="local-command-line-toolchain"></a>
+
 ## 🛠️ Local Command-Line Toolchain
 
 After generation and `finalize`, both skills deliver an ivory offline gallery with source/theme tabs, results grouped by proposal, grid/list views, a lightbox, actual prompts, candidate history and generation counts. Unselected proposals remain available as collapsed summaries.
@@ -383,6 +385,8 @@ python3 skills/whalechan-image-comic/scripts/generate-nanobanana.py --request re
 
 <br>
 
+<a id="project-roadmap"></a>
+
 ## 🗺️ Project Roadmap
 
 - [x] **Character Foundation**: Full set of Whale-chan visual reference assets and SHA-256 catalog
@@ -412,10 +416,11 @@ We warmly welcome community creators and developers to join the Whale-chan ecosy
 
 This project adopts a tiered open-source licensing structure:
 
-- **Source Code & Toolchain**: All Python scripts, validation utilities, test suites, and engineering code are licensed under the [MIT License](LICENSE);
+- **Source Code & Toolchain**: All Python scripts, validation utilities, test suites, and engineering code are licensed under the [MIT License](https://opensource.org/license/mit);
 - **Specification Docs & Skill Templates**: Character design whitepapers (Markdown), prompt templates, layout rules, and Skill configs are licensed under [CC-BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 
 <br>
+
 ## 🎨 Character IP & Fanwork Copyright Attribution
 
 - **Public Co-Creation & Community Contribution**: Most fundamentally, the birth, evolution, and popularity of Whale-chan are entirely rooted in the **collective creative wisdom and inspiration of netizens and the open-source community**. Her cultural foundation belongs to all co-creators;

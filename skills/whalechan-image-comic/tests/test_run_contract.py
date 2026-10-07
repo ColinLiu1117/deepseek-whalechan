@@ -90,7 +90,7 @@ class QAProtocolTests(unittest.TestCase):
         cases = (("tournament", "c365367f8429e4b202f51f666aee180d13fa006f5bc458cbd71ed9b9acf78498"),
                  ("selection", "c18bfdaff5a0f10714f72e8f6d3a0aca201c9be11f16ac1bde921e6f5567eff5"))
         for kind, historical_hash in cases:
-            frozen = copy.deepcopy(original)
+            frozen = fixtures.as_historical_images(copy.deepcopy(original))
             frozen["schema_version"] = 12
             if kind == "tournament":
                 frozen["execution"].pop("subagent_count")
@@ -153,7 +153,7 @@ class QAProtocolTests(unittest.TestCase):
         # Reconstruct the legacy approval contract around genuine frozen image assets.
         legacy = fixtures.legacy_assignment()
         for version, resumable in ((10, True), (11, True), (9, False)):
-            frozen = copy.deepcopy(original)
+            frozen = fixtures.as_historical_images(copy.deepcopy(original))
             for field in ("creative_pool", "duels", "ranked_ideas", "proposal", "selection", "confirmation"):
                 frozen[field] = copy.deepcopy(legacy[field])
             for image, legacy_image in zip(frozen["images"], legacy["images"]):

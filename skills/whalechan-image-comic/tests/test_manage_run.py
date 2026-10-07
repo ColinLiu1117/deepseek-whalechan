@@ -209,13 +209,18 @@ def assignment() -> dict:
     proposal = value["proposal"]
     proposal.pop("recommended_choices")
     proposal.pop("recommendation_reason")
-    for index, (option, image, idea) in enumerate(zip(proposal["options"], value["images"], pool), 1):
+    tiers = ["A", "B", "C", "C", "B"]
+    for index, (option, image, idea, tier) in enumerate(zip(proposal["options"], value["images"], pool, tiers), 1):
         for field in ("choice", "rating", "recommendation_reason"):
             option.pop(field)
         option.update(key_lines=list(idea["key_lines"]), panel_count=image["panel_count"], twist=idea["punchline"],
-                      selection_reason=f"Rank {index}: a distinct visible consequence.")
+                      selection_reason=f"Rank {index}: a distinct visible consequence.", exaggeration=tier)
+        image.pop("intensity")
         image.update(source_rank=index, idea_id=idea["id"], premise=idea["premise"], execution=1,
-                     core_text=list(idea["key_lines"]))
+                     core_text=list(idea["key_lines"]), exaggeration=tier,
+                     effects_plan=[] if tier == "C" else [{"axis": "effect_lines", "effect": "speed lines behind the factory"}])
+        for entry in image["expression_plan"]:
+            entry["tier"] = tier
     value["worker_plan"] = {"coordinator": "main", "max_parallelism": 3,
                             "workers": [{"id": "worker-1", "idea_ids": ["idea_01", "idea_04"]},
                                         {"id": "worker-2", "idea_ids": ["idea_02", "idea_05"]},
@@ -236,6 +241,33 @@ def design_evidence(image: dict) -> dict:
         ],
     }
 
+
+
+def exaggeration_check(image: dict) -> dict:
+    """Synthetic E1 evidence for unit tests, not an image review."""
+    tiers = manage.exaggeration_tiers()
+    return {"tier": image["exaggeration"], "landing_panel": image["landing_panel"],
+            "markers": [{"id": marker["id"], "observed": "synthetic marker observation"}
+                        for marker in manage.required_markers(image, tiers)],
+            "palette_violations": [], "style_spill": False,
+            "identity_anchors": [{"panel": entry["panel"], "anchors": ["hair", "fin_ears", "tail"]}
+                                 for entry in image["expression_plan"] if entry["performance"] == "manga_burst"]}
+
+
+def as_historical_images(frozen: dict) -> dict:
+    """Strip v14 tier fields so a reconstructed pre-v14 run looks as it was frozen."""
+    for image in frozen["images"]:
+        for field in ("exaggeration", "landing_panel", "contrast", "effects_plan"):
+            image.pop(field, None)
+        image["background"].pop("origin", None)
+        image.update(intensity="C", qa_contract_version=9)
+        for entry in image["expression_plan"]:
+            entry.pop("tier", None)
+    for option in frozen["proposal"]["options"]:
+        option.pop("exaggeration", None)
+        option.pop("contrast", None)
+    frozen.pop("exaggeration_policy", None)
+    return frozen
 
 
 def reviewed_observation(image: dict, candidate_hash: str) -> dict:
@@ -363,6 +395,7 @@ class RunStateTests(unittest.TestCase):
             "expression_match": [dict(plan, observed_cues=["synthetic assigned expression"],
                                       forbidden_cues_present=[])
                                  for plan in self.image_spec["expression_plan"]],
+            "exaggeration_check": exaggeration_check(self.image_spec),
         }
         if verdict == "FAIL":
             gates["J1"] = "FAIL"

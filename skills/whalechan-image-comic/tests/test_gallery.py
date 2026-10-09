@@ -168,7 +168,7 @@ class GalleryTests(unittest.TestCase):
         _, data = self.export()
         group = data["groups"][0]
         self.assertIsNone(group["proposals"][0]["images"][0]["origin"])
-        self.assertTrue(any("无法唯一确定" in message for message in group["warnings"]))
+        self.assertTrue(any(item["code"] == "final_ambiguous" for item in group["warnings"]))
         if gallery.COMIC:
             self.assertEqual(len(group["gallery_images"]), 2)
             self.assertTrue(all(c["matches_final"] and not c["is_final"] for c in group["gallery_images"]))

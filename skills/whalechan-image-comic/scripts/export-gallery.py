@@ -13,6 +13,20 @@ from datetime import datetime, timezone
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 COMIC = SKILL_ROOT.name == "whalechan-image-comic"
+LANGUAGES = ("zh", "en")
+# The page renders these from structured records; the CLI uses them to report warnings.
+PICTURE_TEXT = {"zh": {"candidate": "{label} 候选", "source": "输入原图 {label}", "reference": "{label}", "final": "{label}"},
+                "en": {"candidate": "{label} candidate", "source": "Input image {label}", "reference": "{label}", "final": "{label}"}}
+RECORD_TEXT = {"zh": {"visual_qa": "验收", "automatic_qa": "自动验收", "prompt": "提示词"},
+               "en": {"visual_qa": "visual QA", "automatic_qa": "automatic QA", "prompt": "prompt"}}
+WARNING_TEXT = {
+    "zh": {"image_missing": "{subject}：图片文件缺失", "record_missing": "{subject} {record}：记录缺失",
+           "final_ambiguous": "{subject}：多个候选与成品哈希相同，无法唯一确定提示词；请查看生成过程",
+           "final_unrecorded": "{subject}：成品来源记录缺失"},
+    "en": {"image_missing": "{subject}: image file missing", "record_missing": "{subject} {record}: record missing",
+           "final_ambiguous": "{subject}: several candidates match the final's hash, so its prompt cannot be identified; see the generation history",
+           "final_unrecorded": "{subject}: the final's source record is missing"},
+}
 
 
 class GalleryError(ValueError):
@@ -27,19 +41,31 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def tier_label(spec):
-    """Show a comic's exaggeration tier (v14) or historical intensity (v13 and earlier)."""
+def tier_info(spec):
+    """Describe a comic's exaggeration tier (v14) or historical intensity (v13 and earlier) for the page to render."""
     tier = spec.get("exaggeration")
     if not tier:
-        return f"强度 {spec['intensity']}" if spec.get("intensity") else ""
+        return {"intensity": spec["intensity"]} if spec.get("intensity") else None
     contrast = spec.get("contrast")
     if not contrast:
-        return f"档位 {tier}"
+        return {"tier": tier}
     tiers_path = SKILL_ROOT / "references" / "exaggeration-tiers.json"
-    labels = ({axis["id"]: axis["label_zh"] for axis in read_json(tiers_path)["axes"]}
+    labels = ({axis["id"]: {"zh": axis["label_zh"], "en": axis["label"]} for axis in read_json(tiers_path)["axes"]}
               if tiers_path.is_file() else {})
-    axes = "、".join(labels.get(axis, axis) for axis in contrast["axes"])
-    return f"档位 {tier}（{axes}→{contrast['lowered_to']}）"
+    return {"tier": tier, "lowered_to": contrast["lowered_to"],
+            "axes": [labels.get(axis, {"zh": axis, "en": axis}) for axis in contrast["axes"]]}
+
+
+def picture_name(kind, label, language):
+    return PICTURE_TEXT[language][kind].format(label=label)
+
+
+def warning_text(warning, language):
+    subject = warning["subject"]
+    if isinstance(subject, dict):
+        subject = picture_name(subject["kind"], subject["label"], language)
+    return WARNING_TEXT[language][warning["code"]].format(
+        subject=subject, record=RECORD_TEXT[language].get(warning.get("record"), ""))
 
 
 def as_text(value):
@@ -88,44 +114,44 @@ class RunReader:
                 return resolved
         return None
 
-    def picture(self, path, label, expected=None):
+    def picture(self, path, label, expected=None, kind="final"):
         if path is None:
-            self.warnings.append(f"{label}：图片文件缺失")
-            return {"label": label, "src": None}
+            self.warnings.append({"code": "image_missing", "subject": {"kind": kind, "label": label}})
+            return {"label": label, "kind": kind, "src": None}
         sha = digest(path)
         if expected and sha != expected:
-            raise GalleryError(f"Image hash mismatch: {label}")
+            raise GalleryError(f"Image hash mismatch: {picture_name(kind, label, 'en')}")
         result = subprocess.run(["magick", "identify", "-ping", "-format", "%m %w %h", f"{path}[0]"],
                                 check=True, capture_output=True, text=True, timeout=30)
         format_name, width, height = result.stdout.split()
         extension = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp", "GIF": "gif"}.get(format_name)
         width, height = int(width), int(height)
         if extension is None:
-            raise GalleryError(f"Unsupported image format: {label}")
+            raise GalleryError(f"Unsupported image format: {picture_name(kind, label, 'en')}")
         name = f"{sha}.{extension}"
         target = self.assets / name
         if not target.exists():
             shutil.copyfile(path, target)
-        return {"label": label, "src": f"assets/{name}", "width": width, "height": height}
+        return {"label": label, "kind": kind, "src": f"assets/{name}", "width": width, "height": height}
 
-    def sidecar(self, value, label, json_file=False):
+    def sidecar(self, value, subject, record, json_file=False):
         if isinstance(value, dict):
             return value
         path = self.locate(value)
         if path is None:
-            self.warnings.append(f"{label}：记录缺失")
+            self.warnings.append({"code": "record_missing", "subject": subject, "record": record})
             return {} if json_file else ""
         return read_json(path) if json_file else path.read_text(encoding="utf-8")
 
     def attempt(self, record):
         key = record.get("attempt_id") or record.get("derived_id") or str(record.get("candidate_attempt", ""))
         role = record.get("role", "candidate")
-        qa = self.sidecar(record.get("visual_qa"), f"{key} 验收", True)
-        auto = self.sidecar(record.get("automatic_qa"), f"{key} 自动验收", True)
+        qa = self.sidecar(record.get("visual_qa"), key, "visual_qa", True)
+        auto = self.sidecar(record.get("automatic_qa"), key, "automatic_qa", True)
         prompt = "" if role == "composite" else (
-            self.sidecar(record.get("prompt"), f"{key} 提示词") if COMIC else record.get("prompt", ""))
+            self.sidecar(record.get("prompt"), key, "prompt") if COMIC else record.get("prompt", ""))
         picture = self.picture(self.locate(record.get("candidate", record.get("candidate_path"))),
-                               f"{key} 候选", record.get("candidate_sha256"))
+                               key, record.get("candidate_sha256"), "candidate")
         return {"id": key, "role": role, "picture": picture,
                 "sha256": record.get("candidate_sha256"), "prompt": prompt,
                 "provider": record.get("provider"), "model": record.get("model"),
@@ -145,11 +171,10 @@ class RunReader:
                    and item["role"] != "component" and item["verdict"] == "PASS"]
         origin = matches[0] if len(matches) == 1 else None
         if final and not origin:
-            reason = "多个候选与成品哈希相同，无法唯一确定提示词；请查看生成过程" if matches else "成品来源记录缺失"
-            self.warnings.append(f"{spec['id']}：{reason}")
+            self.warnings.append({"code": "final_ambiguous" if matches else "final_unrecorded", "subject": spec["id"]})
         return {"id": spec["id"], "name": spec.get("name", spec["id"]),
                 "note": spec.get("execution_note", ""), "status": state.get("status"),
-                "tier": tier_label(spec) if COMIC else "",
+                "tier": tier_info(spec) if COMIC else None,
                 "final": final, "final_sha256": state.get("final_sha256"),
                 "origin": origin, "attempts": attempts,
                 "calls": sum(item.get("consumes_candidate_budget", True) is not False
@@ -202,7 +227,7 @@ class RunReader:
             for index, value in enumerate(values, 1):
                 archived = sorted((self.run / "source").glob(f"original-{index:02d}.*"))
                 path = archived[0] if archived else self.locate(value, external=True)
-                originals.append(self.picture(path, f"输入原图 {index}"))
+                originals.append(self.picture(path, str(index), kind="source"))
             # A source analysis is an interpretation, never the user's original words.
             request = ""
         else:
@@ -248,7 +273,7 @@ class RunReader:
                     continue
                 seen.add(key)
                 picture = self.picture(self.locate(ref.get("path"), external=True),
-                                       ref.get("id", "参考图"), ref.get("sha256"))
+                                       ref.get("id", ""), ref.get("sha256"), "reference")
                 references.append({**picture, "roles": ref.get("roles", [])})
         request, originals, analysis = self.sources()
         images = [image for proposal in proposals for image in proposal["images"]]
@@ -259,13 +284,13 @@ class RunReader:
                 "planned": len(images), "passed": sum(item["status"] == "passed" for item in images),
                 "calls": sum(item["calls"] for item in images),
                 "errors": sum(len(item["errors"]) for item in images),
-                "warnings": list(dict.fromkeys(self.warnings))}
+                "warnings": list({json.dumps(item, sort_keys=True): item for item in self.warnings}.values())}
         if COMIC:
             group["gallery_images"] = self.gallery_images(proposals)
         return group
 
 
-def export_gallery(run_dirs, output=None):
+def export_gallery(run_dirs, output=None, language="zh"):
     runs = [Path(path).resolve() for path in run_dirs]
     if not runs or len(set(runs)) != len(runs):
         raise GalleryError("Supply distinct run directories")
@@ -282,7 +307,7 @@ def export_gallery(run_dirs, output=None):
         assets = destination / "assets"
         assets.mkdir()
         groups = [RunReader(run, assets).build() for run in runs]
-        data = {"skill": "comic" if COMIC else "character", "groups": groups,
+        data = {"skill": "comic" if COMIC else "character", "language": language, "groups": groups,
                 "exported_at": datetime.now(timezone.utc).isoformat()}
         template_root = SKILL_ROOT / "assets" / "gallery"
         template = (template_root / "index.html").read_text(encoding="utf-8")
@@ -291,22 +316,26 @@ def export_gallery(run_dirs, output=None):
         # Insert data last: user text is never interpreted as HTML or a template token.
         html = template.replace("/* GALLERY_CSS */", (template_root / "gallery.css").read_text(encoding="utf-8"))
         html = html.replace("/* GALLERY_JS */", (template_root / "gallery.js").read_text(encoding="utf-8"))
+        html = html.replace('<html lang="zh-CN">', f'<html lang="{"zh-CN" if language == "zh" else "en"}">')
         html = html.replace("GALLERY_DATA", payload)
         (destination / "index.html").write_text(html, encoding="utf-8")
     except Exception:
         shutil.rmtree(destination)
         raise
     return {"gallery": str(destination / "index.html"), "groups": len(groups),
-            "warnings": {str(index + 1): group["warnings"] for index, group in enumerate(groups) if group["warnings"]}}
+            "warnings": {str(index + 1): [warning_text(item, language) for item in group["warnings"]]
+                         for index, group in enumerate(groups) if group["warnings"]}}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", action="append", required=True)
     parser.add_argument("--output")
+    parser.add_argument("--language", choices=LANGUAGES, default="zh",
+                        help="Initial page language; the page can switch between Chinese and English")
     args = parser.parse_args()
     try:
-        print(json.dumps(export_gallery(args.run_dir, args.output), ensure_ascii=False, indent=2))
+        print(json.dumps(export_gallery(args.run_dir, args.output, args.language), ensure_ascii=False, indent=2))
     except (GalleryError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         print(json.dumps({"error": str(error)}, ensure_ascii=False), file=sys.stderr)
         return 1

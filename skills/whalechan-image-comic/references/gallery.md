@@ -3,12 +3,12 @@
 After generation and QA, finalize the run and export its gallery before delivery. This uses Python 3 and the existing ImageMagick `magick` dependency, with no image API calls or frontend build step.
 
 ```bash
-python3 scripts/export-gallery.py --run-dir <completed-run>
+python3 scripts/export-gallery.py --run-dir <completed-run> --language <zh|en>
 python3 scripts/export-gallery.py --run-dir <source-a-run> --run-dir <source-b-run> \
-  --output artifacts/whalechan-image-comic/<batch-name>/gallery
+  --language <zh|en> --output artifacts/whalechan-image-comic/<batch-name>/gallery
 ```
 
-A single run defaults to `<run>/gallery/index.html`. A batch requires `--output`. Existing outputs are preserved by selecting `gallery-02`, `gallery-03`, etc. The command prints the actual HTML path and missing-record warnings as JSON. Link that path in the final delivery. Copy or zip the entire gallery directory when sharing; the HTML needs its adjacent `assets/` folder.
+A single run defaults to `<run>/gallery/index.html`. A batch requires `--output`. Existing outputs are preserved by selecting `gallery-02`, `gallery-03`, etc. The command prints the actual HTML path and missing-record warnings as JSON. Link that path in the final delivery. `--language` sets the page's initial language (`zh` for a Chinese session, `en` otherwise; default `zh`) and the language of the printed warnings. The masthead button switches the page between Chinese and English and remembers the viewer's choice in that browser. Records stay structured; user text, prompts and proposal content are shown as recorded, never translated. Copy or zip the entire gallery directory when sharing; the HTML needs its adjacent `assets/` folder.
 
 ## Organization and interaction
 

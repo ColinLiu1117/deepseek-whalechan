@@ -101,6 +101,19 @@ small,
   font-weight: 750;
   letter-spacing: 3px;
 }
+.masthead,
+.masthead-end {
+  align-items: center;
+}
+.masthead-end {
+  display: flex;
+  gap: 16px;
+}
+.language-toggle {
+  padding: 4px 10px;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
 main {
   max-width: 1440px;
   padding: 48px;

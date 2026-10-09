@@ -61,12 +61,11 @@ def build_prompt(assignment: dict, image: dict) -> str:
         sections.append(exaggeration_section(image, tiers))
     for action, expression in zip(image["action_plan"], image["expression_plan"], strict=True):
         preset = presets[expression["preset"]]
-        line = (f"PANEL {action['panel']}: {action['action']}\nEXPRESSION: {expression['preset']}, {expression['performance']}. "
-                f"Visible cues: {', '.join(preset['face_cues'])}. Forbidden cues: {', '.join(preset['forbidden_cues'])}.")
-        if expression["performance"] == "manga_burst":
-            burst = tiers["manga_burst"]
-            line += (f"\nMANGA BURST: push this emotion into open manga deformation, such as {', '.join(burst['cues'])}. "
-                     + burst["guard"])
+        line = f"PANEL {action['panel']}: {action['action']}\nEXPRESSION: {expression['preset']}, {expression['performance']}. "
+        if tiers:
+            line += expression_cues(preset, expression, tiers)
+        else:
+            line += f"Visible cues: {', '.join(preset['face_cues'])}. Forbidden cues: {', '.join(preset['forbidden_cues'])}."
         sections.append(line)
     sections.append(
         "PROPORTION: " + json.dumps(image["proportion"], ensure_ascii=False)
@@ -128,6 +127,27 @@ def build_prompt(assignment: dict, image: dict) -> str:
         "OUTPUT: opaque RGB PNG. " + json.dumps(image["output"], ensure_ascii=False) + ". Recommended resolution is not an exact-size requirement; explicit dimensions are.",
     ]
     return "\n\n".join(sections) + "\n"
+
+
+def expression_cues(preset: dict, expression: dict, tiers: dict) -> str:
+    """Fit a preset's cues to the panel's performance level and tier."""
+    forbidden = ", ".join(preset["forbidden_cues"])
+    if expression["performance"] == "manga_burst":
+        burst = tiers["manga_burst"]
+        return (f"Emotional baseline: {', '.join(preset['face_cues'])}; the deformation may replace these eye and mouth shapes."
+                f"\nMANGA BURST: push this emotion into open manga deformation, choosing only cues that fit it, such as {', '.join(burst['cues'])}. "
+                f"Never show cues of the wrong emotion: {forbidden}. " + burst["guard"])
+    cues = preset["face_cues"] + (preset["heightened_cues"] if expression["performance"] != "grounded" else [])
+    line = f"Visible cues: {', '.join(cues)}. Forbidden cues: {forbidden}."
+    cap = tiers["tiers"][expression["tier"]]["manpu_cap"]
+    if cap is not None:
+        accents = "; ".join(preset["manga_accents"])
+        if not accents:
+            line += " Manpu allowance: none."
+        else:
+            line += f" Manpu allowance: {accents}"
+            line += f", and at most {cap} mark{'s' if cap != 1 else ''} in total." if type(cap) is int else "."
+    return line
 
 
 def exaggeration_section(image: dict, tiers: dict) -> str:

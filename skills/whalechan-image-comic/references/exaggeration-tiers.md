@@ -45,7 +45,7 @@ Detailed `A` scenes invite pseudo-text. Turn signs, screens, book spines and lab
 
 ## Deformation and identity
 
-`manga_burst` is fully open: blank or dot eyes, giant mouths, tear rivers, sudden chibi shifts, a soul leaving the body, petrified cracks, or a face-only gekiga rendering. In a deformed panel, judge identity by the anchors instead of the face: keep at least three of hair, fin ears, ahoge, tail and maid outfit clearly visible. Deformed panels use visible-only proportion review. A gekiga face stays on the face; if the heavy rendering spreads to the body, background or the whole canvas, that is a style shift and fails.
+`manga_burst` is fully open: blank or dot eyes, giant mouths, tear rivers, sudden chibi shifts, a soul leaving the body, petrified cracks, or a face-only gekiga rendering. In a deformed panel, judge identity by the anchors instead of the face: keep at least three of hair, fin ears, ahoge, tail and maid outfit clearly visible. Deformed panels use visible-only proportion review. The expression preset still names the emotion: deformation may replace its eye and mouth shapes, but never with its forbidden cues. A gekiga face stays on the face; if the heavy rendering spreads to the body, background or the whole canvas, that is a style shift and fails.
 
 ## Lettering
 

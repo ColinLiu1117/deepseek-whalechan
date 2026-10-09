@@ -17,7 +17,7 @@ SPEC.loader.exec_module(manage)
 
 def build_prompt(assignment: dict, image: dict) -> str:
     if assignment.get("schema_version") not in manage.RESUMABLE_SCHEMA_VERSIONS:
-        raise manage.RunError(f"Prompt construction requires schema_version {manage.ASSIGNMENT_SCHEMA_VERSION}")
+        raise manage.RunError(f"Prompt construction requires schema_version in {sorted(manage.RESUMABLE_SCHEMA_VERSIONS)}")
     manage.validate_approval(assignment)
     if image.get("qa_contract_version") not in manage.QA_CONTRACT_VERSIONS:
         raise manage.RunError(f"Image qa_contract_version must be one of {sorted(manage.QA_CONTRACT_VERSIONS)}")

@@ -32,7 +32,7 @@ EXPRESSION_PRESETS_SCHEMA_VERSION = 2
 EXAGGERATION_TIERS_SCHEMA_VERSION = 1
 ASSIGNMENT_SCHEMA_VERSION = 14
 # Frozen runs from these versions may still be generated and finalized, never newly initialized.
-RESUMABLE_SCHEMA_VERSIONS = {10, 11, 12, 13, ASSIGNMENT_SCHEMA_VERSION}
+RESUMABLE_SCHEMA_VERSIONS = {11, 13, ASSIGNMENT_SCHEMA_VERSION}
 # Tournament contracts: v13 predates exaggeration tiers, v14 adds them.
 TOURNAMENT_SCHEMA_VERSIONS = {13, ASSIGNMENT_SCHEMA_VERSION}
 QA_CONTRACT_VERSION = 10
@@ -146,7 +146,7 @@ def resolve_warnings(found: list[dict[str, Any]], dispositions: Any, label: str)
                            f"{{\"code\": \"{warning['code']}\", \"reason\": <source-grounded reason>}}")
 
 
-def proposal_options(proposal: Any, legacy: bool = False) -> dict[str, dict[str, Any]]:
+def proposal_options(proposal: Any) -> dict[str, dict[str, Any]]:
     if not isinstance(proposal, dict):
         raise RunError("proposal must be an object")
     if type(proposal.get("revision")) is not int or proposal["revision"] < 1:
@@ -171,8 +171,7 @@ def proposal_options(proposal: Any, legacy: bool = False) -> dict[str, dict[str,
     if len(set(recommended)) != len(recommended) or any(item not in "ABCDE" or len(item) != 1 for item in recommended):
         raise RunError("proposal.recommended_choices must name unique choices A–E")
     text(proposal.get("recommendation_reason"), "proposal.recommendation_reason")
-    if not legacy:
-        validate_proposal_directions(proposal, options)
+    validate_proposal_directions(proposal, options)
     return {item["choice"]: item for item in options}
 
 
@@ -198,14 +197,8 @@ def validate_proposal_directions(proposal: dict[str, Any], options: list[dict[st
     resolve_warnings(warnings, proposal.get("warning_dispositions"), "proposal.warning_dispositions")
 
 
-def is_legacy(value: dict[str, Any]) -> bool:
-    return value.get("schema_version") == 10
-
-
 def uses_tournament(value: dict[str, Any]) -> bool:
-    # Both independent branches introduced v12 with different approval contracts.
-    return (value.get("schema_version") in TOURNAMENT_SCHEMA_VERSIONS
-            or (value.get("schema_version") == 12 and "worker_plan" in value))
+    return value.get("schema_version") in TOURNAMENT_SCHEMA_VERSIONS
 
 
 def is_tiered(value: dict[str, Any]) -> bool:
@@ -216,7 +209,7 @@ def selection_summary(value: dict[str, Any]) -> dict[str, Any]:
     if uses_tournament(value):
         return plan_summary(value)
     proposal = value.get("proposal")
-    options = proposal_options(proposal, legacy=is_legacy(value))
+    options = proposal_options(proposal)
     selection = value.get("selection")
     if not isinstance(selection, dict):
         raise RunError("Gate 1 selection must be an object")
@@ -245,11 +238,7 @@ def selection_summary(value: dict[str, Any]) -> dict[str, Any]:
         raise RunError("selection.adjustments must be a list of explicit user changes")
     total = sum(item["count"] for item in rows)
     contract = {"proposal": proposal, "selection": selection}
-    execution = normalize_execution(value.get("execution"), legacy=value.get("schema_version") in {10, 11})
-    if value.get("schema_version") not in {10, 11}:
-        if execution["subagent_count"] > total:
-            raise RunError("subagent_count exceeds the selected image count")
-        contract["execution"] = execution
+    execution = normalize_execution(value.get("execution"), legacy=True)
     return {"proposal_count": len(rows), "image_count": total, "choices": rows,
             "adjustments": adjustments, "execution": execution,
             "summary_sha256": contract_hash(contract)}
@@ -306,66 +295,29 @@ def markdown_cell(value: str) -> str:
     return value.replace("\\", "\\\\").replace("|", "\\|").replace("\r", " ").replace("\n", "<br>")
 
 
-def proposal_markdown(proposal: dict[str, Any], legacy: bool = False) -> str:
-    options = proposal_options(proposal, legacy=legacy)
-    humor_header = "笑点与反转" if legacy else "方向｜笑点"
-    lines = [f"| 选择 | 方案 | 核心场景 | {humor_header} | 分镜／构图 | 关键台词 | 推荐程度与理由 |",
-             "|---|---|---|---|---|---|---|"]
-    for choice, item in options.items():
-        rating = item["rating"]
-        recommendation = "★" * rating + "☆" * (3 - rating)
-        recommendation += " " + {3: "首推", 2: "推荐", 1: "可选"}[rating] + "：" + item["recommendation_reason"]
-        humor = item["twist"]
-        if not legacy:
-            humor = DIRECTION_LABELS[item["direction"]] + ("（原）" if item["is_native"] else "") + "｜" + humor
-        cells = [choice, item["title"], item["scene"], humor, item["staging"],
-                 "\n".join(item["key_lines"]), recommendation]
-        lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
-    if not legacy and any(item["is_native"] for item in options.values()):
-        lines.extend(["", "标注“（原）”的方案保留了原素材本来的笑点方向。"])
-    lines.extend(["", "**你想生成哪些方案？** 可选一个或多个。推荐 **"
-                  + "＋".join(proposal["recommended_choices"]) + "**，"
-                  + markdown_cell(proposal["recommendation_reason"]) + "。", "",
-                  "**生成策略：**每个入选方案默认生成 **5 张**，围绕该创意展开不同演绎。选一个共 5 张，选两个共 10 张，全选共 25 张；也可以指定“五种方案各一张”，共 5 张。选择后，我会汇总方案和张数，请你确认后再开始生成。"])
-    return "\n".join(lines) + "\n"
-
-
 def selection_markdown(summary: dict[str, Any]) -> str:
-    if "worker_plan" in summary:
-        return plan_markdown({"proposal": {"options": summary["options"]},
-                              "panel_policy": summary["panel_policy"]}, summary)
-    lines = [f"已选择 **{summary['proposal_count']} 个方案，共 {summary['image_count']} 张图片**：", ""]
-    for item in summary["choices"]:
-        lines.append(f"- **{item['choice']}｜{markdown_cell(item['title'])}**：{item['count']} 张")
-    if summary["adjustments"]:
-        lines.extend(["", "同步落实以下修改：", ""])
-        lines.extend("- " + markdown_cell(item) for item in summary["adjustments"])
-    lines.extend(["", "每个方案围绕已选创意展开不同演绎，生成后进行质量验证。",
-                  "生图通道：优先 Codex ImageGen（不在 Codex 中运行时，通过本机 Codex CLI 调用，消耗 ChatGPT 订阅额度）→ OpenAI → Nano Banana → Seedream。", "",
-                  execution_markdown(summary["execution"]), "",
-                  "**确认按以上方案、数量和子代理安排开始生成吗？** 回复“确认”即可开始，也可以调整方案、数量或执行安排。"])
-    return "\n".join(lines) + "\n"
+    return plan_markdown({"proposal": {"options": summary["options"]},
+                          "panel_policy": summary["panel_policy"]}, summary)
+
+
+def planning_draft(value: dict[str, Any], label: str = "Planning draft") -> dict[str, Any]:
+    if value.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+        raise RunError(f"{label} must use schema_version {ASSIGNMENT_SCHEMA_VERSION}")
+    return value
 
 
 def cmd_render_proposal(args: argparse.Namespace) -> dict[str, Any]:
-    value = read_json(Path(args.draft).resolve())
-    if uses_tournament(value):
-        summary = plan_summary(value)
-        return {**summary, "markdown": plan_markdown(value, summary)}
-    proposal = value.get("proposal")
-    return {"markdown": proposal_markdown(proposal), "proposal_sha256": contract_hash(proposal)}
+    value = planning_draft(read_json(Path(args.draft).resolve()))
+    summary = plan_summary(value)
+    return {**summary, "markdown": plan_markdown(value, summary)}
 
 
 def cmd_summarize_selection(args: argparse.Namespace) -> dict[str, Any]:
-    value = read_json(Path(args.draft).resolve())
-    summary = selection_summary(value)
-    if uses_tournament(value):
-        return {**summary, "markdown": plan_markdown(value, summary)}
-    return {**summary, "markdown": selection_markdown(summary)}
+    return cmd_render_proposal(args)
 
 
 def cmd_rank_ideas(args: argparse.Namespace) -> dict[str, Any]:
-    value = read_json(Path(args.draft).resolve())
+    value = planning_draft(read_json(Path(args.draft).resolve()))
     standings = tournament_results(value)
     return {"standings": standings, "ranked_ideas": [row["idea_id"] for row in standings[:5]]}
 
@@ -527,9 +479,8 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
         raise RunError("worker_plan requires coordinator=main")
     workers = plan.get("workers")
     capacity = plan.get("max_parallelism")
-    legacy = value.get("schema_version") == 12
-    execution = normalize_execution(value.get("execution"), legacy=legacy)
-    count = capacity if legacy else execution["subagent_count"]
+    execution = normalize_execution(value.get("execution"))
+    count = execution["subagent_count"]
     if (type(capacity) is not int or not 1 <= capacity <= len(selected)
             or not isinstance(workers, list) or len(workers) != count
             or capacity != max(1, count)):
@@ -555,7 +506,7 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
     payload.update(tie_breaks=value.get("tie_breaks", []), panel_policy=policy,
                    execution=execution, input=value["input"])
     if tier_policy is not None:
-        # Only v14 binds the tier policy, so historical v12/v13 confirmation hashes stay unchanged.
+        # Only v14 binds the tier policy, so historical v13 confirmation hashes stay unchanged.
         payload["exaggeration_policy"] = tier_policy
     return {"proposal_count": 5, "image_count": 5, "choices": rows, "adjustments": [],
             "worker_plan": plan, "maximum_total": 15, "standings": ranking,
@@ -1459,9 +1410,7 @@ def draft_summary(paths: list[Path]) -> dict[str, Any]:
     """Cross-case signals from planning drafts, available before the single confirmation."""
     matrix = []
     for path in paths:
-        value = read_json(path)
-        if not uses_tournament(value):
-            raise RunError(f"{path.name} is not a tournament planning draft")
+        value = planning_draft(read_json(path), path.name)
         summary = plan_summary(value)
         tiers = exaggeration_tiers() if summary["exaggeration_policy"] is not None else None
         ideas = {idea["id"]: idea for idea in value["creative_pool"]}
@@ -1795,8 +1744,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
         raise RunError("Frozen assignment SHA-256 mismatch")
     images = assignment.get("images")
     validate_approval(assignment)
-    if assignment["schema_version"] in TOURNAMENT_SCHEMA_VERSIONS or (
-            assignment["schema_version"] == 12 and "subagent_count" in assignment["execution"]):
+    if uses_tournament(assignment):
         execution = manifest.get("execution", {})
         if any(execution.get(key) != item for key, item in assignment["execution"].items()):
             raise RunError("manifest execution does not match the frozen assignment")
@@ -2265,16 +2213,11 @@ def record_image(args: argparse.Namespace, component: bool) -> dict[str, Any]:
 
 def creative_markdown(assignment: dict[str, Any]) -> str:
     lines = [f"# {assignment['run_name']}", "", f"Fact anchor: {assignment['input']['fact_anchor']}", ""]
-    if uses_tournament(assignment):
-        lines.extend(["## Confirmed plan", "", plan_markdown(assignment), "```json",
-                      json.dumps(assignment["confirmation"], ensure_ascii=False, indent=2), "```", "",
-                      "## Tournament standings", "", "```json",
-                      json.dumps(tournament_results(assignment), ensure_ascii=False, indent=2), "```", "",
-                      "Tie decisions: " + json.dumps(assignment.get("tie_breaks", []), ensure_ascii=False), ""])
-    else:
-        lines.extend(["## Proposal selection and confirmation", "", proposal_markdown(assignment["proposal"]),
-                      "```json", json.dumps({key: assignment[key] for key in ("selection", "confirmation")}, ensure_ascii=False, indent=2),
-                      "```", "", selection_markdown(selection_summary(assignment)), ""])
+    lines.extend(["## Confirmed plan", "", plan_markdown(assignment), "```json",
+                  json.dumps(assignment["confirmation"], ensure_ascii=False, indent=2), "```", "",
+                  "## Tournament standings", "", "```json",
+                  json.dumps(tournament_results(assignment), ensure_ascii=False, indent=2), "```", "",
+                  "Tie decisions: " + json.dumps(assignment.get("tie_breaks", []), ensure_ascii=False), ""])
     native = assignment["input"]["source_analysis"]["native_direction"]
     lines.extend([
         f"Native direction: {native['direction'] or 'none'} — {native['reason']}", "",
@@ -2291,19 +2234,11 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
             lines.append(f"- {field.capitalize()}: {' → '.join(value) if isinstance(value, list) else value}")
         lines.extend([f"- Punchline: {idea['punchline']}", f"- Personality: {', '.join(idea['personality'])}", f"- Scene: {idea['scene']}"])
         lines.append(f"- Mechanism: {idea['mechanism']}")
-        if "gate" in idea:
-            lines.extend([f"- Gate: {idea['gate']}", f"- Gate reason: {idea['gate_reason']}"])
-            if idea["gate"] == "FAIL":
-                lines.append(f"- Rejected: {idea['rejection_reason']}")
-        else:
-            lines.append("- Key lines: " + json.dumps(idea["key_lines"], ensure_ascii=False))
+        lines.append("- Key lines: " + json.dumps(idea["key_lines"], ensure_ascii=False))
         lines.append("")
     lines.extend(["## Pairwise duels", ""])
     for duel in assignment["duels"]:
-        if "a" in duel:
-            lines.append(f"- {duel['a']} vs {duel['b']}: {duel['winner'] or 'draw'} — {duel['reason']}")
-        else:
-            lines.append(f"- {duel['winner']} beat {duel['loser']}: {duel['reason']}")
+        lines.append(f"- {duel['a']} vs {duel['b']}: {duel['winner'] or 'draw'} — {duel['reason']}")
     summary = design_summary([assignment])
     lines.extend([
         "", "## Design decisions", "",
@@ -2311,8 +2246,8 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
         f"- Template distribution: {summary['text_styles']}",
         f"- Direction distribution: {summary['directions']}",
         f"- Images with a rhythm layer: {summary['rhythm_images']} of {summary['image_count']}",
-        f"- Exaggeration distribution: {summary['exaggerations'] or 'none (pre-v14 intensity)'}",
-        f"- Exaggeration policy: {assignment.get('exaggeration_policy', {'mode': 'narrative'}) if is_tiered(assignment) else 'none'}",
+        f"- Exaggeration distribution: {summary['exaggerations']}",
+        f"- Exaggeration policy: {assignment.get('exaggeration_policy', {'mode': 'narrative'})}",
         f"- Images by cast representation (may overlap): {summary['cast_images']}",
         "- Pre-generation review: verify each template fits its joke and every omitted/offscreen role has a narrative reason. Counts alone do not establish design quality.",
     ])
@@ -2327,10 +2262,7 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
         "", f"## {len(assignment['images'])} tasks", "",
     ])
     for image in assignment["images"]:
-        if "exaggeration" in image:
-            performance = f"tier {tier_label(image, exaggeration_tiers())}, landing panel {image['landing_panel']}"
-        else:
-            performance = f"intensity {image['intensity']}"
+        performance = f"tier {tier_label(image, exaggeration_tiers())}, landing panel {image['landing_panel']}"
         lines.append(f"- `{image['id']}`: rank {image['source_rank']}, execution {image['execution']}, {image['panel_count']} panel(s), {performance}, {image['punchline']}")
         lines.extend([
             f"  - Idea: {image['idea_id']}; execution note: {image['execution_note']}",
@@ -2338,12 +2270,11 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
             f"  - Proportion check: {image['proportion_check']}",
             "  - Rhythm: " + (json.dumps(image["rhythm"], ensure_ascii=False) if image["rhythm"] else "none"),
         ])
-        if "exaggeration" in image:
-            lines.append("  - Panel tiers: " + ", ".join(f"{entry['panel']}={entry['tier']}" for entry in image["expression_plan"]))
-            lines.append("  - Landing effects: " + json.dumps(image["effects_plan"], ensure_ascii=False))
-            if image["contrast"]:
-                lines.append("  - Contrast: " + json.dumps(image["contrast"], ensure_ascii=False))
-            lines.append(f"  - Background origin: {image['background']['origin']}")
+        lines.append("  - Panel tiers: " + ", ".join(f"{entry['panel']}={entry['tier']}" for entry in image["expression_plan"]))
+        lines.append("  - Landing effects: " + json.dumps(image["effects_plan"], ensure_ascii=False))
+        if image["contrast"]:
+            lines.append("  - Contrast: " + json.dumps(image["contrast"], ensure_ascii=False))
+        lines.append(f"  - Background origin: {image['background']['origin']}")
         lines.append(
             "  - Render: "
             f"style={image['style']['mode']}; costume={image['costume']['mode']}; "

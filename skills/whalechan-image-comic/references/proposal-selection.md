@@ -4,7 +4,7 @@ Complete creative planning before the single generation gate: freeze ten candida
 
 ## Display the complete plan
 
-Show one eight-column Markdown table per source, with five rows:
+Show one eight-column Markdown table per source, with five rows. The headers, distribution line and question below are the `--language zh` rendering; `--language en` renders them in English, and other communication languages translate the `en` rendering (see SKILL.md). Write the cells in the communication language and keep the exact visible text unchanged:
 
 | 序号 | 创意 | 方向 | 格数 | 档位 | 场景／分镜 | 关键台词 | 入选理由 |
 |---|---|---|---|---|---|---|---|
@@ -27,7 +27,7 @@ Below the table, show:
 
 Then ask once:
 
-> **确认按以上创意、张数和分工开始生成吗？** 每个创意生成一张；确认后执行生成、验收和交付。
+> **确认按以上创意、张数和 sub-agent 分配开始生成吗？** 每个创意生成一张；确认后执行生成、验收和交付。
 
 Wait for an actual affirmative reply to this plan. Silence, a recommendation, an automatically selected UI answer or a planning-only request is not permission to generate. Honor authorization already given for this exact displayed scope; do not invent an additional gate.
 
@@ -40,8 +40,8 @@ Use schema v14 and the helper commands in `run-schema.md`. Save drafts under `ar
 Render the plan with either read-only helper:
 
 ```bash
-python3 scripts/manage-run.py render-proposal --draft <draft.json>
-python3 scripts/manage-run.py summarize-selection --draft <draft.json>
+python3 scripts/manage-run.py render-proposal --draft <draft.json> --language <zh|en>
+python3 scripts/manage-run.py summarize-selection --draft <draft.json> --language <zh|en>
 ```
 
 `summarize-selection` is an alias of `render-proposal`; both return the complete table, counts, budget, worker allocation, question and `summary_sha256`. Display the Markdown directly, not inside a code block. After the real reply, save `confirmation` with `status: confirmed`, the actual `user_reply` and the returned `summary_sha256`, binding the count, worker allocation and normalized execution settings. Use `worker_plan`, `panel_policy` and `exaggeration_policy` as specified in `run-schema.md`; full `images` records may be completed after confirmation while preserving the displayed scenes, key lines and panel counts. Hashes are audit metadata, not user-facing text. Helpers render and validate records; they cannot approve on the user's behalf.

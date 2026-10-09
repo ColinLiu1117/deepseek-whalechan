@@ -206,7 +206,7 @@ No text is represented only by `"text": null`. When visible text is confirmed, u
 ```
 
 - `content` is the exact final string, including punctuation, whitespace, and line breaks.
-- `languages` contains one or more BCP-47 tags. When text is non-null and the user did not specify a language, use `["zh-Hans"]`.
+- `languages` contains one or more BCP-47 tags. When text is non-null and the user did not specify a language, use the session language, for example `["zh-Hans"]` for a Simplified Chinese session (see SKILL.md).
 - `direction` is `ltr`, `rtl`, or `vertical`.
 - Do not translate, paraphrase, or copy source text without explicit instruction and Gate 2 confirmation of the exact wording.
 - A typography reference can guide appearance and layout, never replace `content`.

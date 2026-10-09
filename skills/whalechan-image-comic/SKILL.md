@@ -26,6 +26,14 @@ Read these before every run:
 - `references/qa-rubric.md` before reviewing any candidate.
 - `references/gallery.md` before exporting the completed task's preview gallery.
 
+## Choose the language
+
+Infer the session language from what the user typed in this session and in local agent sessions from the last 24 hours, whichever agent runs this Skill; do not take it from the agent's defaults, system locale or the source material. Run `python3 scripts/detect-language.py` for the history: it reads Claude Code and Codex CLI records, skips injected and tool-written text, and reports message counts by script with recent excerpts. When this session and the history disagree, this session wins; read the excerpts before deciding a Latin-script language. When no history is available, use this session alone. An explicit user instruction ("reply in English", "台词用日语") overrides the inferred language for the scope it names: communication, visible text, or both.
+
+- **Communication:** write every user-facing message, plan table, confirmation question and final report in the communication language. `render-proposal` and `summarize-selection` take `--language zh|en`; use `zh` for Chinese, `en` for English, and translate the `en` rendering for any other language, keeping every row, column, count, tier, worker assignment and exact visible text unchanged. Export the gallery with `--language zh` for a Chinese session and `--language en` otherwise; the page can switch between Chinese and English. Confirmation hashes cover the structured record, not the Markdown.
+- **Visible text:** write `core_text` in the session language unless the user names another. Adapt a source in a different language rather than copying it, and record the difference in `language_notes`. Keep model names, error tokens and technical terms in their original form when that is funnier. Freeze the result as a BCP-47 tag in `input.language`.
+- **Internal:** provider prompts stay in English with exact visible text inserted verbatim; run and image names stay English identifiers.
+
 ## Apply defaults and user overrides
 
 - Generate exactly ten candidates and select five by all 45 pairwise duels. Produce one final PNG per selected idea, five total per source. Default to automatic provider-native `1:1` output with `1024×1024` as a recommendation, not a required pixel size.
@@ -37,7 +45,7 @@ Read these before every run:
 - Select typography, framing, cast staging and text placement independently for each joke. Repetition is allowed when justified by the source; random rotation is not creative diversity. A consistent character identity does not require consistent layouts.
 - For dialogue-driven material, default to bodily present abstract indigo partners. Record a narrative reason for an offscreen, avatar-only, or omitted role; preserve who speaks and who reacts.
 - Default to `semi-chibi`, the canonical clean rounded cel-shaded style, the canonical navy-and-white maid outfit, and the tier's default background when the user resolves none: a detailed text-free scene for `A`, an effect background for `B`, pure white `#FFFFFF` for `C`.
-- Follow the input's main language; prefer Simplified Chinese for Chinese or mixed Chinese input.
+- Write visible comic text in the language resolved under [Choose the language](#choose-the-language), not automatically in the source's language.
 - Treat the five bundled forms as recommended presets. Accept any finite measurable custom head ratio greater than `1.0`; custom ratios have no bundled proportion reference.
 - Allow any physically depictable action and any user-resolved background, art style, or outfit, subject to provider safety and technical limits. A custom field changes only that field.
 - Default to automatic sub-agent execution. Before the single confirmation, resolve and display the actual worker count from ready images, observed runtime slots (excluding the main agent), provider capacity and user limits. Use at most five workers for one five-image run and a shared ceiling of ten across a batch. Honor explicit serial execution; use the main agent when sub-agents are unavailable. See `references/provider-routing.md`.
@@ -162,7 +170,7 @@ Inspect the actual candidate and record candidate-bound observations before comp
 
 ## Preview gallery
 
-Before final delivery, export the finalized run with `python3 scripts/export-gallery.py --run-dir <run>` and link the returned `gallery` HTML path. For multiple sources, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Display every available attempt image, including failures and composites, in one chronological grid per source without proposal sections. Mark the matching PASS as the final rather than duplicating its image; retain distinct generation records even when their bytes match. Keep proposal summaries, prompts and QA in collapsed details. Local composites show their component prompts and consume no extra generation call. Open runs awaiting setup recovery are exported only after completion. Export errors do not require regeneration. See `references/gallery.md`.
+Before final delivery, export the finalized run with `python3 scripts/export-gallery.py --run-dir <run> --language <zh|en>` and link the returned `gallery` HTML path. For multiple sources, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Display every available attempt image, including failures and composites, in one chronological grid per source without proposal sections. Mark the matching PASS as the final rather than duplicating its image; retain distinct generation records even when their bytes match. Keep proposal summaries, prompts and QA in collapsed details. Local composites show their component prompts and consume no extra generation call. Open runs awaiting setup recovery are exported only after completion. Export errors do not require regeneration. See `references/gallery.md`.
 
 ## Hard stops
 

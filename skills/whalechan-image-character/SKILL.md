@@ -21,6 +21,14 @@ Workflow: propose → **Gate 1: select directions** → **Gate 2: confirm scope 
 - Read `references/gallery.md` before exporting the completed task's preview gallery.
 - Treat `references/reference-catalog.json` as the machine-readable authority for bundled paths, hashes, preset ratios, and preset acceptance ranges.
 
+## Choose the language
+
+Infer the session language from what the user typed in this session and in local agent sessions from the last 24 hours, whichever agent runs this Skill; do not take it from the agent's defaults, system locale or the reference material. Run `python3 scripts/detect-language.py` for the history: it reads Claude Code and Codex CLI records, skips injected and tool-written text, and reports message counts by script with recent excerpts. When this session and the history disagree, this session wins; read the excerpts before deciding a Latin-script language. When no history is available, use this session alone. An explicit user instruction ("reply in English", "文字用日语") overrides the inferred language for the scope it names: communication, visible text, or both.
+
+- **Communication:** write every user-facing message, proposal table, gate summary, question and final report in the communication language. `render-proposal` and `summarize-selection` take `--language zh|en`; use `zh` for Chinese, `en` for English, and translate the `en` rendering for any other language, keeping every option, count, setting, budget, worker count and exact visible text unchanged. Export the gallery with `--language zh` for a Chinese session and `--language en` otherwise; the page can switch between Chinese and English. Confirmation hashes cover the structured record, not the Markdown.
+- **Visible text:** text stays off by default. When text is requested, keep wording the user supplied exactly as given; for wording you propose, use the session language unless the user names another. Record the result as BCP-47 tags in `text.languages` and confirm the exact wording at Gate 2.
+- **Internal:** provider prompts stay in English with exact visible text inserted verbatim; run and image names stay English identifiers.
+
 ## Resolve the request
 
 Resolve the request field by field while planning; build the complete schema v6 assignment only after Gate 2. Use the user's explicit instructions first, then references only for their declared roles, then canonical defaults for unresolved fields. Do not let a reference silently control unrelated dimensions.
@@ -30,7 +38,7 @@ Defaults:
 - Five directions for an open theme; one image per selected proposal. A precisely specified scene uses direct proposals without inventing five alternatives.
 - `semi-chibi`; canonical style; canonical maid outfit.
 - Warm ivory-beige solid background `#F5EADD`; transparency off.
-- No visible text. When text is requested without a language, use `zh-Hans`; do not translate or invent wording without confirmation.
+- No visible text. When text is requested without a language, use the session language (see [Choose the language](#choose-the-language)); do not translate or invent wording without confirmation.
 - Full-body centered composition, `1:1`, PNG, provider-native resolution, automatic sub-agent execution (up to 10 workers, resolved from actual capacity before Gate 2). Prefer 1024×1024 when the selected provider exposes a compatible size control, but do not treat 1024×1024 as a default acceptance requirement.
 
 The user may explicitly request any style, action, outfit, solid/custom/transparent background, exact multilingual text, measurable head ratio greater than 1.0, positive-integer aspect ratio, or exact positive pixel resolution. If the user gives only width and height, derive the aspect ratio; if both are given, require them to agree. Keep extreme but measurable ratios possible; disclose that ratios outside the five presets have no bundled proportion reference and may be harder to satisfy. Provider safety and technical limits still apply.
@@ -68,7 +76,7 @@ After Gate 2 and successful preparation/initialization, **create the confirmed n
 
 ## Preview gallery
 
-Before final delivery, export the finalized run with `python3 scripts/export-gallery.py --run-dir <run>` and link the returned `gallery` HTML path. For a multi-source batch, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Include all proposals, final images and recorded attempts. A gallery is a read-only snapshot, not new QA or permission to generate. If setup failures leave a run open, resume it before exporting. Export errors do not require regeneration. See `references/gallery.md`.
+Before final delivery, export the finalized run with `python3 scripts/export-gallery.py --run-dir <run> --language <zh|en>` and link the returned `gallery` HTML path. For a multi-source batch, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Include all proposals, final images and recorded attempts. A gallery is a read-only snapshot, not new QA or permission to generate. If setup failures leave a run open, resume it before exporting. Export errors do not require regeneration. See `references/gallery.md`.
 
 ## Hard stops
 

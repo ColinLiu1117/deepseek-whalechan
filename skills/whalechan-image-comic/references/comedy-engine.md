@@ -7,7 +7,7 @@ Record `input.source_analysis` before exploring premises:
 - `source_event`: what actually happens and who speaks;
 - `comic_target`: who or what the joke is about;
 - `tone`: the source's emotional register, including bitterness or affection;
-- `language_notes`: meaningful differences between supplied language versions, or explicitly state that none were supplied/found;
+- `language_notes`: meaningful differences between supplied language versions and between the source and the lettering language, or explicitly state that none were supplied/found;
 - `user_constraints`: the user's actual creative corrections, locked interpretations and visual requirements for the comic, or `[]`. Process instructions such as "plan only", "no images yet" or "give five proposals" are not constraints; the single generation confirmation governs them, and they must never reach a generation prompt;
 - `native_direction`: `{direction, reason}` — the comedy direction the source itself already uses (see below), or `direction: null` when the source is not funny on its own. The reason cites what in the source makes it funny that way, or why it carries no joke of its own.
 

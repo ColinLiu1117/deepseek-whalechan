@@ -315,7 +315,7 @@ Every image requires a non-empty ordered `core_text` list and exactly one bundle
 }
 ```
 
-Follow the input's main language and prefer Simplified Chinese for Chinese or mixed Chinese input. Content, punctuation, whitespace, order, and language are frozen. `text_style` is one id from `text-style-routing.md`; its `reference.webp` must be the image's sole `typography` reference.
+Write every string in `input.language`: the session language, or the language the user specified for visible text, not automatically the source's language. Content, punctuation, whitespace, order, and language are frozen. `text_style` is one id from `text-style-routing.md`; its `reference.webp` must be the image's sole `typography` reference.
 
 The default root `text_style_policy` is `{"mode":"semantic"}` with no minimum template count. A user-requested uniform treatment is represented explicitly:
 

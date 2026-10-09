@@ -33,7 +33,7 @@ Adapt a template's composition to `dialogue_plan`: keep different speakers in di
 
 The template's composition notes are suggestions, not shot or panel mandates. `composition` and `action_plan` determine framing and placement; a `typography` reference controls letterforms and treatment only. Do not inherit a top-headline/character-below layout just because it appears in a lettering example. Do not map image number to a template.
 
-Follow the input's main language. Prefer Simplified Chinese for Chinese or mixed Chinese input. Preserve useful model names, error tokens, and technical terms in their original language when that is funnier. Do not mix languages without a reason.
+Letter in `input.language`: the session language, or the language the user specified (see SKILL.md). Preserve useful model names, error tokens, and technical terms in their original language when that is funnier. Do not mix languages without a reason.
 
 Quote every required semantic string verbatim in the prompt. There is no separate flavor-text field: nonverbal marks (anger veins, sweat drops, motion lines) are drawn symbols, and any written word, including a sound effect or prop writing, belongs in `core_text` with exact wording. Do not use local fonts or programmatic typesetting.
 

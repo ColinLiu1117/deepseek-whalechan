@@ -37,4 +37,4 @@ Follow the input's main language. Prefer Simplified Chinese for Chinese or mixed
 
 Quote every required semantic string verbatim in the prompt. There is no separate flavor-text field: nonverbal marks (anger veins, sweat drops, motion lines) are drawn symbols, and any written word, including a sound effect or prop writing, belongs in `core_text` with exact wording. Do not use local fonts or programmatic typesetting.
 
-For a text-only failure, spend the second slot on a text-free but composition-matched base with empty bubbles/headline areas. Spend the third slot editing that base with exact core text and the same template reference. Recheck every character; plausible pseudo-text is a failure.
+For a text-only failure with two slots left, spend one on a text-free but composition-matched base with empty bubbles/headline areas, and the last editing that base with exact core text and the same template reference. With one slot left, edit the failed candidate directly, changing only the lettering. Recheck every character; plausible pseudo-text is a failure.

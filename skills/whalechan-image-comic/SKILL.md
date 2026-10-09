@@ -30,7 +30,7 @@ Read these before every run:
 
 - Generate exactly ten candidates and select five by all 45 pairwise duels. Produce one final PNG per selected idea, five total per source. Default to automatic provider-native `1:1` output with `1024×1024` as a recommendation, not a required pixel size.
 - Accept an explicit aspect ratio, an explicit pixel resolution, or both. Infer the ratio from an explicit resolution when omitted; reject conflicting values. Automatic mode validates the ratio, while explicit mode validates exact width and height.
-- Freeze the ten-candidate pool before comparisons. Record actual judgments and all results; do not apply creative admission thresholds, prewrite winners, append candidates or repeatedly generate pools.
+- Freeze the ten-candidate pool before comparisons. Record actual judgments and all results; never prewrite winners.
 - Make candidate scenes, actions and payoffs distinct. Preserve each selected core idea and user-locked wording in its one image. Shared source lines do not justify identical final replies or consequences.
 - Cover 1, 2 and 4 panels across the five images, allocating them by narrative need rather than index. Record an explicit user override; never add empty panels to meet the default.
 - Cover exaggeration tiers A, B and C across the five images, choosing each from the execution rather than rank, index or panel count. Record an explicit user override. Tiers bind the plan; a tier lost to an exhausted budget is reported, never reassigned.
@@ -47,7 +47,7 @@ Read these before every run:
 ## Understand the source and select five ideas
 
 1. Record `input.source_analysis`: source event, comic target, tone, language differences, user corrections and native direction with evidence (`null` when the source has no joke). Separate observed facts from interpretation. Extract the fact anchor and participants; use `input.participants: []` only for solo material. Preserve speaker roles without copying real faces. For screenshot/image sources, retain the file path in `input.content` and the transcription in `source_event`.
-2. Author exactly ten distinct candidates, each with direction/carrier fields, scene, key dialogue, visual payoff, mechanism and personality. Native direction and source-grounded character gags are comparative preferences, not quotas. Freeze the pool; do not use creative PASS/FAIL gates or generate more candidates because the pool feels weak.
+2. Author exactly ten distinct candidates, each with direction/carrier fields, scene, key dialogue, visual payoff, mechanism and personality. Native direction and source-grounded character gags are comparative preferences, not quotas. Freeze the pool; weak ideas still compete, and the pool is never extended or regenerated.
 3. Compare all 45 unique pairs using `comedy-engine.md`. Record winner or draw and a concrete reason. Award 2/1/0 points for win/draw/loss; break ties by head-to-head points, then authored reasons and distinctness. Select the top five and preserve the full record. Ids and order never decide winners.
 4. Plan exactly one image per selected idea. Check that the answers, final beats and visual consequences differ; merely changing nouns, fonts or poses does not establish five ideas.
 
@@ -68,7 +68,7 @@ Prepare these decisions before the user confirmation:
 
 For multiple inputs, compare source-specific mechanisms, narrative beats and staging before displaying the consolidated plan: run `python3 scripts/manage-run.py validate-batch --draft <first-draft.json> --draft <second-draft.json>` with every planning draft, which flags repeated panel, tier and panel-by-tier recipes from the planned options. Once assignments are confirmed, run `validate-batch --assignment <first.json> --assignment <second.json>` with every assignment before the first generation call. Review its case-by-position matrix and warnings, not just aggregate counts. Compare mechanisms, narrative beats, shots, cast positions and text placement across cases and across positions; changing order must not hide a repeated skeleton. Ask whether another case's dialogue could replace this one's without changing the drawing. Save a `batch-review.md` beside the assignments naming the compared cases, warning dispositions, source-specific reasons for retained similarities, and revisions. Do not generate until this review is actually performed. Structural validity is not creative approval; no warnings is not approval either. Repeat this comparison on final images. See `references/batch-review.md`.
 
-Use schema v14 in `references/run-schema.md` for new runs. Preserve v10/v11, both historical v12 formats and v13 (with its B/C `intensity` and QA contract 9) under their original recovery contracts; never rewrite their approval history. The initialized run belongs under `artifacts/whalechan-image-comic/<run-name>/` unless the user gives another destination. External references are frozen into the run with hashes.
+Use schema v14 in `references/run-schema.md` for new runs. Preserve frozen v11 and v13 runs (v13 with its B/C `intensity` and QA contract 9) under their original recovery contracts; never rewrite their approval history. The initialized run belongs under `artifacts/whalechan-image-comic/<run-name>/` unless the user gives another destination. External references are frozen into the run with hashes.
 
 ## Generate each task
 

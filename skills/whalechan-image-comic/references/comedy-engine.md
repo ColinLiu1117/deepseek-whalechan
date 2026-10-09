@@ -47,7 +47,7 @@ Default to no rhythm (`rhythm: null`). Most jokes do not need one. Declare it on
 
 Author exactly ten distinct candidates before choosing winners or layouts. Give each a comparable description: premise, primary direction and its carrier fields, punchline/key dialogue, personality, fact anchor, scene, mechanism and visual payoff. Different situations, actions and consequences create different ideas; replacing a noun, pose or prop does not.
 
-Freeze this pool. Do not label candidates PASS/FAIL, apply a creative admission threshold, append an eleventh candidate, or repeatedly regenerate until satisfied. Weak ideas still enter the comparisons. Refine wording without replacing the core idea; preserve the actual candidates and judgments instead of reverse-engineering losers from finished image plans.
+Freeze this pool. Candidates carry no PASS/FAIL label; PASS/FAIL belongs to image QA. Weak ideas still enter the comparisons, and the pool is never extended or regenerated. Refine wording without replacing the core idea; preserve the actual candidates and judgments instead of reverse-engineering losers from finished image plans.
 
 Compare source fidelity, clarity, surprise, joke strength, visual contribution, timing, concise dialogue and recognizable character acting. Treat illustrated summaries, decorative reactions, unrelated metaphors, explanation-heavy dialogue and repetitive beats as weaknesses in that comparison, not separate creative rejection gates. Structural correctness, user constraints and image QA remain separate obligations.
 

@@ -726,15 +726,14 @@ def plan_execution(ready_images: int, worker_slots: int, provider_limit: int,
     })
 
 
-def execution_markdown(execution: dict[str, Any]) -> str:
+def execution_markdown(execution: dict[str, Any], language: str = "zh") -> str:
+    words = GATE_TEXT[language]
     count = execution.get("subagent_count")
     if count is None:
-        return f"历史执行配置：并行度 {execution['requested_parallelism']}；未记录子代理数量，保留原授权。"
+        return words["legacy_execution"].format(parallelism=execution["requested_parallelism"])
     if count == 0:
-        return "执行安排：不启动子代理，由主 Agent 串行生成与检查。"
-    return (f"执行安排：将启动 **{count} 个子代理**，每个同时处理 1 张图片，完成后继续领取剩余任务；"
-            "主 Agent 统一核验并归档。并行不增加生成数量或候选预算。"
-            "若可用容量下降，会告知并降低数量；超过本次确认数量须重新确认。")
+        return words["serial_execution"]
+    return words["parallel_execution"].format(count=count)
 
 
 def normalize_execution(value: Any, legacy: bool = False) -> dict[str, Any]:
@@ -1366,72 +1365,140 @@ def markdown_cell(value: str) -> str:
     return value.replace("\\", "\\\\").replace("|", "\\|").replace("\r", " ").replace("\n", "<br>")
 
 
-def proposal_markdown(proposal: dict[str, Any]) -> str:
+# User-facing renderings; the agent translates the English one for other session languages.
+UI_LANGUAGES = ("zh", "en")
+GATE_TEXT = {
+    "zh": {
+        "proposal_header": "| 选择 | 方案 | 核心场景 | 动作与表情 | 构图 | 视觉配置／文字 | 推荐程度与理由 |",
+        "colon": "：", "semicolon": "；", "bar": "｜", "plus": "＋",
+        "proposal_question": "**你想生成哪些方案？** 可选一个或多个。推荐 {choices}。",
+        "proposal_strategy": "**生成策略：**每个入选方案默认 1 张，也可指定如“A 两张、C 一张”。选择后会汇总配置、数量和候选预算，确认后再开始生成。",
+        "selected": "已选择 **{proposals} 个方案，共 {images} 张图片**：",
+        "choice_count": "{count} 张", "config_count": "（{count} 张）",
+        "subject": "主体／动作／构图", "variation": "演绎范围",
+        "fields": {"style": "风格", "costume": "服装", "background": "背景", "expression": "表情",
+                   "props": "道具", "objects": "物体", "counterpart": "比例对照图",
+                   "pairwise_minimum_head_ratio_gap": "最小头身比差值"},
+        "proportion": "- 比例：{preset}，目标 {target} 头身，接受范围 {range}", "custom": "自定义",
+        "no_text": "- 文字：无文字", "exact_text": "精确文案", "text_settings": "文字语言／方向／位置／样式",
+        "native": "原生分辨率（默认方图建议 1024×1024，非硬性尺寸）", "exact": "精确 {width}×{height}",
+        "output": "- 输出：PNG；{ratio}；{size}；透明：{alpha}", "yes": "是", "no": "否",
+        "reference": "参考图", "declared_only": "仅限声明的用途", "adjustments": "**同步修改：**",
+        "budget": "候选估算：{images} × {per_image} = {estimate}；批准的运行上限：{run}；每供应商／每图最多 {per_provider} 个。",
+        "raised": "**超过常规 24 候选预算，本次确认同时批准上述提高后的上限。**",
+        "route": "生图通道：优先 Codex ImageGen（不在 Codex 中运行时，通过本机 Codex CLI 调用，消耗 ChatGPT 订阅额度）→ OpenAI → Nano Banana → Seedream。",
+        "location": "默认输出位置：artifacts/whalechan-image-character/{run}/（如用户指定其他目录，则遵从该目录）。",
+        "question": "**确认按以上方案、数量、配置、候选预算和子代理安排开始生成吗？**",
+        "legacy_execution": "历史执行配置：并行度 {parallelism}；未记录子代理数量，保留原授权。",
+        "serial_execution": "执行安排：不启动子代理，由主 Agent 串行生成与检查。",
+        "parallel_execution": ("执行安排：将启动 **{count} 个子代理**，每个同时处理 1 张图片，完成后继续领取剩余任务；"
+                               "主 Agent 统一核验并归档。并行不增加生成数量或候选预算。"
+                               "若可用容量下降，会告知并降低数量；超过本次确认数量须重新确认。"),
+    },
+    "en": {
+        "proposal_header": "| Choice | Proposal | Core scene | Action & expression | Composition | Visual settings / text | Recommendation |",
+        "colon": ": ", "semicolon": "; ", "bar": " · ", "plus": " + ",
+        "proposal_question": "**Which proposals should I generate?** Pick one or more. Recommended: {choices}.",
+        "proposal_strategy": "**Strategy:** each selected proposal yields 1 image by default; you can also say, for example, \"two of A, one of C\". After you choose, I will summarize settings, counts and candidate budget, and generate only after you confirm.",
+        "selected": "Selected **{proposals} proposal(s), {images} image(s) in total**:",
+        "choice_count": "{count} image(s)", "config_count": " ({count} image(s))",
+        "subject": "Subject / action / composition", "variation": "Allowed variation",
+        "fields": {"style": "Style", "costume": "Costume", "background": "Background", "expression": "Expression",
+                   "props": "Props", "objects": "Objects", "counterpart": "Proportion counterpart",
+                   "pairwise_minimum_head_ratio_gap": "Minimum head-ratio gap"},
+        "proportion": "- Proportion: {preset}, target {target} heads, accepted range {range}", "custom": "custom",
+        "no_text": "- Text: none", "exact_text": "Exact text", "text_settings": "Text language / direction / placement / style",
+        "native": "provider-native resolution (1024×1024 recommended for square, not required)", "exact": "exactly {width}×{height}",
+        "output": "- Output: PNG; {ratio}; {size}; transparent: {alpha}", "yes": "yes", "no": "no",
+        "reference": "Reference", "declared_only": "declared roles only", "adjustments": "**Adjustments:**",
+        "budget": "Candidate estimate: {images} × {per_image} = {estimate}; approved run ceiling: {run}; at most {per_provider} per provider per image.",
+        "raised": "**This exceeds the usual 24-candidate budget; confirming also approves the raised ceiling above.**",
+        "route": "Providers: Codex ImageGen first (outside Codex, through the local Codex CLI, using ChatGPT plan quota) → OpenAI → Nano Banana → Seedream.",
+        "location": "Default output: artifacts/whalechan-image-character/{run}/ (or a directory you specify).",
+        "question": "**Start generating with the proposals, counts, settings, candidate budget and sub-agent plan above?**",
+        "legacy_execution": "Historical execution: parallelism {parallelism}; sub-agent count not recorded, original approval kept.",
+        "serial_execution": "Execution: no sub-agents; the main agent generates and checks serially.",
+        "parallel_execution": ("Execution: start **{count} sub-agents**, each handling one image at a time and taking the "
+                               "next task when done; the main agent verifies and archives everything. Parallelism does "
+                               "not add images or candidate budget. If capacity drops, you will be told and the count "
+                               "lowered; exceeding the confirmed count needs a new confirmation."),
+    },
+}
+
+
+def proposal_markdown(proposal: dict[str, Any], language: str = "zh") -> str:
+    words = GATE_TEXT[language]
     options = proposal_options(proposal)
-    lines = ["| 选择 | 方案 | 核心场景 | 动作与表情 | 构图 | 视觉配置／文字 | 推荐程度与理由 |",
-             "|---|---|---|---|---|---|---|"]
+    lines = [words["proposal_header"], "|---|---|---|---|---|---|---|"]
     for choice, row in options.items():
         rating = "★" * row["rating"] + "☆" * (3 - row["rating"])
-        cells = [choice, row["title"], row["scene"], row["action_expression"], row["composition"], row["visual_text"], rating + "：" + row["recommendation_reason"]]
+        cells = [choice, row["title"], row["scene"], row["action_expression"], row["composition"], row["visual_text"],
+                 rating + words["colon"] + row["recommendation_reason"]]
         lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
-    lines.extend(["", "**你想生成哪些方案？** 可选一个或多个。推荐 " + "＋".join(proposal["recommended_choices"]) + "。",
-                  "", "**生成策略：**每个入选方案默认 1 张，也可指定如“A 两张、C 一张”。选择后会汇总配置、数量和候选预算，确认后再开始生成。"])
+    lines.extend(["", words["proposal_question"].format(choices=words["plus"].join(proposal["recommended_choices"])),
+                  "", words["proposal_strategy"]])
     return "\n".join(lines) + "\n"
 
 
-def selection_markdown(summary: dict[str, Any]) -> str:
-    lines = [f"已选择 **{summary['proposal_count']} 个方案，共 {summary['image_count']} 张图片**：", ""]
+def selection_markdown(summary: dict[str, Any], language: str = "zh") -> str:
+    words = GATE_TEXT[language]
+    colon, semicolon, bar = words["colon"], words["semicolon"], words["bar"]
+    lines = [words["selected"].format(proposals=summary["proposal_count"], images=summary["image_count"]), ""]
     for row in summary["choices"]:
-        lines.append(f"- **{row['choice']}｜{markdown_cell(row['title'])}**：{row['count']} 张")
+        lines.append(f"- **{row['choice']}{bar}{markdown_cell(row['title'])}**{colon}" + words["choice_count"].format(count=row["count"]))
     titles = {row["choice"]: row["title"] for row in summary["choices"]}
     for config in summary["configurations"]:
         req = config["requirements"]
-        lines.extend(["", f"**{config['choice']}｜{markdown_cell(titles[config['choice']])}（{config['count']} 张）**",
-                      "", "- 主体／动作／构图：" + markdown_cell("；".join(req[field] for field in ("subject", "action", "composition"))),
-                      "- 演绎范围：" + markdown_cell(config["variation"])])
-        for field, title in (("style", "风格"), ("costume", "服装"), ("background", "背景")):
-            lines.append(f"- {title}：" + markdown_cell(req[field]["description"]))
+        lines.extend(["", f"**{config['choice']}{bar}{markdown_cell(titles[config['choice']])}"
+                      + words["config_count"].format(count=config["count"]) + "**",
+                      "", f"- {words['subject']}{colon}" + markdown_cell(semicolon.join(req[field] for field in ("subject", "action", "composition"))),
+                      f"- {words['variation']}{colon}" + markdown_cell(config["variation"])])
+        for field in ("style", "costume", "background"):
+            lines.append(f"- {words['fields'][field]}{colon}" + markdown_cell(req[field]["description"]))
         proportion = req["proportion"]
-        lines.append(f"- 比例：{proportion['preset'] or '自定义'}，目标 {proportion['target_head_ratio']} 头身，接受范围 {proportion['acceptance_range']}")
-        labels = {"expression": "表情", "props": "道具", "objects": "物体",
-                  "counterpart": "比例对照图", "pairwise_minimum_head_ratio_gap": "最小头身比差值"}
+        lines.append(words["proportion"].format(preset=proportion["preset"] or words["custom"],
+                                                target=proportion["target_head_ratio"], range=proportion["acceptance_range"]))
         for field in sorted(OPTIONAL_SCOPE_FIELDS & req.keys()):
-            lines.append(f"- {labels[field]}：" + markdown_cell(str(req[field])))
+            lines.append(f"- {words['fields'][field]}{colon}" + markdown_cell(str(req[field])))
         lettering = req["text"]
         if lettering is None:
-            lines.append("- 文字：无文字")
+            lines.append(words["no_text"])
         else:
-            lines.append("- 精确文案：" + markdown_cell(lettering["content"]))
-            lines.append("- 文字语言／方向／位置／样式：" + markdown_cell("；".join([
+            lines.append(f"- {words['exact_text']}{colon}" + markdown_cell(lettering["content"]))
+            lines.append(f"- {words['text_settings']}{colon}" + markdown_cell(semicolon.join([
                 ", ".join(lettering["languages"]), lettering["direction"], lettering["placement"], lettering["style"]])))
         output = req["output"]
         resolution = output["resolution"]
-        size = "原生分辨率（默认方图建议 1024×1024，非硬性尺寸）" if resolution["mode"] == "provider-native" else f"精确 {resolution['width']}×{resolution['height']}"
-        lines.append(f"- 输出：PNG；{output['aspect_ratio']}；{size}；透明：{'是' if output['alpha'] else '否'}")
+        size = (words["native"] if resolution["mode"] == "provider-native"
+                else words["exact"].format(width=resolution["width"], height=resolution["height"]))
+        lines.append(words["output"].format(ratio=output["aspect_ratio"], size=size,
+                                            alpha=words["yes"] if output["alpha"] else words["no"]))
         for ref in req["references"]:
-            lines.append("- 参考图：" + markdown_cell(f"{ref['id']}｜{ref['path']}｜{', '.join(ref['roles'])}｜{ref['instruction'] or '仅限声明的用途'}"))
+            lines.append(f"- {words['reference']}{colon}" + markdown_cell(
+                bar.join([ref["id"], ref["path"], ", ".join(ref["roles"]), ref["instruction"] or words["declared_only"]])))
     if summary["adjustments"]:
-        lines.extend(["", "**同步修改：**", ""] + ["- " + markdown_cell(item) for item in summary["adjustments"]])
+        lines.extend(["", words["adjustments"], ""] + ["- " + markdown_cell(item) for item in summary["adjustments"]])
     budget, execution = summary["budget"], summary["execution"]
-    lines.extend(["", f"候选估算：{summary['image_count']} × {budget['per_image_candidates']} = {budget['estimated_maximum']}；批准的运行上限：{budget['run_candidates']}；每供应商／每图最多 {budget['per_provider_candidates']} 个。"])
+    lines.extend(["", words["budget"].format(images=summary["image_count"], per_image=budget["per_image_candidates"],
+                                             estimate=budget["estimated_maximum"], run=budget["run_candidates"],
+                                             per_provider=budget["per_provider_candidates"])])
     if budget["run_candidates"] > NORMAL_RUN_CANDIDATES:
-        lines.append("**超过常规 24 候选预算，本次确认同时批准上述提高后的上限。**")
-    lines.extend(["生图通道：优先 Codex ImageGen（不在 Codex 中运行时，通过本机 Codex CLI 调用，消耗 ChatGPT 订阅额度）→ OpenAI → Nano Banana → Seedream。",
-                  execution_markdown(execution),
-                  f"默认输出位置：artifacts/whalechan-image-character/{summary['run_name']}/（如用户指定其他目录，则遵从该目录）。",
-                  "", "**确认按以上方案、数量、配置、候选预算和子代理安排开始生成吗？**"])
+        lines.append(words["raised"])
+    lines.extend([words["route"], execution_markdown(execution, language),
+                  words["location"].format(run=summary["run_name"]), "", words["question"]])
     return "\n".join(lines) + "\n"
 
 
 def cmd_render_proposal(args: argparse.Namespace) -> dict[str, Any]:
     proposal = read_json(Path(args.draft).resolve()).get("proposal")
-    return {"markdown": proposal_markdown(proposal), "proposal_sha256": contract_hash(proposal)}
+    return {"markdown": proposal_markdown(proposal, getattr(args, "language", "zh")),
+            "proposal_sha256": contract_hash(proposal)}
 
 
 def cmd_summarize_selection(args: argparse.Namespace) -> dict[str, Any]:
     path = Path(args.draft).resolve()
     summary = selection_summary(read_json(path), path)
-    return {**summary, "markdown": selection_markdown(summary)}
+    return {**summary, "markdown": selection_markdown(summary, getattr(args, "language", "zh"))}
 
 
 def validate_assignment(path: Path) -> dict[str, Any]:
@@ -2375,6 +2442,8 @@ def parser() -> argparse.ArgumentParser:
     for name, handler in (("render-proposal", cmd_render_proposal), ("summarize-selection", cmd_summarize_selection)):
         command = commands.add_parser(name, help="Display a user gate without approving or initializing")
         command.add_argument("--draft", required=True)
+        command.add_argument("--language", choices=UI_LANGUAGES, default="zh",
+                             help="Language of the rendered Markdown; translate the en rendering for others")
         command.set_defaults(func=handler)
 
     plan = commands.add_parser("plan-execution", help="Resolve observed capacity before Gate 2; no workers are started")

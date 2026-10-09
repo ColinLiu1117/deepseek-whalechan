@@ -59,9 +59,60 @@ DIRECTION_CARRIERS = {
     "recognition": ("situation", "recognition"),
     "character": ("trait", "trigger"),
 }
+# User-facing renderings; the agent translates the English one for other session languages.
+UI_LANGUAGES = ("zh", "en")
 DIRECTION_LABELS = {
-    "reversal": "反转", "exposure": "暴露", "escalation": "升级",
-    "recognition": "共鸣", "character": "角色梗",
+    "zh": {"reversal": "反转", "exposure": "暴露", "escalation": "升级",
+           "recognition": "共鸣", "character": "角色梗"},
+    "en": {"reversal": "Reversal", "exposure": "Exposure", "escalation": "Escalation",
+           "recognition": "Recognition", "character": "Character gag"},
+}
+PLAN_TEXT = {
+    "zh": {
+        "tiered_header": "| 序号 | 创意 | 方向 | 格数 | 档位 | 场景／分镜 | 关键台词 | 入选理由 |",
+        "legacy_header": "| 序号 | 创意描述 | 核心场景 | 方向｜笑点 | 格数／分镜 | 关键台词 | 入选理由 |",
+        "colon": "：", "list": "、", "override": "（用户指定）",
+        "panels": "> 格数分布：", "panel_item": "{count} 格 ×{n}", "tiers": " ｜ 档位分布：",
+        "panel_staging": "{count} 格：{staging}",
+        "legend": "档位：A 日漫冲击 · B 漫画式爆发 · C 克制冷幽默；括号内为刻意压低的维度。",
+        "totals": "共 **5 个创意，各 1 张，共 5 张图片**。每张最多 3 次产图调用，共最多 15 次。",
+        "route": "生图通道：Codex ImageGen → OpenAI → Nano Banana → Seedream。",
+        "workers": "**sub-agent 分配**（并发上限 {limit}）：",
+        "main": "- main：协调、验收、串行记录及交付。",
+        "worker": "- {worker}：{titles}；依次执行。",
+        "main_serial": "- main：串行生成全部五张漫画，并逐张检查、记录。",
+        "panel_override": "格数按用户指定覆盖默认三种格数：",
+        "tier_override": "档位按用户指定覆盖默认 A/B/C 覆盖：",
+        "question": "**确认按以上创意、张数和 sub-agent 分配开始生成吗？**",
+        "legacy_execution": "历史执行配置：并行度 {parallelism}；未记录子代理数量，保留原授权。",
+        "serial_execution": "执行安排：不启动子代理，由主 Agent 串行生成与检查。",
+        "parallel_execution": ("执行安排：将启动 **{count} 个子代理**，每个同时处理 1 张图片，完成后继续领取剩余任务；"
+                               "主 Agent 统一核验并归档。并行不增加生成数量或候选预算。"
+                               "若可用容量下降，会告知并降低数量；超过本次确认数量须重新确认。"),
+    },
+    "en": {
+        "tiered_header": "| # | Idea | Direction | Panels | Tier | Scene / staging | Key lines | Why selected |",
+        "legacy_header": "| # | Idea | Core scene | Direction / landing | Panels / staging | Key lines | Why selected |",
+        "colon": ": ", "list": ", ", "override": "(user override)",
+        "panels": "> Panels: ", "panel_item": "{count}-panel ×{n}", "tiers": " | Tiers: ",
+        "panel_staging": "{count} panel(s): {staging}",
+        "legend": "Tiers: A manga impact · B comic outburst · C restrained deadpan; parentheses name deliberately lowered axes.",
+        "totals": "**5 ideas, 1 image each, 5 images in total.** At most 3 image-producing calls per image, 15 in total.",
+        "route": "Providers: Codex ImageGen → OpenAI → Nano Banana → Seedream.",
+        "workers": "**Sub-agent allocation** (concurrency limit {limit}):",
+        "main": "- main: coordination, QA, serial recording and delivery.",
+        "worker": "- {worker}: {titles}; in sequence.",
+        "main_serial": "- main: generates all five comics serially, checking and recording each one.",
+        "panel_override": "Panel counts follow the user's override of the default 1/2/4 coverage: ",
+        "tier_override": "Tiers follow the user's override of the default A/B/C coverage: ",
+        "question": "**Start generating with the ideas, image count and sub-agent allocation above?**",
+        "legacy_execution": "Historical execution: parallelism {parallelism}; sub-agent count not recorded, original approval kept.",
+        "serial_execution": "Execution: no sub-agents; the main agent generates and checks serially.",
+        "parallel_execution": ("Execution: start **{count} sub-agents**, each handling one image at a time and taking the "
+                               "next task when done; the main agent verifies and archives everything. Parallelism does "
+                               "not add images or candidate budget. If capacity drops, you will be told and the count "
+                               "lowered; exceeding the confirmed count needs a new confirmation."),
+    },
 }
 RHYTHM_TYPES = {"triple", "pause", "callback", "deadpan"}
 # Lowest to highest; the order compares a panel tier with the landing tier.
@@ -295,9 +346,9 @@ def markdown_cell(value: str) -> str:
     return value.replace("\\", "\\\\").replace("|", "\\|").replace("\r", " ").replace("\n", "<br>")
 
 
-def selection_markdown(summary: dict[str, Any]) -> str:
+def selection_markdown(summary: dict[str, Any], language: str = "zh") -> str:
     return plan_markdown({"proposal": {"options": summary["options"]},
-                          "panel_policy": summary["panel_policy"]}, summary)
+                          "panel_policy": summary["panel_policy"]}, summary, language)
 
 
 def planning_draft(value: dict[str, Any], label: str = "Planning draft") -> dict[str, Any]:
@@ -309,7 +360,7 @@ def planning_draft(value: dict[str, Any], label: str = "Planning draft") -> dict
 def cmd_render_proposal(args: argparse.Namespace) -> dict[str, Any]:
     value = planning_draft(read_json(Path(args.draft).resolve()))
     summary = plan_summary(value)
-    return {**summary, "markdown": plan_markdown(value, summary)}
+    return {**summary, "markdown": plan_markdown(value, summary, getattr(args, "language", "zh"))}
 
 
 def cmd_summarize_selection(args: argparse.Namespace) -> dict[str, Any]:
@@ -517,57 +568,58 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
 
 
 def distribution_line(options: list[dict[str, Any]], panel_policy: dict[str, Any],
-                      tier_policy: dict[str, Any]) -> str:
+                      tier_policy: dict[str, Any], language: str = "zh") -> str:
+    words = PLAN_TEXT[language]
     panels = Counter(item["panel_count"] for item in options)
     tiers = Counter(item["exaggeration"] for item in options)
 
     def mark(policy: dict[str, Any]) -> str:
-        return "（用户指定）" if policy.get("mode") == "user-override" else "✓"
+        return " " + (words["override"] if policy.get("mode") == "user-override" else "✓")
 
-    return ("> 格数分布：" + " · ".join(f"{count} 格 ×{panels[count]}" for count in (1, 2, 4))
-            + " " + mark(panel_policy) + " ｜ 档位分布："
-            + " · ".join(f"{tier} ×{tiers[tier]}" for tier in reversed(TIER_ORDER)) + " " + mark(tier_policy))
+    return (words["panels"] + " · ".join(words["panel_item"].format(count=count, n=panels[count]) for count in (1, 2, 4))
+            + mark(panel_policy) + words["tiers"]
+            + " · ".join(f"{tier} ×{tiers[tier]}" for tier in reversed(TIER_ORDER)) + mark(tier_policy))
 
 
-def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None) -> str:
+def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, language: str = "zh") -> str:
     summary = summary or plan_summary(value)
+    words = PLAN_TEXT[language]
+    directions = DIRECTION_LABELS[language]
     options = value["proposal"]["options"]
     tier_policy = summary.get("exaggeration_policy")
     if tier_policy is not None:
         tiers = exaggeration_tiers()
-        lines = ["| 序号 | 创意 | 方向 | 格数 | 档位 | 场景／分镜 | 关键台词 | 入选理由 |",
-                 "|---|---|---|---|---|---|---|---|"]
+        lines = [words["tiered_header"], "|---|---|---|---|---|---|---|---|"]
         for index, item in enumerate(options, 1):
-            cells = [str(index), item["title"] + "：" + item["premise"],
-                     DIRECTION_LABELS[item["direction"]] + "：" + item["twist"], str(item["panel_count"]),
-                     tier_label(item, tiers), item["scene"] + "\n" + item["staging"],
+            cells = [str(index), item["title"] + words["colon"] + item["premise"],
+                     directions[item["direction"]] + words["colon"] + item["twist"], str(item["panel_count"]),
+                     tier_label(item, tiers, language), item["scene"] + "\n" + item["staging"],
                      "\n".join(item["key_lines"]), item["selection_reason"]]
             lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
-        lines.extend(["", distribution_line(options, value.get("panel_policy", {"mode": "narrative"}), tier_policy),
-                      "", "档位：A 日漫冲击 · B 漫画式爆发 · C 克制冷幽默；括号内为刻意压低的维度。"])
+        lines.extend(["", distribution_line(options, value.get("panel_policy", {"mode": "narrative"}), tier_policy, language),
+                      "", words["legend"]])
     else:
-        lines = ["| 序号 | 创意描述 | 核心场景 | 方向｜笑点 | 格数／分镜 | 关键台词 | 入选理由 |",
-                 "|---|---|---|---|---|---|---|"]
+        lines = [words["legacy_header"], "|---|---|---|---|---|---|---|"]
         for index, item in enumerate(options, 1):
-            cells = [str(index), item["title"] + "：" + item["premise"], item["scene"],
-                     DIRECTION_LABELS[item["direction"]] + "：" + item["twist"],
-                     f"{item['panel_count']} 格：{item['staging']}", "\n".join(item["key_lines"]), item["selection_reason"]]
+            cells = [str(index), item["title"] + words["colon"] + item["premise"], item["scene"],
+                     directions[item["direction"]] + words["colon"] + item["twist"],
+                     words["panel_staging"].format(count=item["panel_count"], staging=item["staging"]),
+                     "\n".join(item["key_lines"]), item["selection_reason"]]
             lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
-    lines.extend(["", "共 **5 个创意，各 1 张，共 5 张图片**。每张最多 3 次产图调用，共最多 15 次。", "",
-                  "生图通道：Codex ImageGen → OpenAI → Nano Banana → Seedream。", "",
-                  execution_markdown(summary["execution"]), "",
-                  "**sub-agent 分配**（并发上限 " + str(summary["worker_plan"]["max_parallelism"]) + "）：", "",
-                  "- main：协调、验收、串行记录及交付。"])
+    lines.extend(["", words["totals"], "", words["route"], "",
+                  execution_markdown(summary["execution"], language), "",
+                  words["workers"].format(limit=summary["worker_plan"]["max_parallelism"]), "", words["main"]])
     titles = {i["idea_id"]: i["title"] for i in summary["choices"]}
     for worker in summary["worker_plan"]["workers"]:
-        lines.append("- " + markdown_cell(worker["id"]) + "：" + "、".join(markdown_cell(titles[i]) for i in worker["idea_ids"]) + "；依次执行。")
+        lines.append(words["worker"].format(worker=markdown_cell(worker["id"]), titles=words["list"].join(
+            markdown_cell(titles[i]) for i in worker["idea_ids"])))
     if not summary["worker_plan"]["workers"]:
-        lines.append("- main：串行生成全部五张漫画，并逐张检查、记录。")
+        lines.append(words["main_serial"])
     if value.get("panel_policy", {}).get("mode") == "user-override":
-        lines.extend(["", "格数按用户指定覆盖默认三种格数：" + markdown_cell(value["panel_policy"]["user_instruction"])])
+        lines.extend(["", words["panel_override"] + markdown_cell(value["panel_policy"]["user_instruction"])])
     if (tier_policy or {}).get("mode") == "user-override":
-        lines.extend(["", "档位按用户指定覆盖默认 A/B/C 覆盖：" + markdown_cell(tier_policy["user_instruction"])])
-    lines.extend(["", "**确认按以上创意、张数和 sub-agent 分配开始生成吗？**"])
+        lines.extend(["", words["tier_override"] + markdown_cell(tier_policy["user_instruction"])])
+    lines.extend(["", words["question"]])
     return "\n".join(lines) + "\n"
 
 
@@ -834,15 +886,14 @@ def plan_execution(ready_images: int, worker_slots: int, provider_limit: int,
     })
 
 
-def execution_markdown(execution: dict[str, Any]) -> str:
+def execution_markdown(execution: dict[str, Any], language: str = "zh") -> str:
+    words = PLAN_TEXT[language]
     count = execution.get("subagent_count")
     if count is None:
-        return f"历史执行配置：并行度 {execution['requested_parallelism']}；未记录子代理数量，保留原授权。"
+        return words["legacy_execution"].format(parallelism=execution["requested_parallelism"])
     if count == 0:
-        return "执行安排：不启动子代理，由主 Agent 串行生成与检查。"
-    return (f"执行安排：将启动 **{count} 个子代理**，每个同时处理 1 张图片，完成后继续领取剩余任务；"
-            "主 Agent 统一核验并归档。并行不增加生成数量或候选预算。"
-            "若可用容量下降，会告知并降低数量；超过本次确认数量须重新确认。")
+        return words["serial_execution"]
+    return words["parallel_execution"].format(count=count)
 
 
 def normalize_execution(value: Any, legacy: bool = False) -> dict[str, Any]:
@@ -948,13 +999,17 @@ def contrast_axes(value: Any, tiers: dict[str, Any], label: str) -> list[str]:
     return axes
 
 
-def tier_label(item: dict[str, Any], tiers: dict[str, Any]) -> str:
-    """Render a tier and any lowered axes, such as A（脸→C）."""
+def tier_label(item: dict[str, Any], tiers: dict[str, Any], language: str = "zh") -> str:
+    """Render a tier and any lowered axes, such as A（脸→C） or A (facial expression→C)."""
     contrast = item.get("contrast")
     if not contrast:
         return item["exaggeration"]
-    labels = {axis["id"]: axis["label_zh"] for axis in tiers["axes"]}
-    return f"{item['exaggeration']}（{'、'.join(labels[axis] for axis in contrast['axes'])}→{contrast['lowered_to']}）"
+    key = "label_zh" if language == "zh" else "label"
+    labels = {axis["id"]: axis[key] for axis in tiers["axes"]}
+    axes = PLAN_TEXT[language]["list"].join(labels[axis] for axis in contrast["axes"])
+    if language == "zh":
+        return f"{item['exaggeration']}（{axes}→{contrast['lowered_to']}）"
+    return f"{item['exaggeration']} ({axes}→{contrast['lowered_to']})"
 
 
 def required_markers(image: dict[str, Any], tiers: dict[str, Any]) -> list[dict[str, Any]]:
@@ -2228,7 +2283,7 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
     lines.extend(["## Creative pool", ""])
     for idea in assignment["creative_pool"]:
         lines.extend([f"### {idea['id']}", "", f"- Premise: {idea['premise']}",
-                      f"- Direction: {idea['direction']} ({DIRECTION_LABELS[idea['direction']]})"])
+                      f"- Direction: {idea['direction']} ({DIRECTION_LABELS['zh'][idea['direction']]})"])
         for field in DIRECTION_CARRIERS[idea["direction"]]:
             value = idea[field]
             lines.append(f"- {field.capitalize()}: {' → '.join(value) if isinstance(value, list) else value}")
@@ -2566,6 +2621,9 @@ def parser() -> argparse.ArgumentParser:
                           ("rank-ideas", cmd_rank_ideas)):
         command = commands.add_parser(name)
         command.add_argument("--draft", required=True)
+        if name != "rank-ideas":
+            command.add_argument("--language", choices=UI_LANGUAGES, default="zh",
+                                 help="Language of the rendered Markdown; translate the en rendering for others")
         command.set_defaults(handler=handler)
     validate = commands.add_parser("validate-assignment")
     validate.add_argument("--assignment", required=True)

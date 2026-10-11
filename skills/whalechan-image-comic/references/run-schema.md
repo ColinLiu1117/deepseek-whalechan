@@ -1,8 +1,8 @@
-# Run schema v16
+# Run schema v17
 
-New assignments use v16 and QA 11. All five visual image records are written before confirmation. The v16 plan hash adds a normalized visual projection; `build-prompt.py` assembles only drawing instructions from it. See `prompt-design.md` for authoring and semantic consistency checks. No extra LLM rewrite or visual review is added.
+New assignments use v17, independent role limits and exclusive image-task journals. Retain QA 11 and the v16 drawing-only visual contract. See agent-orchestration.md for task commands and ownership.
 
-Frozen v11/v13/v14/v15 retain their original approval hashes, prompt builders and recovery behavior. v15 and v16 share the unchanged QA 11 contact-sheet workflow and three-call budget in `review-workflow.md`. New validation and initialization require v16.
+Frozen v11/v13/v14/v15/v16 retain their original approval hashes, prompt builders and recovery behavior. v17 changes execution ownership and recording, not the visual acceptance standard. New initialization requires v17.
 
 Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Directions](#comedy-directions) · [Confirmation](#final-plan-and-one-user-gate) · [Images](#image-fragment) · [Exaggeration](#exaggeration-tiers) · [Output](#output-size-and-aspect-ratio) · [Text](#visible-text) · [Dialogue](#participant-and-dialogue-contract) · [Preflight](#preflight-and-prompt-construction) · [Visual fields](#custom-visual-fields) · [References](#typed-references) · [Execution](#execution)
 
@@ -10,7 +10,7 @@ Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Di
 
 ```json
 {
-  "schema_version": 16,
+  "schema_version": 17,
   "run_name": "refrigerator-permission-loophole",
   "input": {
     "type": "text",
@@ -42,18 +42,14 @@ Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Di
   "images": [],
   "panel_policy": {"mode": "narrative"},
   "exaggeration_policy": {"mode": "narrative"},
-  "worker_plan": {
-    "coordinator": "main",
-    "max_parallelism": 1,
-    "workers": [{"id": "worker-1", "idea_ids": ["idea_01", "idea_03", "idea_06", "idea_08", "idea_10"]}]
-  },
+  "worker_plan": {"coordinator": "main", "allocation": "dynamic"},
   "text_style_policy": {"mode": "semantic"},
   "execution": {
-    "mode": "sequential",
-    "requested_parallelism": 1,
-    "max_parallelism": 10,
-    "subagent_count": 1,
-    "commit_strategy": "coordinator-serial"
+    "batch_id": "example-batch",
+    "role_limits": {"planning": 5, "generation": 5, "codex_generation": 3, "collection": 2, "delivery": 1},
+    "batch_limit": 10,
+    "scheduling": "source-first-generation-priority",
+    "commit_strategy": "worker-serial-merge"
   },
   "budget": {"per_image_candidates": 3},
   "warning_dispositions": []
@@ -154,9 +150,9 @@ Show the table, five images per source, combined batch total, worker allocation 
 }
 ```
 
-Hash canonical JSON using SHA-256 (`ensure_ascii=False`, sorted keys, separators `,` and `:`). For v15/v16 the plan hash additionally binds the fixed review workflow version, one candidate inspection, minor tolerance, one collection repair round and the two allowed regeneration sources. The plan hash binds `input`, `proposal`, `creative_pool`, `duels`, `ranked_ideas`, `selection_reason`, `worker_plan`, `tie_breaks`, `panel_policy`, `exaggeration_policy` and normalized `execution`. An edit to any bound content invalidates the old confirmation. Redisplay the revised plan and obtain a real reply; never refresh a stored confirmation hash yourself. Scripts check consistency, not whether a quoted reply actually happened or meant approval.
+Hash canonical JSON using SHA-256 (`ensure_ascii=False`, sorted keys, separators `,` and `:`). For v15/v16/v17 the plan hash additionally binds the fixed review workflow version, one candidate inspection, minor tolerance, one collection repair round and the two allowed regeneration sources. The plan hash binds `input`, `proposal`, `creative_pool`, `duels`, `ranked_ideas`, `selection_reason`, `worker_plan`, `tie_breaks`, `panel_policy`, `exaggeration_policy` and normalized `execution`. An edit to any bound content invalidates the old confirmation. Redisplay the revised plan and obtain a real reply; never refresh a stored confirmation hash yourself. Scripts check consistency, not whether a quoted reply actually happened or meant approval.
 
-For v16 the same hash also binds `visual_plan`: normalized drawing settings, proportion, ordered reference roles/instructions/content hashes, framing, panel actions, visible expressions, exact text with its speaker/carrier/position, cast and landing effects. Runtime paths, timestamps and generated IDs are excluded. Full images are required before confirmation; normalization and reference copying preserve this projection. Idea links, panel counts, tiers, contrasts, proportions and exact wording must still match the selected options. No old confirmation can authorize changed visual content.
+For v16/v17 the same hash also binds `visual_plan`: normalized drawing settings, proportion, ordered reference roles/instructions/content hashes, framing, panel actions, visible expressions, exact text with its speaker/carrier/position, cast and landing effects. Runtime paths, timestamps and generated IDs are excluded. Full images are required before confirmation; normalization and reference copying preserve this projection. Idea links, panel counts, tiers, contrasts, proportions and exact wording must still match the selected options. No old confirmation can authorize changed visual content.
 
 Five tasks allow at most 15 image calls, three per task. See `proposal-selection.md` for the single user gate.
 
@@ -267,7 +263,7 @@ Five tasks allow at most 15 image calls, three per task. See `proposal-selection
 }
 ```
 
-Missing optional render fields normalize to the defaults shown above. `rhythm` defaults to `null`; when declared it is `{"type": "triple" | "pause" | "callback" | "deadpan", "panel": <landing panel>, "reason": "why the punchline needs it"}`. When a set of two or more images has rhythm on more than half of them, `validate-assignment` requires a `{"code": "rhythm_majority", "reason": "..."}` entry in the root `warning_dispositions`. `idea_id`, `execution_note`, `lettering_description`, `proportion_check`, `core_text`, `text_style`, `text_style_reason`, `dialogue_plan`, `cast_plan`, `action_plan` and `expression_plan` are required. See `review-workflow.md` for the compact QA JSON and collection records. For v16, composition is optional; supplied shot/staging fields describe necessary shared framing. Legacy reason/text_placement fields may remain internal. Every expression requires a nonempty `visual_description`, and every dialogue entry requires a nonempty `placement`. `proportion_check` is `measured` or `visible-only`, chosen from the planned shot. Action and expression plans contain exactly one consecutive entry per panel. Speaker and cast decisions are never inferred from missing fields. Normalized images carry `qa_contract_version: 11`. Every QA record is checked against the complete frozen image specification.
+Missing optional render fields normalize to the defaults shown above. `rhythm` defaults to `null`; when declared it is `{"type": "triple" | "pause" | "callback" | "deadpan", "panel": <landing panel>, "reason": "why the punchline needs it"}`. When a set of two or more images has rhythm on more than half of them, `validate-assignment` requires a `{"code": "rhythm_majority", "reason": "..."}` entry in the root `warning_dispositions`. `idea_id`, `execution_note`, `lettering_description`, `proportion_check`, `core_text`, `text_style`, `text_style_reason`, `dialogue_plan`, `cast_plan`, `action_plan` and `expression_plan` are required. See `review-workflow.md` for the compact QA JSON and collection records. For v16/v17, composition is optional; supplied shot/staging fields describe necessary shared framing. Legacy reason/text_placement fields may remain internal. Every expression requires a nonempty `visual_description`, and every dialogue entry requires a nonempty `placement`. `proportion_check` is `measured` or `visible-only`, chosen from the planned shot. Action and expression plans contain exactly one consecutive entry per panel. Speaker and cast decisions are never inferred from missing fields. Normalized images carry `qa_contract_version: 11`. Every QA record is checked against the complete frozen image specification.
 
 ## Exaggeration tiers
 
@@ -391,10 +387,12 @@ References may be bundled or user supplied. Allowed roles are `identity`, `style
 
 ## Execution
 
-`worker_plan.coordinator` is exactly `main`. `workers` contains at most five entries with unique worker `id` values and nonempty `idea_ids` lists. With sub-agents, every selected idea is assigned exactly once across those lists; unknown ideas and duplicate assignments are invalid. With zero sub-agents, `workers` is `[]` and the main agent implicitly executes all five images serially. `worker_plan.max_parallelism` equals `max(1, len(workers))`, using observed capacity rather than invented slots.
+Use the exact dynamic worker_plan and normalized execution shape in the root example. All sources in one batch share the same batch_id, role_limits, batch_limit and strategy. Role limits are independent and do not multiply by the number of sources. Defaults are planning 5, generation 5 / Codex 3, collection 2 and delivery 1. Limits are positive integers at most 10; batch_limit is at most 10. Runtime constraints can only lower actual dispatch.
 
-`execution.subagent_count` is an integer from 0 through 5 and equals `len(worker_plan.workers)`. `execution.requested_parallelism` equals `worker_plan.max_parallelism`; use `sequential` for 1 and `parallel` above 1. `execution.max_parallelism` is the shared batch ceiling of 10, not a claim that one five-image run can use ten workers. `commit_strategy` is always `coordinator-serial`. Observe capacity and use `plan-execution` before displaying the plan; see `provider-routing.md`. Default to automatic allocation and honor explicit serial requests.
+The confirmation binds execution policy. Resident IDs, task ownership, queue timestamps and changing available slots belong in the batch queue, outside the frozen hash. Initial effective_parallelism/effective_subagent_count in the manifest record initialization only; consult batch events for current activity, not those initial observations.
 
-The single confirmation hash binds both the normalized execution object and worker assignments. Changed plans need fresh confirmation. Runtime initialization records `effective_parallelism` and `effective_subagent_count`, which may be lower, never higher than approved. Use 0 workers and parallelism 1 for main-agent fallback. Disclose capacity reductions and any required queue reassignment without rewriting frozen allocation or approval hashes; an increase beyond approved capacity needs a revised confirmation. Across sources share at most ten concurrent workers, respecting each run's approved count and the actual runtime/provider limits.
+Each image journal at tasks/<image>/state.json binds assignment_sha256, image, owner, task_id, revision, in-flight call, attempt state and events. It is authoritative for single-image attempts and remaining budget. The manifest keeps merged task revisions/hashes and collection decisions. Shared operations acquire a run lock and all affected image locks; they validate candidates and QA before idempotent projection. Re-reading an unchanged journal must preserve later collection/promotion decisions.
 
-After confirmation and required validation, the main agent must actually create and dispatch workers with runtime delegation tools; fields alone do not start workers. Workers use isolated staging directories and never mutate the manifest. The coordinator serially prepares and records candidates through scripts without repeating a worker visual review. Final set review uses one five-slot contact sheet per source, with at most one focused recheck after collection repair. Frozen v11, v13 and v14 runs keep their original execution and confirmation contracts during recovery.
+Claim unique image ownership before beginning a call. Record begin before invoking the provider and prepare immediately after preserving returned bytes. An unresolved flight prevents another call. Only recorded single-image core failures or collection repair targets allow retries. Finish releases ownership only after single-image resolution. Recovery changes owner after factual reconciliation and never clears flight or replenishes budget.
+
+Use agent-orchestration.md for queue/worker receipts, task dependencies, CLI examples and capacity degradation. Frozen v11/v13/v14/v15/v16 retain their original worker_plan/execution and coordinator-serial behavior; do not convert their records.

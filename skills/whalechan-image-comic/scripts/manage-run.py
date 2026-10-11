@@ -30,11 +30,11 @@ FORMS = set(FORM_ORDER)
 ASSET_CATALOG_SCHEMA_VERSION = 3
 EXPRESSION_PRESETS_SCHEMA_VERSION = 2
 EXAGGERATION_TIERS_SCHEMA_VERSION = 1
-ASSIGNMENT_SCHEMA_VERSION = 16
+ASSIGNMENT_SCHEMA_VERSION = 17
 # Frozen runs from these versions may still be generated and finalized, never newly initialized.
-RESUMABLE_SCHEMA_VERSIONS = {11, 13, 14, 15, ASSIGNMENT_SCHEMA_VERSION}
+RESUMABLE_SCHEMA_VERSIONS = {11, 13, 14, 15, 16, ASSIGNMENT_SCHEMA_VERSION}
 # Tournament contracts: v13 predates exaggeration tiers, v14 adds them.
-TOURNAMENT_SCHEMA_VERSIONS = {13, 14, 15, ASSIGNMENT_SCHEMA_VERSION}
+TOURNAMENT_SCHEMA_VERSIONS = {13, 14, 15, 16, ASSIGNMENT_SCHEMA_VERSION}
 QA_CONTRACT_VERSION = 11
 # Frozen v13 runs keep reviewing under QA contract 9, which has no E1 exaggeration gate.
 QA_CONTRACT_VERSIONS = {9, 10, QA_CONTRACT_VERSION}
@@ -263,7 +263,7 @@ def uses_tournament(value: dict[str, Any]) -> bool:
 
 
 def is_tiered(value: dict[str, Any]) -> bool:
-    return value.get("schema_version") in {14, 15, 16}
+    return value.get("schema_version") in {14, 15, 16, 17}
 
 
 def selection_summary(value: dict[str, Any]) -> dict[str, Any]:
@@ -553,27 +553,32 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
     plan = value.get("worker_plan")
     if not isinstance(plan, dict) or plan.get("coordinator") != "main":
         raise RunError("worker_plan requires coordinator=main")
-    workers = plan.get("workers")
-    capacity = plan.get("max_parallelism")
-    execution = normalize_execution(value.get("execution"))
-    count = execution["subagent_count"]
-    if (type(capacity) is not int or not 1 <= capacity <= len(selected)
-            or not isinstance(workers, list) or len(workers) != count
-            or capacity != max(1, count)):
-        raise RunError("worker_plan must match the confirmed subagent_count and ready-image limit")
-    names, assigned = set(), []
-    for worker in workers:
-        if not isinstance(worker, dict):
-            raise RunError("worker_plan workers must be objects")
-        name = text(worker.get("id"), "worker.id")
-        if name == "main" or name in names:
-            raise RunError("worker ids must be unique and different from main")
-        names.add(name)
-        assigned.extend(string_list(worker.get("idea_ids"), "worker.idea_ids"))
-    if count and Counter(assigned) != Counter(selected):
-        raise RunError("worker_plan must assign each selected idea exactly once")
-    if execution["requested_parallelism"] != capacity:
-        raise RunError("execution.requested_parallelism must match worker_plan.max_parallelism")
+    if value.get("schema_version") == 17:
+        execution = role_execution(value.get("execution"))
+        if plan != {"coordinator": "main", "allocation": "dynamic"}:
+            raise RunError("v17 worker_plan requires dynamic allocation")
+    else:
+        workers = plan.get("workers")
+        capacity = plan.get("max_parallelism")
+        execution = normalize_execution(value.get("execution"))
+        count = execution["subagent_count"]
+        if (type(capacity) is not int or not 1 <= capacity <= len(selected)
+                or not isinstance(workers, list) or len(workers) != count
+                or capacity != max(1, count)):
+            raise RunError("worker_plan must match the confirmed subagent_count and ready-image limit")
+        names, assigned = set(), []
+        for worker in workers:
+            if not isinstance(worker, dict):
+                raise RunError("worker_plan workers must be objects")
+            name = text(worker.get("id"), "worker.id")
+            if name == "main" or name in names:
+                raise RunError("worker ids must be unique and different from main")
+            names.add(name)
+            assigned.extend(string_list(worker.get("idea_ids"), "worker.idea_ids"))
+        if count and Counter(assigned) != Counter(selected):
+            raise RunError("worker_plan must assign each selected idea exactly once")
+        if execution["requested_parallelism"] != capacity:
+            raise RunError("execution.requested_parallelism must match worker_plan.max_parallelism")
     proposal = value["proposal"]
     rows = [{"choice": str(n), "title": item["title"], "idea_id": item["idea_id"], "count": 1}
             for n, item in enumerate(proposal["options"], 1)]
@@ -584,11 +589,11 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
     if tier_policy is not None:
         # Only v14 binds the tier policy, so historical v13 confirmation hashes stay unchanged.
         payload["exaggeration_policy"] = tier_policy
-    if value.get("schema_version") in {15, 16}:
+    if value.get("schema_version") in {15, 16, 17}:
         payload["review_workflow"] = {"version": 1, "candidate_reviews": 1,
                                       "minor_tolerance": True, "collection_repair_rounds": 1,
                                       "regeneration_sources": ["single_image_qa", "collection_review"]}
-    if value.get("schema_version") == 16:
+    if value.get("schema_version") in {16, 17}:
         payload["visual_plan"] = visual_prompt().contract(value)
     return {"proposal_count": 5, "image_count": 5, "choices": rows, "adjustments": [],
             "worker_plan": plan, "maximum_total": 15, "standings": ranking,
@@ -668,20 +673,26 @@ def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, 
                      words["panel_staging"].format(count=item["panel_count"], staging=item["staging"]),
                      "\n".join(item["key_lines"]), item["selection_reason"]]
             lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
-    lines.extend(["", words["totals"], "", words["route"], "",
-                  execution_markdown(summary["execution"], language), "",
-                  words["workers"].format(limit=summary["worker_plan"]["max_parallelism"]), "", words["main"]])
-    titles = {i["idea_id"]: i["title"] for i in summary["choices"]}
-    for worker in summary["worker_plan"]["workers"]:
-        lines.append(words["worker"].format(worker=markdown_cell(worker["id"]), titles=words["list"].join(
-            markdown_cell(titles[i]) for i in worker["idea_ids"])))
-    if not summary["worker_plan"]["workers"]:
-        lines.append(words["main_serial"])
+    if "role_limits" in summary["execution"]:
+        limits = summary["execution"]["role_limits"]
+        detail = (f"分类 sub-agent 上限：策划 {limits['planning']}；生图 {limits['generation']} / Codex {limits['codex_generation']}；集合 {limits['collection']}；交付 {limits['delivery']}。主代理只编排；实际启动受运行时槽位和整批上限约束。" if language == "zh" else
+                  f"Independent sub-agent limits: {limits}. Main coordinates only; runtime slots and batch cap constrain actual dispatch.")
+        lines.extend(["", words["totals"], "", words["route"], "", detail])
+    else:
+        lines.extend(["", words["totals"], "", words["route"], "",
+                      execution_markdown(summary["execution"], language), "",
+                      words["workers"].format(limit=summary["worker_plan"]["max_parallelism"]), "", words["main"]])
+        titles = {i["idea_id"]: i["title"] for i in summary["choices"]}
+        for worker in summary["worker_plan"]["workers"]:
+            lines.append(words["worker"].format(worker=markdown_cell(worker["id"]), titles=words["list"].join(
+                markdown_cell(titles[i]) for i in worker["idea_ids"])))
+        if not summary["worker_plan"]["workers"]:
+            lines.append(words["main_serial"])
     if value.get("panel_policy", {}).get("mode") == "user-override":
         lines.extend(["", words["panel_override"] + markdown_cell(value["panel_policy"]["user_instruction"])])
     if (tier_policy or {}).get("mode") == "user-override":
         lines.extend(["", words["tier_override"] + markdown_cell(tier_policy["user_instruction"])])
-    if value.get("schema_version") in {15, 16}:
+    if value.get("schema_version") in {15, 16, 17}:
         review_note = ("审阅：每个候选看图一次；轻微瑕疵可接受；每组五图拼图审阅一次。"
                        "集合最多返工一轮并复验一次，与单图 QA 共用每张三次产图预算。"
                        "主代理不重复看图复核，技术检查失败不触发生图。" if language == "zh" else
@@ -931,7 +942,7 @@ def normalize_background(value: Any, label: str, tier: str, tiers: dict[str, Any
 
 
 def effective_subagents(execution: dict[str, Any], parallelism: int, count: int) -> int:
-    approved = execution["subagent_count"]
+    approved = execution.get("subagent_count", execution.get("batch_limit", 0))
     if type(parallelism) is not int or parallelism < 1:
         raise RunError("effective parallelism must be a positive integer")
     if type(count) is not int or not 0 <= count <= approved:
@@ -1663,7 +1674,7 @@ def validate_assignment(path: Path) -> dict[str, Any]:
     ideas = {idea["id"]: idea for idea in assignment["creative_pool"]}
     ranked = assignment["ranked_ideas"]
 
-    assignment["execution"] = normalize_execution(assignment.get("execution"))
+    assignment["execution"] = role_execution(assignment.get("execution"))
 
     images = assignment.get("images")
     if not isinstance(images, list) or not images:
@@ -1861,7 +1872,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     manifest = read_json(run_dir / "manifest.json")
     if assignment.get("schema_version") not in RESUMABLE_SCHEMA_VERSIONS:
         raise RunError(f"Run assignment schema_version must be one of {sorted(RESUMABLE_SCHEMA_VERSIONS)}")
-    if assignment["schema_version"] in {15, 16} and (
+    if assignment["schema_version"] in {15, 16, 17} and (
         manifest.get("review_workflow_version") != 1 or not isinstance(manifest.get("collection"), dict)
     ):
         raise RunError("v15/v16 requires its collection review workflow")
@@ -1890,7 +1901,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     for image in images:
         if not isinstance(image, dict) or set(image) - IMAGE_FIELDS:
             raise RunError("Frozen image specification has unsupported fields")
-        expected_qa = {11} if assignment["schema_version"] in {15, 16} else {10} if is_tiered(assignment) else {9}
+        expected_qa = {11} if assignment["schema_version"] in {15, 16, 17} else {10} if is_tiered(assignment) else {9}
         if image.get("qa_contract_version") not in expected_qa:
             raise RunError(f"Frozen image qa_contract_version must be one of {sorted(expected_qa)}")
         references = image.get("references")
@@ -2049,6 +2060,26 @@ def validate_exaggeration_evidence(evidence: dict[str, Any], image: dict[str, An
         if not set(seen) <= known or len(set(seen)) < tiers["identity_anchor_minimum"]:
             raise RunError(f"Deformed panel {item['panel']} needs at least "
                            f"{tiers['identity_anchor_minimum']} visible identity anchors")
+
+
+def extension_module(name):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(name + ".py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def role_execution(value):
+    try:
+        return extension_module("agent_orchestration").execution(value)
+    except ValueError as exc:
+        raise RunError(str(exc)) from exc
+
+
+def image_tasks():
+    from types import SimpleNamespace
+    return extension_module("image_task").ImageTasks(SimpleNamespace(**globals()))
 
 
 def visual_prompt():
@@ -2297,7 +2328,9 @@ def resolve_transport(args: argparse.Namespace, audit_path: Path | None) -> str 
 
 def record_image(args: argparse.Namespace, component: bool) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] in {15, 16}:
+    if assignment["schema_version"] == 17:
+        raise RunError("Use image-task review for v17")
+    if assignment["schema_version"] in {15, 16, 17}:
         if component:
             raise RunError("QA 11 accepts complete candidates only")
         return review_workflow().record_candidate(args, run_dir, assignment, manifest)
@@ -2424,9 +2457,10 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
     lines.extend([
         "", f"Final ranking: {' > '.join(assignment['ranked_ideas'])}",
         "", "## Execution", "",
-        f"- Mode: {assignment['execution']['mode']}",
-        f"- Requested parallelism: {assignment['execution']['requested_parallelism']}",
-        "- Commit strategy: coordinator-serial",
+        f"- Mode: {assignment['execution'].get('mode', 'role-queues')}",
+        (f"- Execution: {assignment['execution']}" if assignment["schema_version"] == 17 else
+         f"- Requested parallelism: {assignment['execution']['requested_parallelism']}"),
+        f"- Commit strategy: {assignment['execution']['commit_strategy']}",
         "", f"## {len(assignment['images'])} tasks", "",
     ])
     for image in assignment["images"]:
@@ -2501,13 +2535,13 @@ def cmd_validate_batch(args: argparse.Namespace) -> dict[str, Any]:
 def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
     assignment_path = Path(args.assignment).resolve()
     assignment = validate_assignment(assignment_path)
-    requested_parallelism = assignment["execution"]["requested_parallelism"]
+    requested_parallelism = assignment["execution"]["role_limits"]["generation"]
     effective_parallelism = 1 if args.effective_parallelism is None else args.effective_parallelism
     if not 1 <= effective_parallelism <= min(requested_parallelism, len(assignment["images"])):
         raise RunError("effective parallelism exceeds the requested or ready-image limit")
     actual_count = getattr(args, "effective_subagents", None)
     if actual_count is None:
-        actual_count = min(assignment["execution"]["subagent_count"], effective_parallelism)
+        actual_count = min(requested_parallelism, effective_parallelism)
     subagents = effective_subagents(assignment["execution"], effective_parallelism, actual_count)
     root = Path(args.root).resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -2574,7 +2608,7 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
         },
         "created_at": now(), "updated_at": now(), "images": states,
     }
-    if assignment["schema_version"] in {15, 16}:
+    if assignment["schema_version"] in {15, 16, 17}:
         manifest["review_workflow_version"] = 1
         manifest["collection"] = {"status": "pending", "reviews": [], "sheets": [], "repair_rounds": 0}
         manifest["events"] = []
@@ -2588,6 +2622,8 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_record_error(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, _assignment, manifest = load_run(args.run_dir)
+    if _assignment["schema_version"] == 17:
+        raise RunError("Use image-task error for v17")
     if manifest.get("status") != "in_progress":
         raise RunError("Run is not open")
     state = state_for(manifest, args.image)
@@ -2610,7 +2646,7 @@ def cmd_record_composite(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
     state = state_for(manifest, args.image)
     image_spec = next(item for item in assignment["images"] if item["id"] == args.image)
-    if assignment["schema_version"] in {15, 16}:
+    if assignment["schema_version"] in {15, 16, 17}:
         raise RunError("QA 11 reviews complete candidates, not component composites")
     source_ids = args.source_attempt
     expected = image_spec["panel_count"]
@@ -2653,7 +2689,7 @@ def cmd_record_composite(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_promote(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] in {15, 16}:
+    if assignment["schema_version"] in {15, 16, 17}:
         return review_workflow().promote(args, run_dir, assignment, manifest)
     state = state_for(manifest, args.image)
     passing = [item for item in state["attempts"] + state["derived"] if item.get("verdict") == "PASS" and item.get("role") != "component"]
@@ -2680,7 +2716,7 @@ def cmd_promote(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_finalize(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] in {15, 16}:
+    if assignment["schema_version"] in {15, 16, 17}:
         review_workflow().before_finalize(run_dir, assignment, manifest)
     expected = len(assignment["images"])
     passed = [key for key, value in manifest["images"].items() if value["status"] == "passed"]
@@ -2757,7 +2793,7 @@ def parser() -> argparse.ArgumentParser:
     batch.add_argument("--assignment", action="append", help="Confirmed assignment; repeat for each source")
     batch.add_argument("--draft", action="append", help="Planning draft before the confirmation; repeat for each source")
     batch.set_defaults(handler=cmd_validate_batch)
-    plan = commands.add_parser("plan-execution", help="Resolve observed capacity before the execution confirmation; no workers are started")
+    plan = commands.add_parser("plan-execution", help="Frozen single-pool execution helper; new v17 tasks use plan-roles")
     plan.add_argument("--ready-images", type=int, required=True)
     plan.add_argument("--worker-slots", type=int, required=True)
     plan.add_argument("--provider-limit", type=int, required=True)
@@ -2799,14 +2835,24 @@ def parser() -> argparse.ArgumentParser:
     finalize.add_argument("--run-dir", required=True); finalize.add_argument("--allow-partial", action="store_true")
     finalize.set_defaults(handler=cmd_finalize)
     register_review_commands(commands)
+    from types import SimpleNamespace
+    extension_module("agent_orchestration").Orchestration(SimpleNamespace(**globals())).register(commands)
+    image_tasks().register(commands)
     return root
+
+
+def invoke(args):
+    shared = {"build-review-sheet", "record-collection-review", "promote", "finalize"}
+    if args.command in shared and read_json(Path(args.run_dir) / "assignment.json").get("schema_version") == 17:
+        return image_tasks().shared(args, args.handler)
+    return args.handler(args)
 
 
 def main() -> int:
     args = parser().parse_args()
     try:
-        result = args.handler(args)
-    except RunError as exc:
+        result = invoke(args)
+    except (RunError, ValueError, OSError, TypeError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 2
     print(json.dumps({"ok": True, **result}, ensure_ascii=False, indent=2))

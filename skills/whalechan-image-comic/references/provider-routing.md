@@ -86,33 +86,14 @@ For v16, the prompt contains only the authored drawing descriptions in `prompt-d
 
 Record credentials neither in stdout nor in the run. Provider errors without images consume no candidate slot; any viewable returned image consumes one.
 
-## v15/v16 review policy
+## v17 worker execution
 
-Apply `review-workflow.md` for v15/v16. The coordinator runs `prepare-candidate` serially when a worker returns a staged image, then dispatches the sole visual inspection after automatic checks pass. The worker may retain the same task context for this inspection. Record its compact report without a coordinator visual reread. Only single-image or collection core defects authorize image-producing retries. Technical/audit failures block that candidate. No-image availability/capability checks may route forward before generation; do not treat technical rejection of an existing image as retry permission.
+Use independent role limits and image-task commands from `agent-orchestration.md`. Default generation capacity is 3 for Codex and 5 for general providers, reduced by known provider limits and runtime slots. Defaults are not a claim about backend capacity. Do not reduce unknown capacity to one automatically.
 
-## Sub-agent coordinator
+One generation worker owns an image through automatic checks, single-image QA and permitted retries. It writes only its image journal. Record no-image errors with image-task error; returned images consume budget even if automatic/audit checks fail. Preserve the provider ordering and safety rules above. The coordinator only dispatches tasks and reports status; it does not inspect images or write detailed QA. Collection/delivery workers perform serial manifest reconciliation.
 
-Default to automatic sub-agent execution; the shared batch ceiling is 10, and a five-image run uses at most five. Before the single plan confirmation, inspect available delegation tools, free worker slots (exclude the main agent and occupied slots), initially ready images, provider concurrency and explicit user limits. Do not launch workers to probe capacity. If provider concurrency is unknown, use 1 conservatively and disclose the uncertainty. If delegation is unavailable, use 0 worker slots. Explicit serial execution uses the main agent.
+Delegate a separate ready image to each generation worker. Never use concurrent calls inside one agent as evidence of provider concurrency. On explicit capacity/rate-limit failures, report the evidence and reduce new dispatch; do not interrupt successful in-flight image calls solely to rebalance roles.
 
-Resolve the concrete plan with the read-only helper, using observed values rather than these illustrative numbers:
+## Frozen v15/v16 recovery
 
-```bash
-python3 scripts/manage-run.py plan-execution \
-  --ready-images 5 --worker-slots 3 --provider-limit 3
-# Add --user-limit <limit> or --serial when requested.
-```
-
-Copy the returned `execution` into the draft and create a matching `worker_plan`; for one run pass its five ready images, keeping `subagent_count` at most five. The helper resolves the minimum of ready images, available worker slots, provider limit, user limit and 10; it returns 0 for explicit serial execution or unavailable capacity. `requested_parallelism` and `worker_plan.max_parallelism` equal `max(1, subagent_count)`. Use one worker entry per sub-agent; with zero, use `workers: []` and main-agent ownership of all five images. Show the exact count and limiting reasons alongside image totals; the allowed ceiling is not observed capacity. Workers reuse the queue without increasing image counts or budgets. A changed plan requires a refreshed summary; an increase after confirmation requires renewed consent.
-
-After the single confirmation, finish expansion, validation, freezing and any required batch review. Recheck capacity, tell the user if it fell, then initialize with `--effective-parallelism` and `--effective-subagents`. Actual workers may be fewer than confirmed, including 0 with parallelism 1 for main-agent fallback. Disclose necessary queue reassignment when workers are lost; this is a runtime reduction, not a rewrite of frozen ownership or the approval hash.
-
-
-### Dispatch and collect
-
-1. Use the runtime's sub-agent creation tool (for example `spawn_agent`) to create up to the confirmed, currently available worker count. No delegation support means the main agent executes serially; never substitute a nested agent CLI to evade that limit. Reuse workers through the runtime's follow-up mechanism rather than creating one per image.
-2. Give each worker one ready image/candidate, the Skill path, read-only frozen assignment, exact image id, authorized provider and remaining budget, reference paths/roles, and a unique `staging/<image-id>/<attempt-id>/` directory. Restrict its task to that candidate. Workers must not spawn more agents, change the approved plan or write the manifest.
-3. The worker builds the prompt, calls one provider once, preserves any returned image immediately, validates/measures and performs actual visual QA. It returns prompt/request/candidate/QA/audit paths, hashes, provider/model, transport and errors. A failure or timeout after an image was produced still consumes a slot; inspect staging before any retry. Workers must not call `record-*`, `promote`, `finalize`, or independently retry/fall back.
-4. The main agent collects completed results, verifies hashes and evidence, then serially records errors/candidates without another visual inspection. Under v15/v16, promote only after contact-sheet collection acceptance; frozen runs retain their original PASS promotion. It assigns the next ready image or a permitted retry to an available worker. Never dispatch two candidates for the same image. Retries and provider fallback wait until the preceding result is recorded; reduce active dispatch if the next provider has lower capacity.
-5. On a safety rejection, stop new dispatch, interrupt outstanding work where supported and quarantine uncommitted results. Preserve returned candidates and account for consumed attempts. When work is resolved, release workers if supported and finalize through the manager.
-
-For multiple source assignments under one confirmation, show both per-run worker allocations and the aggregate concurrent worker count. Share one pool across the batch: do not multiply the runtime/provider limit or the ceiling of 10 by the number of sources. Each five-image run uses at most five workers; reuse workers across runs and qualify jobs by source and idea. Freeze each run's allocation; increasing it requires confirmation. Serial manifest writes remain the coordinator's responsibility across the whole batch.
+Retain their coordinator-serial prepare-candidate/record-candidate lifecycle and previously approved worker allocation. Review every candidate once, without coordinator visual rereview, then one per-source contact sheet and at most one repair round. Do not apply v17 local image journals or role policies to frozen histories. v11/v13/v14 keep their original recovery contracts.

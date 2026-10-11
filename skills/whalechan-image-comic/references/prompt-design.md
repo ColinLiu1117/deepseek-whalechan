@@ -1,5 +1,7 @@
 # Drawing-only prompts — v16
 
+For v17 a planning sub-agent authors one source’s complete five-image visual plan. Generation workers assemble frozen fields; main coordinates only. The v16 drawing contract is unchanged.
+
 Write the visual plan during the existing planning pass, before the single confirmation. The builder assembles these fields directly; do not add another LLM rewrite, review agent or confirmation. Keep analysis, selection reasons, approval and QA records internal. Every sentence sent to the image model should guide a visible result.
 
 Write drawing prose in English and visible dialogue in its resolved language. The rendered plan quotes the drawing fields: translate its scene cells faithfully into the communication language when presenting them, preserving all locked details and exact dialogue. This is presentation within planning, not another rewrite of the image prompt.

@@ -19,7 +19,7 @@ class ReviewWorkflow:
 
     def load(self, args):
         run, assignment, manifest = self.m.load_run(args.run_dir)
-        self.require(assignment["schema_version"] in {15, 16}, "This command requires assignment v15/v16")
+        self.require(assignment["schema_version"] in {15, 16, 17}, "This command requires assignment v15/v16")
         self.require(manifest["status"] == "in_progress", "Run is not open")
         return run, assignment, manifest
 
@@ -72,6 +72,8 @@ class ReviewWorkflow:
         return value
     def prepare(self, args):
         run, assignment, manifest = self.load(args)
+        self.require(assignment["schema_version"] != 17 or getattr(self.m, "task_local", False),
+                     "Use image-task for v17 single-image mutations")
         state = self.m.state_for(manifest, args.image)
         self.require(state["status"] == "pending", "Image is not ready for generation")
         self.require(len(state["attempts"]) < 3, "Per-image candidate budget is exhausted")
@@ -85,7 +87,7 @@ class ReviewWorkflow:
             return {"status": "technical_blocked", "next": "report-technical-block"}
         number = len(state["attempts"]) + 1
         folder = run / "candidates" / args.image / f"attempt-{number:02d}"
-        folder.mkdir(parents=True, exist_ok=False)
+        folder.mkdir(parents=True, exist_ok=getattr(self.m, "task_local", False))
         candidate = folder / "candidate.png"
         self.m.copy_once(source, candidate)
         digest = self.m.sha256(candidate)
@@ -148,7 +150,8 @@ class ReviewWorkflow:
         visual = self.validate_qa(review, digest, spec)
         self.m.validate_automatic(Path(record["automatic_qa"]), digest, spec["output"])
         target = Path(record["candidate"]).parent / "visual.json"
-        self.require(not target.exists(), "This candidate already has a visual review")
+        self.require(not target.exists() or (getattr(self.m, "task_local", False) and self.m.read_json(target) == visual),
+                     "This candidate already has a different visual review")
         self.m.write_json(target, visual)
         record.update(visual_qa=str(target), visual_sha256=self.m.sha256(target), verdict=visual["verdict"], reviewed_at=self.m.now(),
                       minor_issues=visual["minor_issues"], defects=visual["core_defects"])
@@ -246,7 +249,8 @@ class ReviewWorkflow:
         if round_number == 1:
             self.require(targets <= set(group["repair_targets"]), "Recheck only the original repair targets")
         review_path = Path(stored["index"]).with_name("visual.json")
-        self.require(not review_path.exists(), "Collection already has a visual review")
+        self.require(not review_path.exists() or (assignment["schema_version"] == 17 and self.m.read_json(review_path) == review),
+                     "Collection already has a different visual review")
         self.m.write_json(review_path, review)
         group["reviews"].append({"path": str(review_path), "sha256": self.m.sha256(review_path),
                                   "sheet_sha256": index["sheet_sha256"], "round": round_number,
@@ -302,6 +306,8 @@ class ReviewWorkflow:
 
     def block(self, args):
         run, assignment, manifest = self.load(args)
+        self.require(assignment["schema_version"] != 17 or getattr(self.m, "task_local", False),
+                     "Use image-task for v17 single-image mutations")
         state = self.m.state_for(manifest, args.image)
         self.require(state["status"] not in {"passed", "technical_blocked", "exhausted", "collection_failed"},
                      "Task is already terminal")
@@ -313,6 +319,8 @@ class ReviewWorkflow:
 
     def mark(self, args):
         run, assignment, manifest = self.load(args)
+        self.require(assignment["schema_version"] != 17 or getattr(self.m, "task_local", False),
+                     "Use image-task for v17 single-image mutations")
         state = self.m.state_for(manifest, args.image)
         expected = "pending" if args.event == "generation_started" else "awaiting_review"
         self.require(state["status"] == expected, "Event does not match task state")

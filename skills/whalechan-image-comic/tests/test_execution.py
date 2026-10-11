@@ -42,53 +42,37 @@ class ExecutionTests(unittest.TestCase):
         from pathlib import Path
 
         value = fixtures.assignment()
-        self.assertIn("worker-3", manage.selection_markdown(manage.selection_summary(value)))
+        self.assertIn("主代理只编排", manage.selection_markdown(manage.selection_summary(value)))
         changed = fixtures.assignment()
-        changed["execution"] = manage.plan_execution(5, 2, 3)
-        changed["worker_plan"]["max_parallelism"] = 2
-        changed["worker_plan"]["workers"][0]["idea_ids"].append("idea_03")
-        changed["worker_plan"]["workers"].pop()
+        changed["execution"]["role_limits"]["codex_generation"] = 2
         with self.assertRaisesRegex(manage.RunError, "Single gate confirmation is stale"):
             manage.validate_approval(changed)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "assignment.json"
             path.write_text(json.dumps(value))
             args = argparse.Namespace(assignment=str(path), root=directory,
-                                      effective_parallelism=4, effective_subagents=4)
+                                      effective_parallelism=6, effective_subagents=6)
             with self.assertRaisesRegex(manage.RunError, "parallelism"):
                 manage.cmd_init(args)
             args.effective_parallelism, args.effective_subagents = 1, 0
             run = Path(manage.cmd_init(args)["run_dir"])
             manifest = manage.load_run(str(run))[2]
-            self.assertEqual(manifest["execution"]["subagent_count"], 3)
+            self.assertEqual(manifest["execution"]["role_limits"]["codex_generation"], 3)
             self.assertEqual(manifest["execution"]["effective_subagent_count"], 0)
-            manifest["execution"]["effective_subagent_count"] = 4
+            manifest["execution"]["effective_subagent_count"] = 11
             manage.write_json(run / "manifest.json", manifest)
             with self.assertRaisesRegex(manage.RunError, "confirmed limit"):
                 manage.load_run(str(run))
 
-    def test_zero_workers_assigns_all_five_comics_to_main(self):
-        import argparse
-        import json
-        import tempfile
-        from pathlib import Path
-
-        value = fixtures.assignment()
-        value["execution"] = manage.plan_execution(5, 0, 3)
-        value["worker_plan"] = {"coordinator": "main", "max_parallelism": 1, "workers": []}
-        fixtures.confirm_fixture_plan(value)
-        rendered = manage.selection_markdown(manage.selection_summary(value))
-        self.assertIn("main", rendered)
-        self.assertIn("main：串行生成全部五张漫画", rendered)
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "assignment.json"
-            path.write_text(json.dumps(value))
-            run = manage.cmd_init(argparse.Namespace(assignment=str(path), root=directory,
-                                                     effective_parallelism=None, effective_subagents=None))
-            frozen = manage.load_run(run["run_dir"])[1]
-            self.assertEqual(frozen["execution"]["subagent_count"], 0)
-            self.assertEqual(frozen["worker_plan"]["workers"], [])
-        for count in (1, 6):
-            value["execution"] = manage.plan_execution(10, count, 10)
-            with self.subTest(count=count), self.assertRaises(manage.RunError):
-                manage.selection_summary(value)
+    def test_role_caps_survive_runtime_reduction(self):
+        roles = manage.extension_module("agent_orchestration")
+        policy = manage.role_execution({"batch_id": "test"})
+        self.assertEqual(roles.targets(policy, 5, {"generation": 20, "collection": 2}),
+                         {"planning": 0, "generation": 3, "collection": 2, "delivery": 0})
+        self.assertEqual(roles.targets(policy, 3, {"generation": 20, "collection": 2})["generation"], 2)
+        self.assertEqual(policy["role_limits"]["planning"], 5)
+        for slots in (0, 1, 2, 3, 4, 5, 6, 7, 10):
+            result = roles.targets(policy, slots, {r: 20 for r in roles.ROLES}, "openai")
+            self.assertLessEqual(sum(result.values()), slots)
+        self.assertEqual(roles.capacity(3, "all-agents", 0), 2)
+        self.assertEqual(roles.capacity(3, "subagents", 1), 2)

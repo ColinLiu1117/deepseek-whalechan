@@ -181,8 +181,19 @@ def legacy_assignment() -> dict:
 
 
 
+def historical_execution(value):
+    value["execution"] = {"mode": "parallel", "requested_parallelism": 3, "max_parallelism": 10,
+                          "subagent_count": 3, "commit_strategy": "coordinator-serial"}
+    value["worker_plan"] = {"coordinator": "main", "max_parallelism": 3,
+        "workers": [{"id": "worker-1", "idea_ids": ["idea_01", "idea_04"]},
+                    {"id": "worker-2", "idea_ids": ["idea_02", "idea_05"]},
+                    {"id": "worker-3", "idea_ids": ["idea_03"]}]}
+
+
 def confirm_fixture_plan(value: dict) -> dict:
     """Synthetic single approval for tests only; never user authorization."""
+    if value.get("schema_version", 17) < 17 and "role_limits" in value.get("execution", {}):
+        historical_execution(value)
     value["confirmation"] = {"status": "confirmed", "user_reply": "Synthetic plan confirmation",
                              "summary_sha256": manage.selection_summary(value)["summary_sha256"]}
     return value
@@ -230,6 +241,8 @@ def assignment() -> dict:
                                         {"id": "worker-2", "idea_ids": ["idea_02", "idea_05"]},
                                         {"id": "worker-3", "idea_ids": ["idea_03"]}]}
     value["execution"].update(mode="parallel", requested_parallelism=3, max_parallelism=10, subagent_count=3)
+    value["execution"] = manage.role_execution({"batch_id": "synthetic-batch"})
+    value["worker_plan"] = {"coordinator": "main", "allocation": "dynamic"}
     return confirm_fixture_plan(value)
 
 
@@ -329,17 +342,20 @@ class RunStateTests(unittest.TestCase):
         frozen = manage.read_json(self.run_dir / "assignment.json")
         # Existing lifecycle/QA tests exercise frozen v14 recovery. New workflow
         # tests opt in to the current version explicitly; neither fixture represents a real review.
-        if not getattr(self, "current_review_workflow", False):
-            frozen["schema_version"] = 14
+        if not getattr(self, "image_task_workflow", False):
+            frozen["schema_version"] = 16 if getattr(self, "current_review_workflow", False) else 14
+            historical_execution(frozen)
             for image in frozen["images"]:
-                image["qa_contract_version"] = 10
+                image["qa_contract_version"] = 11 if frozen["schema_version"] == 16 else 10
             frozen["confirmation"]["summary_sha256"] = manage.selection_summary(frozen)["summary_sha256"]
             manage.write_json(self.run_dir / "assignment.json", frozen)
             manifest = manage.read_json(self.run_dir / "manifest.json")
             manifest["assignment_sha256"] = manage.sha256(self.run_dir / "assignment.json")
-            manifest.pop("collection", None)
-            manifest.pop("review_workflow_version", None)
-            manifest.pop("events", None)
+            manifest["execution"] = {**frozen["execution"], "effective_parallelism": 1, "effective_subagent_count": 1}
+            if frozen["schema_version"] == 14:
+                manifest.pop("collection", None)
+                manifest.pop("review_workflow_version", None)
+                manifest.pop("events", None)
             manage.write_json(self.run_dir / "manifest.json", manifest)
         self.image_spec = frozen["images"][0]
         self.image = self.image_spec["id"]

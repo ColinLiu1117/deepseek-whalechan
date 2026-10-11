@@ -11,7 +11,9 @@ Workflow: analyze → freeze ten ideas → 45 pairwise duels → select five →
 
 ## Load the guidance
 
-Read these before every run:
+Main reads `references/agent-orchestration.md` and delegates the remaining guidance to the responsible role. Planning workers load creative/prompt guidance; generation workers load provider/QA guidance; collection and delivery workers load their lifecycle/gallery guidance.
+
+Role references:
 
 - `references/prompt-design.md` for drawing-only visual plans authored before confirmation.
 - `references/proposal-selection.md` for the information-only eight-column table with its panel and tier distribution, the single user confirmation and its record.
@@ -29,6 +31,8 @@ Read these before every run:
 - `references/gallery.md` before exporting the completed task's preview gallery.
 
 ## Choose the language
+
+Assign language evidence gathering to a planning worker; main relays the resolved language and explicit user choices.
 
 Infer the session language from what the user typed in this session and in local agent sessions from the last 24 hours, whichever agent runs this Skill; do not take it from the agent's defaults, system locale or the source material. Run `python3 scripts/detect-language.py` for the history: it reads Claude Code and Codex CLI records, skips injected and tool-written text, and reports message counts by script with recent excerpts. When this session and the history disagree, this session wins; read the excerpts before deciding a Latin-script language. When no history is available, use this session alone. An explicit user instruction ("reply in English", "台词用日语") overrides the inferred language for the scope it names: communication, visible text, or both.
 
@@ -50,11 +54,13 @@ Infer the session language from what the user typed in this session and in local
 - Write visible comic text in the language resolved under [Choose the language](#choose-the-language), not automatically in the source's language.
 - Treat the five bundled forms as recommended presets. Accept any finite measurable custom head ratio greater than `1.0`; custom ratios have no bundled proportion reference.
 - Allow any physically depictable action and any user-resolved background, art style, or outfit, subject to provider safety and technical limits. A custom field changes only that field.
-- Default to automatic sub-agent execution. Before the single confirmation, resolve and display the actual worker count from ready images, observed runtime slots (excluding the main agent), provider capacity and user limits. Use at most five workers for one five-image run and a shared ceiling of ten across a batch. Honor explicit serial execution; use the main agent when sub-agents are unavailable. See `references/provider-routing.md`.
+- Use independent role caps: planning 5; generation 5 (Codex ImageGen 3); collection 2; delivery 1. Main coordinates only when delegation exists. Apply actual runtime slots and the batch cap of ten; lower capacity changes dispatch, not the role configuration. See `references/agent-orchestration.md`.
 - Start planning immediately. Show the final five-row table, image total, worker allocation and budget together, then obtain one real confirmation. Never infer approval from silence or a preselected answer. A planning-only request never authorizes image calls.
 - Give each task an independent maximum of three image-producing calls. Never transfer unused calls.
 
 ## Understand the source and select five ideas
+
+Assign one planning sub-agent per original source, up to the planning cap. The following content work belongs to that worker.
 
 1. Record `input.source_analysis`: source event, comic target, tone, language differences, user corrections and native direction with evidence (`null` when the source has no joke). Separate observed facts from interpretation. Extract the fact anchor and participants; use `input.participants: []` only for solo material. Preserve speaker roles without copying real faces. For screenshot/image sources, retain the file path in `input.content` and the transcription in `source_event`.
 2. Author exactly ten distinct candidates, each with direction/carrier fields, scene, key dialogue, visual payoff, mechanism and personality. Native direction and source-grounded character gags are comparative preferences, not quotas. Freeze the pool; weak ideas still compete, and the pool is never extended or regenerated.
@@ -63,12 +69,14 @@ Infer the session language from what the user typed in this session and in local
 
 ## Complete the plan, confirm once, then freeze
 
+Have planning workers author and render the plan, including the existing cross-source comparison. Main assembles their results for consent without rewriting content. After consent, delegate freezing/initialization.
+
 Prepare these decisions before the user confirmation:
 
 1. Set `ranked_ideas` to the five winners and explain the ranking in `selection_reason`. Link one image to each `idea_id` and describe its unique payoff in `execution_note`. Cover 1/2/4 panels across the set unless explicitly overridden by the user. Choose worker assignments and effective concurrency from actual capacity. Record each option's `proportion` before confirmation, defaulting to `{"mode": "preset", "preset": "semi-chibi"}`; completed image proportions must match.
-2. Settle scenes, key lines, panel counts, staging and worker assignments before confirmation. Resolve fields from explicit user instructions, declared reference roles, source semantics, then defaults. For v16, finish all five visual image records before displaying the confirmation plan. Write actions as visible moments, add natural expression descriptions and text positions, and resolve semantic conflicts in this same planning pass; see `prompt-design.md`. Freeze the completed composition, exact text and speaker/cast plans, output, style, costume, background, typography, actions, expressions and proportions before initialization. Assign image numbers last. Intentional close-ups use `visible-only`; measurable full-body shots use `measured`.
+2. Settle scenes, key lines, panel counts, staging and worker assignments before confirmation. Resolve fields from explicit user instructions, declared reference roles, source semantics, then defaults. For v17, finish all five visual image records before displaying the confirmation plan. Write actions as visible moments, add natural expression descriptions and text positions, and resolve semantic conflicts in this same planning pass; see `prompt-design.md`. Freeze the completed composition, exact text and speaker/cast plans, output, style, costume, background, typography, actions, expressions and proportions before initialization. Assign image numbers last. Intentional close-ups use `visible-only`; measurable full-body shots use `measured`.
 3. Use a canonical identity reference first and the selected bundled text-style reference as the sole `typography` reference. Declare each reference's roles: `identity`, `style`, `pose_action`, `composition`, `costume`, `background`, `typography`, or `proportion`. Load the abstract-user pose sheet only when a supporting character appears. Use at most five effective references; never silently drop required typography.
-4. Review each execution against its selected idea and user constraints, then check typography, speaker ownership and cast staging against the source. Reject random template rotation, generic reasons and offscreen choices made just to simplify drawing. Refine expression without replacing the frozen candidate. Decide each image's exaggeration tier, landing panel, per-panel tiers, landing `effects_plan` and any `contrast`. Decide its optional `rhythm`; leave it `null` unless the punchline clearly needs it. Write the schema v16 draft and render the complete information table, image total, worker allocation and budget as specified in `proposal-selection.md`. After the single real confirmation, save its bound record in `assignment.json`, then validate and initialize; initialization writes `creative-record.md`:
+4. Review each execution against its selected idea and user constraints, then check typography, speaker ownership and cast staging against the source. Reject random template rotation, generic reasons and offscreen choices made just to simplify drawing. Refine expression without replacing the frozen candidate. Decide each image's exaggeration tier, landing panel, per-panel tiers, landing `effects_plan` and any `contrast`. Decide its optional `rhythm`; leave it `null` unless the punchline clearly needs it. Write the schema v17 draft and render the complete information table, image total, worker allocation and budget as specified in `proposal-selection.md`. After the single real confirmation, save its bound record in `assignment.json`, then validate and initialize; initialization writes `creative-record.md`:
 
    ```bash
    python3 scripts/manage-run.py validate-assignment --assignment <assignment.json>
@@ -80,15 +88,14 @@ For multiple inputs, compare source-specific mechanisms, narrative beats and sta
 
 In the confirmation table and distribution line, use fixed descriptive labels: `A-日漫冲击`, `B-漫画爆发`, `C-克制冷幽默` (English: `A-Manga impact`, `B-Comic outburst`, `C-Restrained deadpan`). Keep contrast suffixes, such as `A-日漫冲击（脸→C）`. Immediately below the distribution line, show the current target head-to-body ratio, shared across all five images or grouped by table row numbers when different. Label custom ratios explicitly. Keep this outside the eight-column table and distinguish planned targets from measurements of finished images.
 
-Use schema v16 in `references/run-schema.md` for new runs. Preserve frozen v11, v13, v14 and v15 runs (v13 keeps QA 9; v14 keeps QA 10; v15 keeps its QA 11 and original prompt builder) under their original recovery contracts; never rewrite their approval history. The initialized run belongs under `artifacts/whalechan-image-comic/<run-name>/` unless the user gives another destination. External references are frozen into the run with hashes.
+Use schema v17 in `references/run-schema.md` for new runs. Preserve frozen v11, v13, v14, v15 and v16 runs (v13 keeps QA 9; v14 keeps QA 10; v15 keeps its QA 11 and original prompt builder) under their original recovery contracts; never rewrite their approval history. The initialized run belongs under `artifacts/whalechan-image-comic/<run-name>/` unless the user gives another destination. External references are frozen into the run with hashes.
 
 ## Generate and review
 
-Follow `references/review-workflow.md` for assignments v15/v16 / QA 11. New v16 prompts contain only shared visual settings and per-panel drawings; the script assembles the frozen fields without another LLM rewrite. Build the frozen prompt with `build-prompt.py --write-request`, call the authorized provider once, preserve its output, then have the coordinator run `prepare-candidate`. This archives the image, counts its slot, hashes and checks it in one command. Technical failures block the candidate and never authorize another image.
+Use the v17 image-task commands in `references/agent-orchestration.md`. The generation worker owns one whole image: build the drawing-only request, begin the attempt, call the provider, preserve/prepare locally, inspect once and record QA. It may make permitted targeted retries within the original three-call budget without a coordinator content handoff. Technical failures never authorize regeneration. Frozen v15/v16 retain their original preparation/recording path.
+Have the same generation worker inspect the whole candidate once. Record concise actual observations, exact text, core defects and tolerated minor issues. Do not have the main agent repeat a worker's visual inspection at handoff. Only core single-image defects authorize a retry within the three-call budget. A passed candidate waits for collection review.
 
-Have one designated reviewer inspect the whole candidate once. Record concise actual observations, exact text, core defects and tolerated minor issues. Do not have the main agent repeat a worker's visual inspection at handoff. Only core single-image defects authorize a retry within the three-call budget. A passed candidate waits for collection review.
-
-After the five tasks resolve, build one numbered contact sheet per source with `build-review-sheet.py`. Review distinctness, consistency and overall performance once. Only named failed images may enter one collection repair round, sharing their original three-call budgets. Inspect each new candidate once, then do at most one focused collection recheck on the updated sheet. Recheck failure means a shortfall, never another collection round. Promote only collection-accepted candidates.
+After the five tasks resolve, assign a collection worker to build one numbered contact sheet per source with `build-review-sheet.py`. Review distinctness, consistency and overall performance once. Only named failed images may enter one collection repair round, sharing their original three-call budgets. Inspect each new candidate once, then do at most one focused collection recheck on the updated sheet. Recheck failure means a shortfall, never another collection round. Promote only collection-accepted candidates.
 
 Keep safety halts, source fidelity, exact semantic text and explicit user locks strict. Allow minor facial/decoration variations that preserve emotion, identity, tier and readability. Do not let exact mouth curvature or sweat counts alone cause a retry unless the user explicitly locked them.
 
@@ -107,11 +114,11 @@ Use the adapters described in `references/provider-routing.md`. Move forward onl
 
 ## Coordinate parallel work safely
 
-Display source-qualified worker-to-image assignments, the actual planned sub-agent count and any capacity limits before confirmation. After confirmation, validation, initialization and the required batch review, create the confirmed workers using the runtime's delegation tool, reduced only for current capacity. Writing a parallelism field alone does not start workers. Follow dispatch and collection in `references/provider-routing.md`; reuse a shared pool across sources, capped at ten globally and five per run. Disclose capacity reductions and any resulting queue reassignment without rewriting frozen approval; increasing approved capacity or otherwise revising the plan requires confirmation. With zero sub-agents the main agent executes all five images serially. Workers use unique staging paths and never record, promote or finalize. The coordinator runs script checks and serial record operations without repeating visual QA; only collection-accepted candidates are promoted. Never dispatch two candidates for one image at once; retries and fallback remain serial within that image.
+Use one batch queue with independent role limits, actual runtime capacity and dynamic ownership. Dispatch through real delegation tools; policy files do not create agents. Prefer finishing a source, then use idle workers for later sources. Under three slots, use three generation workers when no collection is ready and two generation plus one collection when it is. Reuse idle resident agents and count them against runtime occupancy. Workers write isolated image journals; collection/delivery workers merge shared records under a run lock. Main handles only scheduling, status and user communication. See `references/agent-orchestration.md` for commands, recovery and serial fallback.
 
 ## Finalize honestly
 
-Complete or skip the empty collection review, promote accepted images, and finalize after all open tasks are resolved:
+Have collection workers complete or skip the empty collection review; have the delivery worker promote accepted images, and finalize after all open tasks are resolved:
 
 ```bash
 python3 scripts/manage-run.py finalize --run-dir <run>
@@ -127,7 +134,7 @@ Inspect the actual candidate and record candidate-bound observations before comp
 
 ## Preview gallery
 
-Before final delivery, export the finalized run with `python3 scripts/export-gallery.py --run-dir <run> --language <zh|en>` and link the returned `gallery` HTML path. For multiple sources, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Default each source to Passed finals, with Attempts and All filters and visible picture counts. Keep all available attempt images, including failures and composites, in the chronological All view without proposal sections. Final cards link to that idea’s generation history; lightbox navigation follows the active filter. Preserve filter state across source, language and layout switches, and keep ambiguous or missing final provenance explicit. Mark the matching PASS as the final rather than duplicating its image; retain distinct generation records even when their bytes match. Keep proposal summaries, prompts and QA in collapsed details. Local composites show their component prompts and consume no extra generation call. Open runs awaiting setup recovery are exported only after completion. Export errors do not require regeneration. See `references/gallery.md`.
+Have the delivery worker export the finalized run with `python3 scripts/export-gallery.py --run-dir <run> --language <zh|en>` and link the returned `gallery` HTML path. For multiple sources, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Default each source to Passed finals, with Attempts and All filters and visible picture counts. Keep all available attempt images, including failures and composites, in the chronological All view without proposal sections. Final cards link to that idea’s generation history; lightbox navigation follows the active filter. Preserve filter state across source, language and layout switches, and keep ambiguous or missing final provenance explicit. Mark the matching PASS as the final rather than duplicating its image; retain distinct generation records even when their bytes match. Keep proposal summaries, prompts and QA in collapsed details. Local composites show their component prompts and consume no extra generation call. Open runs awaiting setup recovery are exported only after completion. Export errors do not require regeneration. See `references/gallery.md`.
 
 ## Hard stops
 

@@ -60,7 +60,7 @@ def main():
     spec.loader.exec_module(manager)
     import json
     try:
-        print(json.dumps(manager.review_workflow().build_sheet(args), ensure_ascii=False, indent=2))
+        print(json.dumps(manager.invoke(argparse.Namespace(**vars(args), command="build-review-sheet", handler=manager.review_workflow().build_sheet)), ensure_ascii=False, indent=2))
     except (manager.RunError, ValueError, RuntimeError, OSError, subprocess.SubprocessError) as exc:
         parser.exit(2, str(exc) + "\n")
 

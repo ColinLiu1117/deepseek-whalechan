@@ -133,7 +133,7 @@ class SelectionTests(unittest.TestCase):
             lambda v: v["proposal"]["options"][0].update(key_lines=["Changed words"]),
             lambda v: v["proposal"]["options"][0].update(staging="Different dramatic action"),
             lambda v: v["images"].pop(),
-            lambda v: v["worker_plan"]["workers"][0].update(id="replacement-worker"),
+            lambda v: v["execution"]["role_limits"].update(planning=4),
             lambda v: v.update(panel_policy={"mode": "user-override", "user_instruction": "Use any count"}),
         )
         for mutate in mutations:
@@ -151,6 +151,8 @@ class SelectionTests(unittest.TestCase):
                     self.validate(value)
         for defect in ("duplicate", "empty", "unknown", "excess-capacity", "mismatched-capacity", "mismatched-count"):
             broken = fixtures.assignment()
+            broken["schema_version"] = 16
+            fixtures.historical_execution(broken)
             if defect == "duplicate":
                 broken["worker_plan"]["workers"][0]["idea_ids"].append("idea_02")
             elif defect == "empty":
@@ -164,7 +166,7 @@ class SelectionTests(unittest.TestCase):
             else:
                 broken["execution"]["subagent_count"] = 2
             with self.subTest(worker_defect=defect), self.assertRaises(manage.RunError):
-                self.validate(fixtures.confirm_fixture_plan(broken))
+                manage.selection_summary(broken)
 
     def test_single_gate_is_informed_and_blocks_generation_until_confirmed(self):
         value = fixtures.assignment()
@@ -172,7 +174,7 @@ class SelectionTests(unittest.TestCase):
         summary = manage.selection_summary(value)
         table = manage.selection_markdown(summary)
         self.assertEqual((summary["proposal_count"], summary["image_count"]), (5, 5))
-        for text in ("worker-1", "worker-2", "worker-3", "15", "确认"):
+        for text in ("策划 5", "Codex 3", "集合 2", "15", "确认"):
             self.assertIn(text, table)
         self.assertNotIn("你想生成哪些方案", table)
         self.assertNotIn("推荐程度", table)
@@ -184,7 +186,7 @@ class SelectionTests(unittest.TestCase):
             manage.selection_summary(draft)
         draft["images"] = images
         draft_summary = manage.selection_summary(draft)
-        self.assertIn("worker-1", manage.selection_markdown(draft_summary))
+        self.assertIn("主代理只编排", manage.selection_markdown(draft_summary))
         self.assertEqual(draft_summary["summary_sha256"], summary["summary_sha256"])
         fixtures.confirm_fixture_plan(draft)
         normalized = self.validate(draft)
@@ -206,7 +208,7 @@ class SelectionTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 2)
                     self.assertEqual(list(Path(directory).iterdir()), [path])
             rendered = manage.cmd_render_proposal(argparse.Namespace(draft=str(path)))
-            self.assertIn("worker-1", rendered["markdown"])
+            self.assertIn("主代理只编排", rendered["markdown"])
             self.assertEqual(manage.cmd_summarize_selection(argparse.Namespace(draft=str(path)))["image_count"], 5)
             self.assertEqual(json.loads(path.read_text())["confirmation"]["status"], "pending")
 

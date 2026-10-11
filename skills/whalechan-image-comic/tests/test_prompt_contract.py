@@ -38,7 +38,7 @@ class PromptContractTests(unittest.TestCase):
         result = m.cmd_init(argparse.Namespace(assignment=str(self.path),
                            root=str(Path(self.tmp.name) / "runs"), effective_parallelism=1))
         run, frozen, manifest = m.load_run(result["run_dir"])
-        self.assertEqual(frozen["schema_version"], 16)
+        self.assertEqual(frozen["schema_version"], 17)
         self.assertEqual(m.selection_summary(frozen)["summary_sha256"], before)
         self.assertEqual(manifest["review_workflow_version"], 1)
         self.assertTrue(all(i["qa_contract_version"] == 11 for i in frozen["images"]))
@@ -137,6 +137,20 @@ class PromptContractTests(unittest.TestCase):
             with self.subTest(delivery=delivery):
                 self.assertIn(expected, builder.build_prompt(normalized, normalized["images"][0]))
 
+    def test_v16_confirmation_and_prompts_remain_unchanged(self):
+        value = self.normalize()
+        value["schema_version"] = 16
+        fixtures.confirm_fixture_plan(value)
+        self.assertEqual(value["confirmation"]["summary_sha256"],
+                         "0aab1f9b913ad64104bfa771eec405ceaf3a65d48b32fc5b186d97dc331fe2ed")
+        expected = ["24e816489a3b1e09f275d631c1b0767cb244dd101e0729cd1e25f9717831b5b3",
+                    "18a91c74bb365154d6d8bd1797448d019c1f282871e6149dded83be299d30478",
+                    "23fa02e4a160f284b9d98c55464ad0295f7c1c633bbe5f6a43b73eae89e894cb",
+                    "2138aafca0f709d0d3fb2ac5769721dfa80cecbfe1723f07a4554f71d19bd19a",
+                    "adf94df4ee6dc8e00c65e9209d0748d7cb66144861500516fd798dadab0b697b"]
+        self.assertEqual([hashlib.sha256(builder.build_prompt(value, i).encode()).hexdigest()
+                          for i in value["images"]], expected)
+
     def test_v15_prompt_and_confirmation_match_pre_change_baseline(self):
         value = self.normalize()
         value["schema_version"] = 15
@@ -180,6 +194,7 @@ class PromptContractTests(unittest.TestCase):
         m.write_json(run / "assignment.json", frozen)
         manifest = m.read_json(run / "manifest.json")
         manifest["assignment_sha256"] = m.sha256(run / "assignment.json")
+        manifest["execution"] = {**frozen["execution"], "effective_parallelism": 1, "effective_subagent_count": 1}
         m.write_json(run / "manifest.json", manifest)
         self.assertEqual(m.review_workflow().load(argparse.Namespace(run_dir=str(run)))[1]["schema_version"], 15)
         self.assertIn("CONFIRMED COMIC PLAN", builder.build_prompt(frozen, frozen["images"][0]))

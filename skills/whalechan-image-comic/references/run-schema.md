@@ -1,8 +1,8 @@
-# Run schema v14
+# Run schema v15
 
-Use this contract for new assignments and frozen prompt construction. New images use visual QA contract 10, which adds the E1 exaggeration gate; frozen v13 images keep contract 9. Generate exactly ten ideas, compare all 45 pairs, select five ideas for one image each, then request one execution confirmation covering the final table, count and worker allocation. Candidate quality is judged comparatively.
+New assignments use v15 and QA contract 11. The planning fields, ten-idea tournament, five images, output and reference contracts remain the same as v14. The v15 confirmation hash additionally binds the fixed review workflow policy; it cannot reuse a v14 approval. The new execution/QA lifecycle is specified in `review-workflow.md`: one candidate inspection, minor-issue tolerance, a five-slot contact sheet and at most one collection repair round. Both visual checks share the original three-call budget; technical failures never authorize regeneration.
 
-New assignments must use v14. v14 replaces the image `intensity` (B/C) with an A/B/C `exaggeration` tier; see [Exaggeration](#exaggeration-tiers). Already initialized v11 and v13 runs may still build prompts, record candidates, promote and finalize under their original contracts; v13 keeps `intensity`, which is never mapped onto the new tiers. New `validate-assignment` and `init` reject those versions. Never rewrite historical assignments or manufacture v14 confirmations. Reject unsupported versions.
+Frozen v11/v13/v14 runs keep their original approvals, QA contracts and recovery commands. v13 retains intensity and QA 9; v14 retains A/B/C exaggeration and QA 10. Never rewrite their history. New `validate-assignment` and `init` require v15.
 
 Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Directions](#comedy-directions) · [Confirmation](#final-plan-and-one-user-gate) · [Images](#image-fragment) · [Exaggeration](#exaggeration-tiers) · [Output](#output-size-and-aspect-ratio) · [Text](#visible-text) · [Dialogue](#participant-and-dialogue-contract) · [Preflight](#preflight-and-prompt-construction) · [Visual fields](#custom-visual-fields) · [References](#typed-references) · [Execution](#execution)
 
@@ -10,7 +10,7 @@ Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Di
 
 ```json
 {
-  "schema_version": 14,
+  "schema_version": 15,
   "run_name": "refrigerator-permission-loophole",
   "input": {
     "type": "text",
@@ -140,7 +140,7 @@ Each `premise`, `scene` and `direction` matches its pool idea; `twist` equals th
 
 New plans record `proportion` on every option using the same preset/custom object as an image: `{"mode": "preset", "preset": "semi-chibi"}` by default, or e.g. `{"mode": "custom", "target_head_ratio": 3.0}`. Preset targets and intervals come from the catalog; custom intervals default to target ± 0.15 with the lower bound above 1.0. All five options must record it if any does. The proposal already participates in the confirmation hash, so changing a planned proportion invalidates that confirmation. Completed images must normalize to the same proportion as their corresponding options. Historical records with no option-level proportions keep their original hash and recovery contract; do not retrofit their approval history.
 
-`render-proposal --draft <file>` and `summarize-selection --draft <file>` are read-only views of this same complete planning record and accept only v14 drafts. Both return an eight-column table (序号、创意、方向、格数、档位、场景／分镜、关键台词、入选理由), with fixed descriptive tier labels, followed by the panel and tier distribution line, target head-to-body ratios, five images total, worker allocations, one execution-confirmation question and `summary_sha256`. Ratios appear below the table, shared when identical or grouped by table row number when different. Drafts do not need full `images` or a confirmation yet.
+`render-proposal --draft <file>` and `summarize-selection --draft <file>` are read-only views of this same complete planning record and accept only v15 drafts. Both return an eight-column table (序号、创意、方向、格数、档位、场景／分镜、关键台词、入选理由), with fixed descriptive tier labels, followed by the panel and tier distribution line, target head-to-body ratios, five images total, worker allocations, one execution-confirmation question and `summary_sha256`. Ratios appear below the table, shared when identical or grouped by table row number when different. Drafts do not need full `images` or a confirmation yet.
 
 Show the table, five images per source, combined batch total, worker allocation and per-image budget before asking whether to execute. Planning-only requests stop here without formal initialization or image calls. The sole confirmation record is:
 
@@ -154,7 +154,7 @@ Show the table, five images per source, combined batch total, worker allocation 
 }
 ```
 
-Hash canonical JSON using SHA-256 (`ensure_ascii=False`, sorted keys, separators `,` and `:`). The plan hash binds `input`, `proposal`, `creative_pool`, `duels`, `ranked_ideas`, `selection_reason`, `worker_plan`, `tie_breaks`, `panel_policy`, `exaggeration_policy` and normalized `execution`. An edit to any bound content invalidates the old confirmation. Redisplay the revised plan and obtain a real reply; never refresh a stored confirmation hash yourself. Scripts check consistency, not whether a quoted reply actually happened or meant approval.
+Hash canonical JSON using SHA-256 (`ensure_ascii=False`, sorted keys, separators `,` and `:`). For v15 the plan hash additionally binds the fixed review workflow version, one candidate inspection, minor tolerance, one collection repair round and the two allowed regeneration sources. The plan hash binds `input`, `proposal`, `creative_pool`, `duels`, `ranked_ideas`, `selection_reason`, `worker_plan`, `tie_breaks`, `panel_policy`, `exaggeration_policy` and normalized `execution`. An edit to any bound content invalidates the old confirmation. Redisplay the revised plan and obtain a real reply; never refresh a stored confirmation hash yourself. Scripts check consistency, not whether a quoted reply actually happened or meant approval.
 
 Full visual `images` are constructed after confirmation and excluded from that planning hash. Their idea links, premises, panel counts, exaggeration tiers, contrasts, planned proportions and exact visible text must match the approved plan; internal composition details cannot change its comic turn. Initialization, frozen loading and prompt construction enforce the same contract. Five tasks allow at most 15 image calls, three per task. Delivery groups results and missing tasks by their five ideas. See `proposal-selection.md` for interaction details.
 
@@ -263,7 +263,7 @@ Full visual `images` are constructed after confirmation and excluded from that p
 }
 ```
 
-Missing optional render fields normalize to the defaults shown above. `rhythm` defaults to `null`; when declared it is `{"type": "triple" | "pause" | "callback" | "deadpan", "panel": <landing panel>, "reason": "why the punchline needs it"}`. When a set of two or more images has rhythm on more than half of them, `validate-assignment` requires a `{"code": "rhythm_majority", "reason": "..."}` entry in the root `warning_dispositions`. `idea_id`, `execution_note`, `composition`, `proportion_check`, `core_text`, `text_style`, `text_style_reason`, `dialogue_plan`, `cast_plan`, `action_plan` and `expression_plan` are required. All four composition fields are nonempty strings. `proportion_check` is `measured` or `visible-only`, chosen from the planned shot. Action and expression plans contain exactly one consecutive entry per panel. Speaker and cast decisions are never inferred from missing fields. Normalized images carry `qa_contract_version: 10`. Every QA record is checked against the complete frozen image specification.
+Missing optional render fields normalize to the defaults shown above. `rhythm` defaults to `null`; when declared it is `{"type": "triple" | "pause" | "callback" | "deadpan", "panel": <landing panel>, "reason": "why the punchline needs it"}`. When a set of two or more images has rhythm on more than half of them, `validate-assignment` requires a `{"code": "rhythm_majority", "reason": "..."}` entry in the root `warning_dispositions`. `idea_id`, `execution_note`, `composition`, `proportion_check`, `core_text`, `text_style`, `text_style_reason`, `dialogue_plan`, `cast_plan`, `action_plan` and `expression_plan` are required. See `review-workflow.md` for the compact QA JSON and collection records. All four composition fields are nonempty strings. `proportion_check` is `measured` or `visible-only`, chosen from the planned shot. Action and expression plans contain exactly one consecutive entry per panel. Speaker and cast decisions are never inferred from missing fields. Normalized images carry `qa_contract_version: 11`. Every QA record is checked against the complete frozen image specification.
 
 ## Exaggeration tiers
 
@@ -391,4 +391,4 @@ References may be bundled or user supplied. Allowed roles are `identity`, `style
 
 The single confirmation hash binds both the normalized execution object and worker assignments. Changed plans need fresh confirmation. Runtime initialization records `effective_parallelism` and `effective_subagent_count`, which may be lower, never higher than approved. Use 0 workers and parallelism 1 for main-agent fallback. Disclose capacity reductions and any required queue reassignment without rewriting frozen allocation or approval hashes; an increase beyond approved capacity needs a revised confirmation. Across sources share at most ten concurrent workers, respecting each run's approved count and the actual runtime/provider limits.
 
-After confirmation and required validation, the main agent must actually create and dispatch workers with runtime delegation tools; fields alone do not start workers. Workers use isolated staging directories and never mutate the manifest. The coordinator verifies returned evidence, records results serially and performs final set review. Frozen v11 and v13 runs keep their original execution and confirmation contracts during recovery.
+After confirmation and required validation, the main agent must actually create and dispatch workers with runtime delegation tools; fields alone do not start workers. Workers use isolated staging directories and never mutate the manifest. The coordinator serially prepares and records candidates through scripts without repeating a worker visual review. Final set review uses one five-slot contact sheet per source, with at most one focused recheck after collection repair. Frozen v11, v13 and v14 runs keep their original execution and confirmation contracts during recovery.

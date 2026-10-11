@@ -1,6 +1,6 @@
 ---
 name: whalechan-image-comic
-description: Create five DeepSeek Whale-chan comics from text, screenshots, images, chat logs, or reasoning traces. Compare ten ideas in 45 pairwise duels, select five, then obtain one confirmation of the plan, total and worker allocation. Use for funny 1/2/4-panel Whale-chan adaptations with exact dialogue, consistent identity, configurable visuals, provider fallbacks and QA. Generate one image per selected idea, covering 1/2/4-panel layouts and A/B/C exaggeration tiers (manga impact, comic outburst, restrained deadpan) across the set.
+description: Create five DeepSeek Whale-chan comics from text, screenshots, images, chat logs, or reasoning traces. Compare ten ideas in 45 pairwise duels, select five, then obtain one confirmation of the plan, total and worker allocation. Use for funny 1/2/4-panel Whale-chan adaptations with exact dialogue, consistent identity, configurable visuals, provider fallbacks, one candidate review and one collection review with at most one repair round. Generate one image per selected idea, covering 1/2/4-panel layouts and A/B/C exaggeration tiers (manga impact, comic outburst, restrained deadpan) across the set.
 ---
 
 # Whale-chan Image Comic
@@ -23,7 +23,8 @@ Read these before every run:
 - `references/text-style-routing.md` to select one primary text treatment per image and review variety across the set.
 - `references/asset-index.md` to select bundled references, `references/form-authority.json` for form targets, and `references/asset-catalog.json` for paths and hashes.
 - `references/provider-routing.md` before any provider call.
-- `references/qa-rubric.md` before reviewing any candidate.
+- `references/review-workflow.md` for new-run single-image QA, tolerances, contact sheets, collection repair and timing.
+- `references/qa-rubric.md` only for frozen QA 9/10 recovery or measured proportion evidence.
 - `references/gallery.md` before exporting the completed task's preview gallery.
 
 ## Choose the language
@@ -66,7 +67,7 @@ Prepare these decisions before the user confirmation:
 1. Set `ranked_ideas` to the five winners and explain the ranking in `selection_reason`. Link one image to each `idea_id` and describe its unique payoff in `execution_note`. Cover 1/2/4 panels across the set unless explicitly overridden by the user. Choose worker assignments and effective concurrency from actual capacity. Record each option's `proportion` before confirmation, defaulting to `{"mode": "preset", "preset": "semi-chibi"}`; completed image proportions must match.
 2. Settle scenes, key lines, panel counts, staging and worker assignments before confirmation. Resolve fields from explicit user instructions, declared reference roles, source semantics, then defaults. Detailed image fields may be completed afterward while preserving the displayed plan and user constraints; omit `images` from an unfinished planning draft. Freeze the completed composition, exact text and speaker/cast plans, output, style, costume, background, typography, actions, expressions and proportions before initialization. Assign image numbers last. Intentional close-ups use `visible-only`; measurable full-body shots use `measured`.
 3. Use a canonical identity reference first and the selected bundled text-style reference as the sole `typography` reference. Declare each reference's roles: `identity`, `style`, `pose_action`, `composition`, `costume`, `background`, `typography`, or `proportion`. Load the abstract-user pose sheet only when a supporting character appears. Use at most five effective references; never silently drop required typography.
-4. Review each execution against its selected idea and user constraints, then check typography, speaker ownership and cast staging against the source. Reject random template rotation, generic reasons and offscreen choices made just to simplify drawing. Refine expression without replacing the frozen candidate. Decide each image's exaggeration tier, landing panel, per-panel tiers, landing `effects_plan` and any `contrast`. Decide its optional `rhythm`; leave it `null` unless the punchline clearly needs it. Write the schema v14 draft and render the complete information table, image total, worker allocation and budget as specified in `proposal-selection.md`. After the single real confirmation, save its bound record in `assignment.json`, then validate and initialize; initialization writes `creative-record.md`:
+4. Review each execution against its selected idea and user constraints, then check typography, speaker ownership and cast staging against the source. Reject random template rotation, generic reasons and offscreen choices made just to simplify drawing. Refine expression without replacing the frozen candidate. Decide each image's exaggeration tier, landing panel, per-panel tiers, landing `effects_plan` and any `contrast`. Decide its optional `rhythm`; leave it `null` unless the punchline clearly needs it. Write the schema v15 draft and render the complete information table, image total, worker allocation and budget as specified in `proposal-selection.md`. After the single real confirmation, save its bound record in `assignment.json`, then validate and initialize; initialization writes `creative-record.md`:
 
    ```bash
    python3 scripts/manage-run.py validate-assignment --assignment <assignment.json>
@@ -74,70 +75,23 @@ Prepare these decisions before the user confirmation:
      --effective-parallelism <current-capacity> --effective-subagents <actual-worker-count>
    ```
 
-For multiple inputs, compare source-specific mechanisms, narrative beats and staging before displaying the consolidated plan: run `python3 scripts/manage-run.py validate-batch --draft <first-draft.json> --draft <second-draft.json>` with every planning draft, which flags repeated panel, tier and panel-by-tier recipes from the planned options. Once assignments are confirmed, run `validate-batch --assignment <first.json> --assignment <second.json>` with every assignment before the first generation call. Review its case-by-position matrix and warnings, not just aggregate counts. Compare mechanisms, narrative beats, shots, cast positions and text placement across cases and across positions; changing order must not hide a repeated skeleton. Ask whether another case's dialogue could replace this one's without changing the drawing. Save a `batch-review.md` beside the assignments naming the compared cases, warning dispositions, source-specific reasons for retained similarities, and revisions. Do not generate until this review is actually performed. Structural validity is not creative approval; no warnings is not approval either. Repeat this comparison on final images. See `references/batch-review.md`.
+For multiple inputs, compare source-specific mechanisms, narrative beats and staging before displaying the consolidated plan: run `python3 scripts/manage-run.py validate-batch --draft <first-draft.json> --draft <second-draft.json>` with every planning draft, which flags repeated panel, tier and panel-by-tier recipes from the planned options. Once assignments are confirmed, run `validate-batch --assignment <first.json> --assignment <second.json>` with every assignment before the first generation call. Review its case-by-position matrix and warnings, not just aggregate counts. Compare mechanisms, narrative beats, shots, cast positions and text placement across cases and across positions; changing order must not hide a repeated skeleton. Ask whether another case's dialogue could replace this one's without changing the drawing. Save a `batch-review.md` beside the assignments naming the compared cases, warning dispositions, source-specific reasons for retained similarities, and revisions. Do not generate until this review is actually performed. Structural validity is not creative approval; no warnings is not approval either. For final images use only the per-source contact-sheet collection review in `review-workflow.md`; do not add a cross-source visual sweep. See `references/batch-review.md`.
 
 In the confirmation table and distribution line, use fixed descriptive labels: `A-日漫冲击`, `B-漫画爆发`, `C-克制冷幽默` (English: `A-Manga impact`, `B-Comic outburst`, `C-Restrained deadpan`). Keep contrast suffixes, such as `A-日漫冲击（脸→C）`. Immediately below the distribution line, show the current target head-to-body ratio, shared across all five images or grouped by table row numbers when different. Label custom ratios explicitly. Keep this outside the eight-column table and distinguish planned targets from measurements of finished images.
 
-Use schema v14 in `references/run-schema.md` for new runs. Preserve frozen v11 and v13 runs (v13 with its B/C `intensity` and QA contract 9) under their original recovery contracts; never rewrite their approval history. The initialized run belongs under `artifacts/whalechan-image-comic/<run-name>/` unless the user gives another destination. External references are frozen into the run with hashes.
+Use schema v15 in `references/run-schema.md` for new runs. Preserve frozen v11, v13 and v14 runs (v13 keeps QA 9; v14 keeps QA 10) under their original recovery contracts; never rewrite their approval history. The initialized run belongs under `artifacts/whalechan-image-comic/<run-name>/` unless the user gives another destination. External references are frozen into the run with hashes.
 
-## Generate each task
+## Generate and review
 
-Build the initial prompt from the frozen assignment rather than recreating its defaults:
+Follow `references/review-workflow.md` for assignment v15 / QA 11. Build the frozen prompt with `build-prompt.py --write-request`, call the authorized provider once, preserve its output, then have the coordinator run `prepare-candidate`. This archives the image, counts its slot, hashes and checks it in one command. Technical failures block the candidate and never authorize another image.
 
-```bash
-python3 scripts/build-prompt.py --run-dir <run> --image <01_name> --write-request
-```
+Have one designated reviewer inspect the whole candidate once. Record concise actual observations, exact text, core defects and tolerated minor issues. Do not have the main agent repeat a worker's visual inspection at handoff. Only core single-image defects authorize a retry within the three-call budget. A passed candidate waits for collection review.
 
-Read the returned `prompt_file` and pass every returned reference path in order to the provider. `--write-request` also writes `request_file` (`<prompt>.request.json`), the adapter request for every external provider, built from the frozen references, hashes and output; pass it to `generate-codex.py` or a later fallback adapter instead of assembling JSON by hand. For a saved retry or repair prompt, run `build-prompt.py --run-dir <run> --image <01_name> --from-prompt <prompt.txt> --write-request`. The builder preserves source interpretation, framing, exact wording, speaker ownership and physical/avatar/offscreen staging. It requires the current contract and never overwrites a prompt. For a targeted retry or component rescue, save a separate prompt derived from this one; preserve the frozen typography and cast decisions unless the plan itself is explicitly revised in a new run. Include canonical style, outfit, or proportion locks only when that field remains canonical or preset.
+After the five tasks resolve, build one numbered contact sheet per source with `build-review-sheet.py`. Review distinctness, consistency and overall performance once. Only named failed images may enter one collection repair round, sharing their original three-call budgets. Inspect each new candidate once, then do at most one focused collection recheck on the updated sheet. Recheck failure means a shortfall, never another collection round. Promote only collection-accepted candidates.
 
-Use bundled and frozen user images as role-scoped references, not edit targets unless the user explicitly requests an edit. Never copy bundled wording, jokes, or exact compositions.
+Keep safety halts, source fidelity, exact semantic text and explicit user locks strict. Allow minor facial/decoration variations that preserve emotion, identity, tier and readability. Do not let exact mouth curvature or sweat counts alone cause a retry unless the user explicitly locked them.
 
-Start with Codex ImageGen whenever Codex is available, regardless of which agent runs this Skill:
-
-- **Running inside Codex** (the built-in `image_gen` tool is available): call it directly.
-- **Running in another agent** (Claude Code, Antigravity, etc.): run `python3 scripts/generate-codex.py --check`. If it succeeds, generate each candidate with `generate-codex.py --request <json> --output <png>`; Codex only renders the image, and this agent keeps every other step (prompting, QA, recording, retries, delivery). If the check fails, record its category (`unavailable` or `authentication`) as a `codex` provider error and continue in provider order. Never nest `codex exec` inside Codex.
-
-Codex ImageGen has no explicit pixel-size control: in automatic mode accept any valid native output with the frozen ratio, including square `1254×1254`; do not route away merely because it differs from the `1024×1024` recommendation. If the assignment requires an explicit resolution, record a `capability` error and continue in provider order. For each image-producing call, save the returned image into the workspace, run automatic validation with the frozen output flags, perform original-resolution visual QA, and record it. A returned image consumes one of that task's three slots whether it passes or fails. When `generate-codex.py` reports `usable: false` (prompt rewritten or references dropped), record the image as a failed candidate and retry.
-
-```bash
-python3 scripts/validate-image.py <candidate.png> \
-  --resolution-mode <auto|explicit> --aspect-ratio <W:H> \
-  [--recommended <WIDTHxHEIGHT>|--no-recommendation] \
-  [--width <pixels> --height <pixels>] \
-  --write-json <automatic.json>
-python3 scripts/manage-run.py record-candidate \
-  --run-dir <run> --image <01_name> --provider codex --model gpt-image \
-  --candidate <candidate.png> --prompt-file <prompt.txt> \
-  --automatic-json <automatic.json> --visual-json <visual.json> \
-  --transport <cli|builtin> [--provider-audit <candidate.png.codex.json>]
-```
-
-Codex candidates declare `--transport`: `cli` for `generate-codex.py` output, which must pass `--provider-audit` with the audit file written beside it, or `builtin` for the built-in tool, which has no audit file. Other providers omit `--transport`. The manager binds the audit to the candidate hash, refuses a PASS when `usable` is false, and flags `usable: null` as unverified in the record and the final report.
-
-Promote only a PASS:
-
-```bash
-python3 scripts/manage-run.py promote --run-dir <run> --image <01_name>
-```
-
-## Repair by root cause
-
-- **The joke is flat:** diagnose source misreading, illustrated retelling, missing reveal or lost timing. Correct the execution within the approved proposal. If the core idea must change, preserve the old run and present the revised complete plan for one new confirmation; never silently replace it or automatically regenerate the candidate pool.
-- **Identity/proportion/action/composition fails:** retain the joke and make one targeted visual correction. Measure preset and custom proportions with `scripts/measure-form.py`. If space caused stretching, hiding, or accidental crop, simplify the scene instead of changing the frozen skeleton.
-- **Expression fails:** retain the joke, personality, and emotional mask. Name the missing or incorrect eye, eyebrow, mouth, cheek, or manga-accent cue and correct only that visible performance. Do not rewrite personality to repair a face. When the rest of the candidate passes, prefer an expression-only edit: save a repair prompt naming each face change, then `build-prompt.py --from-prompt <repair prompt> --edit-target <candidate> --edit-instruction "edit target; change only the named facial features, keep everything else unchanged"`. Edit requests carry only the edit target and the typography reference, so an identity reference's own expression cannot leak back in. Review the whole canvas again.
-- **Only text fails:** with two slots left, generate an empty-text-layout image, then edit it with exact wording and the selected text-style reference. With one slot left, edit the failed candidate directly (`build-prompt.py --from-prompt <repair prompt> --edit-target <candidate>`), changing only the lettering, and review the whole canvas again. Do not use local fonts. For the edit, save the lettering prompt and run `build-prompt.py ... --from-prompt <prompt.txt> --edit-target <layout.png>`: its request places the layout first as the edit target and the frozen text-style reference second.
-- **Two-panel coherence fails:** if two generation slots remain, generate the two panels separately, record each with `record-component`, combine with `compose-panels.py` using the assignment's output mode and ratio, then record the derived comic with `record-composite`. The local composite consumes no image-generation slot.
-- **Four-panel coherence fails:** retry the whole canvas. Never generate four new panels under a three-call budget. Compose four panels only when all inputs already exist without new provider calls.
-- **Exaggeration tier missed:** when the landing panel lacks a tier marker or exceeds the tier's palette, keep the joke and make one targeted retry naming only the missing markers or violating axes. Never relabel the tier to match a weak render.
-- **Safety rejection:** record it and stop. Never switch providers to bypass it.
-
-Provider errors that return no image do not consume budget:
-
-```bash
-python3 scripts/manage-run.py record-error \
-  --run-dir <run> --image <01_name> --provider openai --model <model> \
-  --category <category> --details <message>
-```
+For frozen v11/v13/v14 runs, retain their original candidate recording, promotion, component rescue and QA contracts; see `qa-rubric.md`. Never rewrite old approvals or records.
 
 ## Route providers strictly
 
@@ -148,27 +102,27 @@ Use this order and never move backward:
 3. Nano Banana
 4. Seedream
 
-Use the adapters described in `references/provider-routing.md`. Move forward only after the current provider returned a failed candidate, lacks the required capability, or recorded an availability/authentication/quota/service failure. Provider errors do not authorize skipping an untouched intermediate provider.
+Use the adapters described in `references/provider-routing.md`. Move forward only after the current provider returned a visual-QA-failed candidate eligible for retry, lacks the required capability before producing an image, or recorded an availability/authentication/quota/service failure. Provider errors do not authorize skipping an untouched intermediate provider.
 
 ## Coordinate parallel work safely
 
-Display source-qualified worker-to-image assignments, the actual planned sub-agent count and any capacity limits before confirmation. After confirmation, validation, initialization and the required batch review, create the confirmed workers using the runtime's delegation tool, reduced only for current capacity. Writing a parallelism field alone does not start workers. Follow dispatch and collection in `references/provider-routing.md`; reuse a shared pool across sources, capped at ten globally and five per run. Disclose capacity reductions and any resulting queue reassignment without rewriting frozen approval; increasing approved capacity or otherwise revising the plan requires confirmation. With zero sub-agents the main agent executes all five images serially. Workers use unique staging paths and never record, promote or finalize. The coordinator alone verifies hashes, serially records results and promotes PASS candidates. Never dispatch two candidates for one image at once; retries and fallback remain serial within that image.
+Display source-qualified worker-to-image assignments, the actual planned sub-agent count and any capacity limits before confirmation. After confirmation, validation, initialization and the required batch review, create the confirmed workers using the runtime's delegation tool, reduced only for current capacity. Writing a parallelism field alone does not start workers. Follow dispatch and collection in `references/provider-routing.md`; reuse a shared pool across sources, capped at ten globally and five per run. Disclose capacity reductions and any resulting queue reassignment without rewriting frozen approval; increasing approved capacity or otherwise revising the plan requires confirmation. With zero sub-agents the main agent executes all five images serially. Workers use unique staging paths and never record, promote or finalize. The coordinator runs script checks and serial record operations without repeating visual QA; only collection-accepted candidates are promoted. Never dispatch two candidates for one image at once; retries and fallback remain serial within that image.
 
 ## Finalize honestly
 
-Finalize after all open tasks are resolved:
+Complete or skip the empty collection review, promote accepted images, and finalize after all open tasks are resolved:
 
 ```bash
 python3 scripts/manage-run.py finalize --run-dir <run>
 ```
 
-Finalize against the confirmed task total. If fewer tasks pass after budgets are exhausted, use `--allow-partial`, deliver only passed comics grouped by proposal, and report the missing tasks per proposal. Never fill the set with a failed image.
+Finalize against the confirmed task total. If fewer tasks pass because budgets are exhausted, collection recheck failed or technical blockers remain, use `--allow-partial`, deliver only passed comics grouped by proposal, and report the missing tasks per proposal. Never fill the set with a failed image.
 
 If every provider failed only for setup reasons (`unavailable`, `authentication` or `quota`) while tasks still have unused slots, leave the run open instead: a finalized run cannot accept more images. Report what to configure (install and log in to Codex CLI, or set a provider key) so the same run can resume within its confirmed scope. Use `--allow-partial` in that case only when the user asks to close the run.
 
 Keep every image-producing candidate, prompt, QA record, asset hash, duel, error log, and final path. Report final paths, provider/model, attempt count, any shortfall, and the actual typography/cast distribution. Separate pre-generation design review from post-generation visual QA; neither substitutes for the other.
 
-Inspect the actual candidate and record candidate-bound observations before comparing with the plan. An unreviewed draft is `review_status: pending`, not PASS, and cannot be recorded as an accepted candidate or promoted. The manager checks evidence structure, not whether the reviewer truly looked or whether a joke is funny. Never copy planned text into a purported transcription or fabricate landmarks to satisfy a ratio. Report `H1: NA` only for a planned `visible-only` shot, with visible-proportion observations and the limitation explicitly recorded.
+Inspect the actual candidate and record candidate-bound observations before comparing with the plan. An unreviewed draft is `review_status: pending`, not PASS, and cannot be recorded as an accepted candidate or promoted. The manager checks evidence structure, not whether the reviewer truly looked or whether a joke is funny. The coordinator must not reopen the image for a routine second visual review. Never copy planned text into a purported transcription or fabricate landmarks to satisfy a ratio. Report `H1: NA` only for a planned `visible-only` shot, with visible-proportion observations and the limitation explicitly recorded.
 
 ## Preview gallery
 
@@ -180,7 +134,7 @@ Before final delivery, export the finalized run with `python3 scripts/export-gal
 - Do not exceed three image-producing calls for any task.
 - Do not transfer budget between tasks.
 - Do not accept a comic that is merely cute, accurate, or polished but not funny.
-- Do not accept a landing panel missing its tier's markers, any axis beyond its tier's palette, a gekiga face spreading into a whole-canvas style shift, a deformed panel with fewer than three identity anchors, or readable writing on an `A` scene's surfaces.
+- For QA 11 reject material loss of tier, identity, emotional intent or readability; treat minor decorative variations as warnings. Preserve explicit user locks. Frozen QA 10 keeps its original marker and count rules.
 - Do not relabel a converted joke as the source's native direction, or change a direction label just to silence a warning.
 - Do not accept missing, additional, unreadable, misspelled, incorrectly ordered, or wrong-language core text.
 - Do not accept a required physical partner replaced by an avatar, an offscreen balloon, or Whale-chan speaking their lines. Record visible lettering treatment, speaker connectors, and cast representation as QA evidence.

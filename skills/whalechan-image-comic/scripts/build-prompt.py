@@ -62,7 +62,11 @@ def build_prompt(assignment: dict, image: dict) -> str:
     for action, expression in zip(image["action_plan"], image["expression_plan"], strict=True):
         preset = presets[expression["preset"]]
         line = f"PANEL {action['panel']}: {action['action']}\nEXPRESSION: {expression['preset']}, {expression['performance']}. "
-        if tiers:
+        if image.get("qa_contract_version") == 11:
+            line += ("Preserve this emotion and the assigned action. Use natural eye, brow and mouth shapes; "
+                     "do not impose mathematically straight mouths or exact sweat/tear counts. "
+                     "Explicit user-locked facial details still apply. Do not copy the reference's expression.")
+        elif tiers:
             line += expression_cues(preset, expression, tiers)
         else:
             line += f"Visible cues: {', '.join(preset['face_cues'])}. Forbidden cues: {', '.join(preset['forbidden_cues'])}."
@@ -161,8 +165,19 @@ def exaggeration_section(image: dict, tiers: dict) -> str:
     for axis in tiers["axes"]:
         axis_tier = lowered.get(axis["id"], tier)
         note = f" (deliberately held at tier {axis_tier})" if axis["id"] in lowered else ""
-        lines.append(f"- {axis['label']}: {tiers['tiers'][axis_tier]['axes'][axis['id']]}{note}")
-    lines.append("Stay inside this palette; do not add: " + "; ".join(spec["forbidden"]) + ".")
+        description = tiers['tiers'][axis_tier]['axes'][axis['id']]
+        if image.get("qa_contract_version") == 11:
+            if axis['id'] == "manpu":
+                description = "restrained, unobtrusive accents" if axis_tier == "C" else "accents supporting the emotion and tier"
+            elif axis['id'] == "effect_lines" and axis_tier == "C":
+                description = "quiet staging; only sparse unobtrusive motion cues"
+        lines.append(f"- {axis['label']}: {description}{note}")
+    if image.get("qa_contract_version") == 11:
+        lines.append("Preserve the overall tier, emotional intent, identity and legibility. Minor decorative count or "
+                     "mouth-curvature differences are tolerated unless explicitly locked by the user. "
+                     "Keep all exact visible text and all key actions intact.")
+    else:
+        lines.append("Stay inside this palette; do not add: " + "; ".join(spec["forbidden"]) + ".")
     if contrast:
         lines.append(f"CONTRAST: {contrast['reason']}")
     lines.append("KEY LANDING EFFECTS: " + ("; ".join(f"{item['axis']}: {item['effect']}" for item in image["effects_plan"])

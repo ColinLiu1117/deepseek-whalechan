@@ -81,7 +81,7 @@ class RunReader:
         self.warnings = []
         self.assignment = read_json(run / "assignment.json")
         self.manifest = read_json(run / "manifest.json")
-        if self.assignment.get("schema_version") not in ({11, 13, 14} if COMIC else {5, 6}):
+        if self.assignment.get("schema_version") not in ({11, 13, 14, 15} if COMIC else {5, 6}):
             raise GalleryError(f"Unsupported assignment schema: {run.name}")
         if self.manifest.get("schema_version") != (1 if COMIC else 3):
             raise GalleryError(f"Unsupported manifest schema: {run.name}")
@@ -146,17 +146,24 @@ class RunReader:
     def attempt(self, record):
         key = record.get("attempt_id") or record.get("derived_id") or str(record.get("candidate_attempt", ""))
         role = record.get("role", "candidate")
-        qa = self.sidecar(record.get("visual_qa"), key, "visual_qa", True)
-        auto = self.sidecar(record.get("automatic_qa"), key, "automatic_qa", True)
+        qa = self.sidecar(record.get("visual_qa"), key, "visual_qa", True) if record.get("visual_qa") else {}
+        auto = self.sidecar(record.get("automatic_qa"), key, "automatic_qa", True) if record.get("automatic_qa") else {}
         prompt = "" if role == "composite" else (
             self.sidecar(record.get("prompt"), key, "prompt") if COMIC else record.get("prompt", ""))
-        picture = self.picture(self.locate(record.get("candidate", record.get("candidate_path"))),
-                               key, record.get("candidate_sha256"), "candidate")
+        try:
+            picture = self.picture(self.locate(record.get("candidate", record.get("candidate_path"))),
+                                   key, record.get("candidate_sha256"), "candidate")
+        except subprocess.SubprocessError:
+            if not record.get("technical_error"):
+                raise
+            # Preserve undecodable output as a counted technical failure, not a final or a regeneration request.
+            picture = self.picture(None, key, kind="candidate")
         return {"id": key, "role": role, "picture": picture,
                 "sha256": record.get("candidate_sha256"), "prompt": prompt,
                 "provider": record.get("provider"), "model": record.get("model"),
                 "verdict": record.get("verdict"), "created_at": record.get("created_at"),
-                "defects": qa.get("defects"), "targeted_retry": qa.get("targeted_retry"),
+                "defects": qa.get("defects", qa.get("core_defects", [])) or ([record["technical_error"]] if record.get("technical_error") else []),
+                "minor_issues": qa.get("minor_issues", []), "targeted_retry": qa.get("targeted_retry"),
                 "automatic": auto.get("overall"), "visual": qa.get("verdict"),
                 "sources": record.get("source_attempts", [])}
 
@@ -287,6 +294,17 @@ class RunReader:
                 "warnings": list({json.dumps(item, sort_keys=True): item for item in self.warnings}.values())}
         if COMIC:
             group["gallery_images"] = self.gallery_images(proposals)
+            group["collection_reviews"] = []
+            for review in self.manifest.get("collection", {}).get("reviews", []):
+                review_path = self.locate(review["path"])
+                if review_path is None or digest(review_path) != review["sha256"]:
+                    raise GalleryError("Collection review is missing or changed")
+                sheet = review_path.with_name("sheet.png")
+                picture = self.picture(sheet if sheet.is_file() else None,
+                                       str(review["round"] + 1), review["sheet_sha256"], "reference")
+                group["collection_reviews"].append({"picture": picture, "review": read_json(review_path)})
+            group["task_outcomes"] = {key: value["status"] for key, value in self.manifest["images"].items()}
+            group["stage_events"] = self.manifest.get("events", [])
         return group
 
 

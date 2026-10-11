@@ -24,6 +24,7 @@ const STRINGS = {
     originUnknown: "成品来源未能唯一确认，请查看生成过程。",
     compositeNote: "由分格图片本地合成，不增加产图次数。",
     panelPart: "分格 {id}", panelMissing: "分格来源未记录", recordedAt: "记录时间：{date}",
+    collectionQA: "集合审阅与返工记录", minorIssues: "已接受的轻微瑕疵", outcomes: "任务状态与计时",
     qa: "验收记录", qaLine: "自动检查：{automatic} · 视觉检查：{visual}", failUnknown: "失败原因未记录", retry: "修正建议：{retry}",
     imageMissing: "图片文件缺失", noFinal: "尚无通过验收的成品", enlarge: "放大 {label}",
     passed: "已通过", failed: "未通过", notProduced: "未产出", calls: "产图 {n} 次",
@@ -85,6 +86,7 @@ const STRINGS = {
     startingPoint: "THE STARTING POINT",
     groupStats: "{passed} / {planned} passed · {calls} image call(s) · {errors} provider error(s) · {date}",
     request: "Original request", noRequest: "No written request was recorded; see the input material below.",
+    collectionQA: "Collection reviews and repairs", minorIssues: "Accepted minor issues", outcomes: "Task outcomes and timing",
     analysis: "Source transcription · not the user's words", references: "Character and visual references · {n}", recordNotes: "Record notes · {n}",
     allImages: "All images · {n}", proposalsWorks: "Proposals and works · {n}", grid: "▦ Grid", list: "☰ List",
     notGenerated: "Not generated", proposalPassed: "{passed} / {planned} passed",
@@ -185,6 +187,7 @@ function attemptInfo(attempt, all = []) {
   qa.append(el("p", "", t("qaLine", {automatic: text(attempt.automatic), visual: text(attempt.visual)})));
   if (attempt.defects?.length) qa.append(el("p", "", text(attempt.defects)));
   if (attempt.verdict === "FAIL" && !attempt.defects?.length) qa.append(el("p", "muted", t("failUnknown")));
+  if (attempt.minor_issues?.length) qa.append(el("p", "", `${t("minorIssues")}: ${text(attempt.minor_issues)}`));
   if (attempt.targeted_retry) qa.append(el("p", "", t("retry", {retry: text(attempt.targeted_retry)})));
   box.append(qa);
   return box;
@@ -394,6 +397,19 @@ function renderGroup(group, panel) {
     warnings.className = "warnings";
     group.warnings.forEach(warning => warnings.append(el("p", "", warningText(warning))));
     source.append(warnings);
+  }
+  if (group.collection_reviews?.length) {
+    const collection = details(t("collectionQA"));
+    group.collection_reviews.forEach(item => {
+      collection.append(sourceStrip([item.picture]));
+      collection.append(el("pre", "source-text", JSON.stringify(item.review, null, 2)));
+    });
+    source.append(collection);
+  }
+  if (group.stage_events?.length) {
+    const outcomes = details(t("outcomes"));
+    outcomes.append(el("pre", "source-text", JSON.stringify({tasks: group.task_outcomes, events: group.stage_events}, null, 2)));
+    source.append(outcomes);
   }
   panel.append(source);
   const toolbar = el("div", "toolbar");

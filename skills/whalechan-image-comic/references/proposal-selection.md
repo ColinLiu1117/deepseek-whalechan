@@ -39,7 +39,7 @@ Before displaying the plan, inspect runtime/provider capacity and use `plan-exec
 
 ## Record the decision
 
-Use schema v14 and the helper commands in `run-schema.md`. Save drafts under `artifacts/whalechan-image-comic/<run-name>-planning/` unless the user specifies another location. Preserve revisions as separate files. Complete image plans and the worker allocation before rendering the plan; drafts do not require visual QA.
+Use schema v15 and the helper commands in `run-schema.md`. Save drafts under `artifacts/whalechan-image-comic/<run-name>-planning/` unless the user specifies another location. Preserve revisions as separate files. Complete image plans and the worker allocation before rendering the plan; drafts do not require visual QA.
 
 Render the plan with either read-only helper:
 
@@ -52,6 +52,8 @@ python3 scripts/manage-run.py summarize-selection --draft <draft.json> --languag
 
 Changes to the creative content, quantity or planned allocation require an updated displayed plan and confirmation of that version; the disclosed runtime capacity reductions below do not revise the approved plan. Apply the user's corrections without silently replacing other ideas. A revised core idea changes the frozen candidate pool: preserve the prior version and redo the affected comparisons once for that explicit revision, rather than automatically generating another pool. For multiple sources show one combined execution summary and bind the same reply to each current source plan. Qualify each worker assignment by source and idea. Share one global worker capacity across the batch; do not multiply concurrency by the number of sources. Per-source worker plans describe which workers participate, while the coordinator schedules their jobs within the displayed global limit. Never reuse an old reply for an altered scope.
 
+Disclose the QA 11 policy in the execution summary: one candidate inspection, minor-issue tolerance, one collection contact-sheet review and at most one repair round within the same three-call budget.
+
 After confirmation, validate and freeze the assignment, then execute without another routine approval. If runtime capacity falls, disclose the reduction and any necessary queue reassignment; record the lower actual count without editing the frozen plan or its hash. Actual workers must not exceed the confirmed count. Increasing approved capacity requires a revised plan and confirmation. Create and dispatch workers using the runtime's delegation tools; unavailable delegation falls back to serial main-agent execution. Workers write to unique staging paths; only the coordinator records and promotes candidates. Keep retries serial within each image's independent budget.
 
-Frozen v11 and v13 runs keep their original contracts and recovery paths; see `run-schema.md`. Do not rewrite their decisions or fabricate a v14 confirmation for them. Create new runs with v14.
+Frozen v11, v13 and v14 runs keep their original contracts and recovery paths; see `run-schema.md`. Do not rewrite their decisions or fabricate a v15 confirmation for them. Create new runs with v15.

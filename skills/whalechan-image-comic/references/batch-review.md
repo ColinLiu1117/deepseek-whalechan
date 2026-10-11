@@ -1,6 +1,6 @@
 # Cross-case creative review
 
-Run this before the first image call in a multi-source batch and again on the selected final images. Keep the review beside the batch assignments; do not rewrite frozen history.
+Run this design comparison before the first image call in a multi-source batch. For new v15 final images, use only the per-source contact-sheet review in `review-workflow.md`, not another cross-source visual review. Frozen contracts retain their original final comparison. Keep the review beside the batch assignments; do not rewrite frozen history.
 
 ## Compare sources, not slots
 
@@ -25,7 +25,7 @@ Write `batch-review.md` with:
 4. Any uncertainty requiring source clarification; do not silently assume an ambiguous joke.
 5. Conclusion: ready for generation, revise plans, or final images still need review.
 
-Perform this agent review before displaying the complete plan for the single user confirmation. Review final images again without another routine approval. After confirmation, changes to the core idea or execution allocation require an updated displayed plan and confirmation of that revision. Do not satisfy a warning by random font rotation, forced camera variety, or merely reordering images. If repetition is legitimate, retain it and record why.
+Perform this agent review before displaying the complete plan for the single user confirmation. For v15 review the final per-source contact sheets through the collection lifecycle, without another routine user approval. After confirmation, changes to the core idea or execution allocation require an updated displayed plan and confirmation of that revision. Do not satisfy a warning by random font rotation, forced camera variety, or merely reordering images. If repetition is legitimate, retain it and record why.
 
 ## Honest limits
 

@@ -323,6 +323,20 @@ class RunStateTests(unittest.TestCase):
         ))
         self.run_dir = Path(result["run_dir"])
         frozen = manage.read_json(self.run_dir / "assignment.json")
+        # Existing lifecycle/QA tests exercise frozen v14 recovery. New workflow
+        # tests opt in to v15 explicitly; neither fixture represents a real review.
+        if not getattr(self, "current_review_workflow", False):
+            frozen["schema_version"] = 14
+            for image in frozen["images"]:
+                image["qa_contract_version"] = 10
+            frozen["confirmation"]["summary_sha256"] = manage.selection_summary(frozen)["summary_sha256"]
+            manage.write_json(self.run_dir / "assignment.json", frozen)
+            manifest = manage.read_json(self.run_dir / "manifest.json")
+            manifest["assignment_sha256"] = manage.sha256(self.run_dir / "assignment.json")
+            manifest.pop("collection", None)
+            manifest.pop("review_workflow_version", None)
+            manifest.pop("events", None)
+            manage.write_json(self.run_dir / "manifest.json", manifest)
         self.image_spec = frozen["images"][0]
         self.image = self.image_spec["id"]
         return frozen

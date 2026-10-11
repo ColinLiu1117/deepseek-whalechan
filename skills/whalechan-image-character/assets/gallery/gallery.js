@@ -33,6 +33,10 @@ const STRINGS = {
     noImageErrors: "无图错误记录 · {n}", imageN: "图片 {n}",
     verdictPass: "通过", verdictFail: "未通过", verdictNone: "验收未记录", finalTwin: "成品同图 · 来源不唯一",
     noImages: "没有可展示的图片，记录见下方。", proposalRecords: "方案与记录",
+    filterLabel: "漫画筛选", filterFinals: "已通过成品", filterAttempts: "尝试版本", filterAll: "全部",
+    shownImages: "漫画 · {n} 张", viewHistory: "查看此创意的生成过程", showAllIdeas: "返回全部创意",
+    ideaHistory: "生成过程：{title}", noFinalImages: "暂无通过成品。", noAttemptImages: "没有可展示的尝试版本。",
+    viewAttempts: "查看尝试版本", finalOriginAmbiguous: "成品来源记录不唯一；生成过程保留全部同图记录。",
     selectedProposal: "入选方案", unselectedProposal: "未入选方案",
     imageSummary: "{name} · {calls} 次出图 · {errors} 次无图错误", attemptMissing: "{id}：图片文件缺失",
     startingPoint: "THE STARTING POINT / 创作起点",
@@ -72,6 +76,10 @@ const STRINGS = {
     noImageErrors: "Errors without images · {n}", imageN: "Image {n}",
     verdictPass: "Passed", verdictFail: "Failed", verdictNone: "QA not recorded", finalTwin: "Same as final · source ambiguous",
     noImages: "No images to show; see the records below.", proposalRecords: "Proposals and records",
+    filterLabel: "Filter comics", filterFinals: "Passed finals", filterAttempts: "Attempts", filterAll: "All",
+    shownImages: "Comics · {n} images", viewHistory: "View this idea’s generation history", showAllIdeas: "Back to all ideas",
+    ideaHistory: "Generation history: {title}", noFinalImages: "No passing finals yet.", noAttemptImages: "No attempt images to show.",
+    viewAttempts: "View attempts", finalOriginAmbiguous: "The final’s source record is ambiguous; all matching records remain in its history.",
     selectedProposal: "Selected", unselectedProposal: "Not selected",
     imageSummary: "{name} · {calls} image call(s) · {errors} error(s) without images", attemptMissing: "{id}: image file missing",
     startingPoint: "THE STARTING POINT",
@@ -90,6 +98,7 @@ function storedLanguage() {
 }
 let language = [storedLanguage(), data.language].find(value => value in STRINGS) || "zh";
 let activeGroup = 0, view = "grid", currentPictures = [], currentIndex = 0, opener;
+const comicFilters = new Map();
 function t(key, values = {}) {
   return String(STRINGS[language][key]).replace(/\{(\w+)\}/g, (match, name) => name in values ? values[name] : match);
 }
@@ -250,6 +259,7 @@ function galleryImageInfo(item) {
   if (item.matches_final && !item.is_final) {
     box.append(el("p", "note", t("sameAsFinal")));
   }
+  if (item.origin_ambiguous) box.append(el("p", "note", t("finalOriginAmbiguous")));
   box.append(attemptInfo(item.attempt, item.attempts));
   if (item.errors.length) {
     const errors = details(t("noImageErrors", {n: item.errors.length}));
@@ -260,11 +270,11 @@ function galleryImageInfo(item) {
   }
   return box;
 }
-function galleryImageCard(item, index, collection) {
+function galleryImageCard(item, collection, showHistory) {
   const article = el("article", "card gallery-image");
   article.append(imageButton(item.picture, collection, () => galleryImageInfo(item)));
   const body = el("div", "card-content"), meta = el("div", "meta");
-  body.append(el("h3", "", t("imageN", {n: String(index + 1).padStart(2, "0")})));
+  body.append(el("h3", "", item.proposal_title));
   const verdict = item.attempt?.verdict;
   meta.append(badge(verdict === "PASS" ? t("verdictPass") : verdict === "FAIL" ? t("verdictFail") : t("verdictNone"),
                     verdict === "PASS" ? "good" : "warn"));
@@ -275,23 +285,77 @@ function galleryImageCard(item, index, collection) {
   body.append(meta);
   const more = details(t("imageDetails"));
   more.append(galleryImageInfo(item)); body.append(more);
+  if (item.is_final && showHistory) body.append(button(t("viewHistory"), () => showHistory(item.image_id)));
   article.append(body);
   return article;
 }
-function renderComicImages(group, panel) {
-  const cards = el("div", "cards gallery-images"), collection = [];
+function comicCollections(group) {
   const contexts = new Map();
   group.proposals.forEach(proposal => proposal.images.forEach(image => contexts.set(image.id, {proposal, image})));
-  group.gallery_images.forEach((entry, index) => {
+  function contextualize(entry) {
     const {proposal, image} = contexts.get(entry.image_id);
-    const item = {...entry, image_name: image.name, proposal_title: proposal.title,
+    return {...entry, image_name: image.name, proposal_title: proposal.title,
                   scene: proposal.scene, detail: proposal.detail, note: image.note,
                   attempt: entry.attempt_index == null ? image.origin : image.attempts[entry.attempt_index],
                   attempts: image.attempts, errors: image.errors};
-    cards.append(galleryImageCard(item, index, collection));
+  }
+  const all = group.gallery_images.map(contextualize);
+  const finals = [];
+  contexts.forEach(({image}) => {
+    if (image.status !== "passed") return;
+    const matched = all.find(item => item.image_id === image.id && item.matches_final);
+    const picture = image.final?.src ? image.final : matched?.picture;
+    if (!picture?.src) return;
+    finals.push({...contextualize({image_id: image.id, picture, attempt_index: null,
+                                  is_final: true, matches_final: true}),
+                 origin_ambiguous: !image.origin && Boolean(matched?.attempt)});
   });
-  panel.append(cards);
-  if (!group.gallery_images.length) panel.append(el("p", "empty", t("noImages")));
+  return {finals, attempts: all.filter(item => !item.is_final), all};
+}
+function renderComicImages(group, panel, heading) {
+  const sets = comicCollections(group);
+  if (!comicFilters.has(group)) comicFilters.set(group, {mode: "finals", imageId: null});
+  const state = comicFilters.get(group);
+  const browser = el("section", "comic-browser");
+  const modes = [["finals", "filterFinals"], ["attempts", "filterAttempts"], ["all", "filterAll"]];
+  function render(focus = false) {
+    browser.replaceChildren();
+    const scoped = items => state.imageId ? items.filter(item => item.image_id === state.imageId) : items;
+    const filters = el("div", "controls comic-filters");
+    filters.setAttribute("role", "group"); filters.setAttribute("aria-label", t("filterLabel"));
+    modes.forEach(([mode, label]) => {
+      const control = button(`${t(label)} · ${scoped(sets[mode]).length}`, () => {
+        state.mode = mode; render(true);
+      });
+      control.setAttribute("aria-pressed", String(state.mode === mode)); filters.append(control);
+    });
+    browser.append(filters);
+    if (state.imageId) {
+      const item = sets.all.find(item => item.image_id === state.imageId) || sets.finals.find(item => item.image_id === state.imageId);
+      const context = el("div", "history-context");
+      context.append(el("p", "", t("ideaHistory", {title: item.proposal_title})), button(t("showAllIdeas"), () => {
+        state.imageId = null; state.mode = "finals"; render(true);
+      }));
+      browser.append(context);
+    }
+    const items = scoped(sets[state.mode]), cards = el("div", "cards gallery-images"), collection = [];
+    heading.textContent = t("shownImages", {n: items.length});
+    items.forEach(item => cards.append(galleryImageCard(item, collection, state.imageId ? null : imageId => {
+      state.imageId = imageId; state.mode = "all"; render(true);
+      browser.scrollIntoView({block: "start"});
+    })));
+    browser.append(cards);
+    if (!items.length) {
+      const empty = el("div", "empty");
+      empty.append(el("p", "", t(state.mode === "finals" ? "noFinalImages" : state.mode === "attempts" ? "noAttemptImages" : "noImages")));
+      if (state.mode === "finals" && scoped(sets.attempts).length) empty.append(button(t("viewAttempts"), () => {
+        state.mode = "attempts"; render(true);
+      }));
+      browser.append(empty);
+    }
+    if (focus) filters.querySelector('[aria-pressed="true"]').focus();
+  }
+  panel.append(browser); render();
   const records = details(t("proposalRecords"));
   group.proposals.forEach(proposal => {
     const summary = details(proposal.title);
@@ -333,8 +397,9 @@ function renderGroup(group, panel) {
   }
   panel.append(source);
   const toolbar = el("div", "toolbar");
-  toolbar.append(el("h2", "", data.skill === "comic"
-    ? t("allImages", {n: group.gallery_images.length}) : t("proposalsWorks", {n: group.proposals.length})));
+  const heading = el("h2", "", data.skill === "comic"
+    ? t("allImages", {n: group.gallery_images.length}) : t("proposalsWorks", {n: group.proposals.length}));
+  heading.setAttribute("aria-live", "polite"); toolbar.append(heading);
   const controls = el("div", "controls");
   const modes = [];
   for (const [mode, label] of [["grid", t("grid")], ["list", t("list")]]) {
@@ -347,7 +412,7 @@ function renderGroup(group, panel) {
   }
   toolbar.append(controls); panel.append(toolbar);
   panel.classList.toggle("list", view === "list");
-  if (data.skill === "comic") { renderComicImages(group, panel); return; }
+  if (data.skill === "comic") { renderComicImages(group, panel, heading); return; }
   group.proposals.forEach(proposal => {
     if (!proposal.selected) {
       const folded = details(""); folded.className = "unselected";

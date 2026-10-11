@@ -312,6 +312,21 @@ main {
 .gallery-images .card-content h3 {
   font-size: 14px;
 }
+.comic-filters {
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.history-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.comic-browser .empty button {
+  margin-top: 12px;
+}
 .meta {
   display: flex;
   flex-wrap: wrap;

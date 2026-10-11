@@ -81,7 +81,7 @@ class RunReader:
         self.warnings = []
         self.assignment = read_json(run / "assignment.json")
         self.manifest = read_json(run / "manifest.json")
-        if self.assignment.get("schema_version") not in ({11, 13, 14, 15} if COMIC else {5, 6}):
+        if self.assignment.get("schema_version") not in ({11, 13, 14, 15, 16} if COMIC else {5, 6}):
             raise GalleryError(f"Unsupported assignment schema: {run.name}")
         if self.manifest.get("schema_version") != (1 if COMIC else 3):
             raise GalleryError(f"Unsupported manifest schema: {run.name}")

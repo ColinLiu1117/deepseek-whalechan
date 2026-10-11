@@ -53,6 +53,8 @@ Each adapter accepts `--request <json> --output <png>` and supports `--dry-run`:
 }
 ```
 
+For v16, the prompt contains only the authored drawing descriptions in `prompt-design.md`; output configuration and reference metadata stay in the request. A retry prompt describes the visual correction, never QA codes, reviewer reports or budgets.
+
 `build-prompt.py --write-request` writes this request from the frozen assignment; prefer it over hand-written JSON. `quality` is optional and only affects OpenAI; the other adapters accept and ignore it, so one request works across the whole fallback chain. The nested `output` object is required and must specify format, aspect ratio and resolution. Use 1–5 bundled or frozen user references. Resolve relative paths from the request JSON. Adapters preserve the requested output, reference roles, and hashes in audit output while reporting the effective provider size or tier. Never silently approximate an explicit resolution or drop a required role because of a provider limit; report `capability` and route forward. A live adapter writes one PNG and never overwrites an existing path.
 
 ### OpenAI
@@ -84,9 +86,9 @@ Each adapter accepts `--request <json> --output <png>` and supports `--dry-run`:
 
 Record credentials neither in stdout nor in the run. Provider errors without images consume no candidate slot; any viewable returned image consumes one.
 
-## New v15 review policy
+## v15/v16 review policy
 
-Apply `review-workflow.md` for v15. The coordinator runs `prepare-candidate` serially when a worker returns a staged image, then dispatches the sole visual inspection after automatic checks pass. The worker may retain the same task context for this inspection. Record its compact report without a coordinator visual reread. Only single-image or collection core defects authorize image-producing retries. Technical/audit failures block that candidate. No-image availability/capability checks may route forward before generation; do not treat technical rejection of an existing image as retry permission.
+Apply `review-workflow.md` for v15/v16. The coordinator runs `prepare-candidate` serially when a worker returns a staged image, then dispatches the sole visual inspection after automatic checks pass. The worker may retain the same task context for this inspection. Record its compact report without a coordinator visual reread. Only single-image or collection core defects authorize image-producing retries. Technical/audit failures block that candidate. No-image availability/capability checks may route forward before generation; do not treat technical rejection of an existing image as retry permission.
 
 ## Sub-agent coordinator
 
@@ -110,7 +112,7 @@ After the single confirmation, finish expansion, validation, freezing and any re
 1. Use the runtime's sub-agent creation tool (for example `spawn_agent`) to create up to the confirmed, currently available worker count. No delegation support means the main agent executes serially; never substitute a nested agent CLI to evade that limit. Reuse workers through the runtime's follow-up mechanism rather than creating one per image.
 2. Give each worker one ready image/candidate, the Skill path, read-only frozen assignment, exact image id, authorized provider and remaining budget, reference paths/roles, and a unique `staging/<image-id>/<attempt-id>/` directory. Restrict its task to that candidate. Workers must not spawn more agents, change the approved plan or write the manifest.
 3. The worker builds the prompt, calls one provider once, preserves any returned image immediately, validates/measures and performs actual visual QA. It returns prompt/request/candidate/QA/audit paths, hashes, provider/model, transport and errors. A failure or timeout after an image was produced still consumes a slot; inspect staging before any retry. Workers must not call `record-*`, `promote`, `finalize`, or independently retry/fall back.
-4. The main agent collects completed results, verifies hashes and evidence, then serially records errors/candidates without another visual inspection. Under v15, promote only after contact-sheet collection acceptance; frozen runs retain their original PASS promotion. It assigns the next ready image or a permitted retry to an available worker. Never dispatch two candidates for the same image. Retries and provider fallback wait until the preceding result is recorded; reduce active dispatch if the next provider has lower capacity.
+4. The main agent collects completed results, verifies hashes and evidence, then serially records errors/candidates without another visual inspection. Under v15/v16, promote only after contact-sheet collection acceptance; frozen runs retain their original PASS promotion. It assigns the next ready image or a permitted retry to an available worker. Never dispatch two candidates for the same image. Retries and provider fallback wait until the preceding result is recorded; reduce active dispatch if the next provider has lower capacity.
 5. On a safety rejection, stop new dispatch, interrupt outstanding work where supported and quarantine uncommitted results. Preserve returned candidates and account for consumed attempts. When work is resolved, release workers if supported and finalize through the manager.
 
 For multiple source assignments under one confirmation, show both per-run worker allocations and the aggregate concurrent worker count. Share one pool across the batch: do not multiply the runtime/provider limit or the ceiling of 10 by the number of sources. Each five-image run uses at most five workers; reuse workers across runs and qualify jobs by source and idea. Freeze each run's allocation; increasing it requires confirmation. Serial manifest writes remain the coordinator's responsibility across the whole batch.

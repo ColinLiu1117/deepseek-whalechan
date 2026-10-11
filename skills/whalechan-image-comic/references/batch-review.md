@@ -1,6 +1,6 @@
 # Cross-case creative review
 
-Run this design comparison before the first image call in a multi-source batch. For new v15 final images, use only the per-source contact-sheet review in `review-workflow.md`, not another cross-source visual review. Frozen contracts retain their original final comparison. Keep the review beside the batch assignments; do not rewrite frozen history.
+Run this design comparison before the first image call in a multi-source batch. For v15/v16 final images, use only the per-source contact-sheet review in `review-workflow.md`, not another cross-source visual review. Frozen contracts retain their original final comparison. Keep the review beside the batch assignments; do not rewrite frozen history.
 
 ## Compare sources, not slots
 

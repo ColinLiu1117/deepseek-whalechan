@@ -39,7 +39,7 @@ Before displaying the plan, inspect runtime/provider capacity and use `plan-exec
 
 ## Record the decision
 
-Use schema v15 and the helper commands in `run-schema.md`. Save drafts under `artifacts/whalechan-image-comic/<run-name>-planning/` unless the user specifies another location. Preserve revisions as separate files. Complete image plans and the worker allocation before rendering the plan; drafts do not require visual QA.
+Use schema v16 and the helper commands in `run-schema.md`. Save drafts under `artifacts/whalechan-image-comic/<run-name>-planning/` unless the user specifies another location. Preserve revisions as separate files. Complete image plans and the worker allocation before rendering the plan; drafts do not require visual QA.
 
 Render the plan with either read-only helper:
 
@@ -48,7 +48,7 @@ python3 scripts/manage-run.py render-proposal --draft <draft.json> --language <z
 python3 scripts/manage-run.py summarize-selection --draft <draft.json> --language <zh|en>
 ```
 
-`summarize-selection` is an alias of `render-proposal`; both return the complete table, counts, budget, worker allocation, question and `summary_sha256`. Display the Markdown directly, not inside a code block. After the real reply, save `confirmation` with `status: confirmed`, the actual `user_reply` and the returned `summary_sha256`, binding the count, worker allocation and normalized execution settings. Use `worker_plan`, `panel_policy` and `exaggeration_policy` as specified in `run-schema.md`; full `images` records may be completed after confirmation while preserving the displayed scenes, key lines and panel counts. Hashes are audit metadata, not user-facing text. Helpers render and validate records; they cannot approve on the user's behalf.
+`summarize-selection` is an alias of `render-proposal`; both return the complete table, counts, budget, worker allocation, question and `summary_sha256`. Display the Markdown directly, not inside a code block. After the real reply, save `confirmation` with `status: confirmed`, the actual `user_reply` and the returned `summary_sha256`, binding the count, worker allocation and normalized execution settings. Use `worker_plan`, `panel_policy` and `exaggeration_policy` as specified in `run-schema.md`; full v16 `images` records must exist before this display. The scene/staging cells come from their panel actions and expression descriptions; the confirmation also binds the visual projection used by the prompt builder. See `prompt-design.md`. Hashes are audit metadata, not user-facing text. Helpers render and validate records; they cannot approve on the user's behalf.
 
 Changes to the creative content, quantity or planned allocation require an updated displayed plan and confirmation of that version; the disclosed runtime capacity reductions below do not revise the approved plan. Apply the user's corrections without silently replacing other ideas. A revised core idea changes the frozen candidate pool: preserve the prior version and redo the affected comparisons once for that explicit revision, rather than automatically generating another pool. For multiple sources show one combined execution summary and bind the same reply to each current source plan. Qualify each worker assignment by source and idea. Share one global worker capacity across the batch; do not multiply concurrency by the number of sources. Per-source worker plans describe which workers participate, while the coordinator schedules their jobs within the displayed global limit. Never reuse an old reply for an altered scope.
 
@@ -56,4 +56,4 @@ Disclose the QA 11 policy in the execution summary: one candidate inspection, mi
 
 After confirmation, validate and freeze the assignment, then execute without another routine approval. If runtime capacity falls, disclose the reduction and any necessary queue reassignment; record the lower actual count without editing the frozen plan or its hash. Actual workers must not exceed the confirmed count. Increasing approved capacity requires a revised plan and confirmation. Create and dispatch workers using the runtime's delegation tools; unavailable delegation falls back to serial main-agent execution. Workers write to unique staging paths; only the coordinator records and promotes candidates. Keep retries serial within each image's independent budget.
 
-Frozen v11, v13 and v14 runs keep their original contracts and recovery paths; see `run-schema.md`. Do not rewrite their decisions or fabricate a v15 confirmation for them. Create new runs with v15.
+Frozen v11, v13, v14 and v15 runs keep their original contracts and recovery paths; see `run-schema.md`. Do not rewrite their decisions or fabricate a v16 confirmation for them. Create new runs with v16.

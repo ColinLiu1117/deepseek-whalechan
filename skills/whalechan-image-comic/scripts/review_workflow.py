@@ -19,7 +19,7 @@ class ReviewWorkflow:
 
     def load(self, args):
         run, assignment, manifest = self.m.load_run(args.run_dir)
-        self.require(assignment["schema_version"] == 15, "This command requires assignment v15")
+        self.require(assignment["schema_version"] in {15, 16}, "This command requires assignment v15/v16")
         self.require(manifest["status"] == "in_progress", "Run is not open")
         return run, assignment, manifest
 

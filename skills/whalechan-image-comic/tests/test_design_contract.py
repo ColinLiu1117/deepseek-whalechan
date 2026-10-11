@@ -23,6 +23,8 @@ class DesignContractTests(unittest.TestCase):
         value["input"]["participants"] = [{"id": "user", "role": "user", "source_evidence": "The user asks about the unfinished task."}]
         value["input"]["source_analysis"]["user_constraints"] = ["Keep the accusation in English"]
         image = value["images"][0]
+        image["core_text"][0] = "The factory has finished reasoning."
+        value["proposal"]["options"][0]["key_lines"] = list(image["core_text"])
         image["proportion_check"] = "visible-only"
         image["composition"]["shot"] = "tight face close-up"
         image["dialogue_plan"][0]["speaker"] = "user"
@@ -40,18 +42,17 @@ class DesignContractTests(unittest.TestCase):
         path = Path(self.temporary.name) / "design.json"
         broken = copy.deepcopy(value)
         broken["images"][0]["dialogue_plan"][1].pop("prop")
-        path.write_text(json.dumps(fixtures.confirm_fixture_plan(broken)))
         with self.assertRaisesRegex(manage.RunError, "dialogue_plan.prop"):
-            manage.validate_assignment(path)
+            fixtures.confirm_fixture_plan(broken)
         path.write_text(json.dumps(fixtures.confirm_fixture_plan(value)))
         normalized = manage.validate_assignment(path)
         prompt = builder.build_prompt(normalized, normalized["images"][0])
-        for expected in ("Proposal A", "Keep the accusation in English", "speaker=user",
-                         "ROLE user: physical", "tight face close-up", "do not add a full-body inset",
-                         "TEXT TEMPLATE: " + image["text_style"],
-                         "written on the factory's brass nameplate", "never glyph-like marks",
-                         "References never supply facial expression", "never elongate them"):
+        for expected in ("Speech balloon from user", "user is bodily present", "tight face close-up",
+                         "Writing on the factory's brass nameplate", image["lettering_description"],
+                         *image["core_text"]):
             self.assertIn(expected, prompt)
+        self.assertNotIn("Keep the accusation in English", prompt)
+        self.assertNotIn(image["text_style"], prompt)
         unselected = copy.deepcopy(normalized["images"][0])
         unselected["idea_id"] = "idea_06"
         with self.assertRaisesRegex(builder.manage.RunError, "confirmed assignment"):

@@ -1,6 +1,6 @@
 # Frozen QA 9/10 rubric and measurement evidence
 
-For new assignment v15 / QA 11 use `review-workflow.md`; the strict visual verdict rules below apply only to frozen v11/v13/v14 runs. The measured `form_evidence` example also supplies the measurement structure used by QA 11.
+For assignments v15/v16 / QA 11 use `review-workflow.md`; the strict visual verdict rules below apply only to frozen v11/v13/v14 runs. The measured `form_evidence` example also supplies the measurement structure used by QA 11.
 
 Reject when any applicable legacy gate fails. Inspect the original-resolution candidate, including small text and panel edges.
 

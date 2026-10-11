@@ -25,6 +25,8 @@ def build_prompt(assignment: dict, image: dict) -> str:
         raise manage.RunError("Image proportion_check must be measured or visible-only")
     if image not in assignment["images"]:
         raise manage.RunError("Image must belong to the confirmed assignment")
+    if assignment["schema_version"] == 16:
+        return manage.visual_prompt().render(assignment, image)
     template_path = manage.SKILL_ROOT / "assets/text-style-templates" / image["text_style"] / "template.md"
     template = template_path.read_text(encoding="utf-8").split("Prompt fragment:")[-1].strip()
     presets, _levels = manage.expression_presets()

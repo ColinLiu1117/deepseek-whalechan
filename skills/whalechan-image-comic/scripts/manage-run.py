@@ -30,11 +30,11 @@ FORMS = set(FORM_ORDER)
 ASSET_CATALOG_SCHEMA_VERSION = 3
 EXPRESSION_PRESETS_SCHEMA_VERSION = 2
 EXAGGERATION_TIERS_SCHEMA_VERSION = 1
-ASSIGNMENT_SCHEMA_VERSION = 15
+ASSIGNMENT_SCHEMA_VERSION = 16
 # Frozen runs from these versions may still be generated and finalized, never newly initialized.
-RESUMABLE_SCHEMA_VERSIONS = {11, 13, 14, ASSIGNMENT_SCHEMA_VERSION}
+RESUMABLE_SCHEMA_VERSIONS = {11, 13, 14, 15, ASSIGNMENT_SCHEMA_VERSION}
 # Tournament contracts: v13 predates exaggeration tiers, v14 adds them.
-TOURNAMENT_SCHEMA_VERSIONS = {13, 14, ASSIGNMENT_SCHEMA_VERSION}
+TOURNAMENT_SCHEMA_VERSIONS = {13, 14, 15, ASSIGNMENT_SCHEMA_VERSION}
 QA_CONTRACT_VERSION = 11
 # Frozen v13 runs keep reviewing under QA contract 9, which has no E1 exaggeration gate.
 QA_CONTRACT_VERSIONS = {9, 10, QA_CONTRACT_VERSION}
@@ -140,7 +140,7 @@ IMAGE_FIELDS = {
     "action_plan", "style", "costume", "background", "core_text",
     "text_style", "text_style_reason", "dialogue_plan", "cast_plan",
     "proportion", "proportion_sha256", "identity_anchor_form", "references",
-    "rhythm",
+    "rhythm", "lettering_description",
 }
 EXECUTION_MODES = {"sequential", "parallel"}
 REFERENCE_ROLES = {
@@ -263,7 +263,7 @@ def uses_tournament(value: dict[str, Any]) -> bool:
 
 
 def is_tiered(value: dict[str, Any]) -> bool:
-    return value.get("schema_version") in {14, 15}
+    return value.get("schema_version") in {14, 15, 16}
 
 
 def selection_summary(value: dict[str, Any]) -> dict[str, Any]:
@@ -584,15 +584,18 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
     if tier_policy is not None:
         # Only v14 binds the tier policy, so historical v13 confirmation hashes stay unchanged.
         payload["exaggeration_policy"] = tier_policy
-    if value.get("schema_version") == 15:
+    if value.get("schema_version") in {15, 16}:
         payload["review_workflow"] = {"version": 1, "candidate_reviews": 1,
                                       "minor_tolerance": True, "collection_repair_rounds": 1,
                                       "regeneration_sources": ["single_image_qa", "collection_review"]}
+    if value.get("schema_version") == 16:
+        payload["visual_plan"] = visual_prompt().contract(value)
     return {"proposal_count": 5, "image_count": 5, "choices": rows, "adjustments": [],
             "worker_plan": plan, "maximum_total": 15, "standings": ranking,
             "execution": execution,
             "options": proposal["options"], "panel_policy": policy,
             "exaggeration_policy": tier_policy,
+            **({"visual_plan": payload["visual_plan"]} if "visual_plan" in payload else {}),
             "summary_sha256": contract_hash(payload)}
 
 
@@ -645,9 +648,14 @@ def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, 
         tiers = exaggeration_tiers()
         lines = [words["tiered_header"], "|---|---|---|---|---|---|---|---|"]
         for index, item in enumerate(options, 1):
+            staging = item["scene"] + "\n" + item["staging"]
+            if "visual_plan" in summary:
+                visual = next(v for v in summary["visual_plan"] if v["idea_id"] == item["idea_id"])
+                staging = "\n".join(f"{action['panel']}: {action['action']} {expression['visual_description']}"
+                                    for action, expression in zip(visual["actions"], visual["expressions"], strict=True))
             cells = [str(index), item["title"] + words["colon"] + item["premise"],
                      directions[item["direction"]] + words["colon"] + item["twist"], str(item["panel_count"]),
-                     tier_label(item, tiers, language), item["scene"] + "\n" + item["staging"],
+                     tier_label(item, tiers, language), staging,
                      "\n".join(item["key_lines"]), item["selection_reason"]]
             lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
         lines.extend(["", distribution_line(options, value.get("panel_policy", {"mode": "narrative"}), tier_policy, language),
@@ -673,7 +681,7 @@ def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, 
         lines.extend(["", words["panel_override"] + markdown_cell(value["panel_policy"]["user_instruction"])])
     if (tier_policy or {}).get("mode") == "user-override":
         lines.extend(["", words["tier_override"] + markdown_cell(tier_policy["user_instruction"])])
-    if value.get("schema_version") == 15:
+    if value.get("schema_version") in {15, 16}:
         review_note = ("审阅：每个候选看图一次；轻微瑕疵可接受；每组五图拼图审阅一次。"
                        "集合最多返工一轮并复验一次，与单图 QA 共用每张三次产图预算。"
                        "主代理不重复看图复核，技术检查失败不触发生图。" if language == "zh" else
@@ -1559,7 +1567,7 @@ def design_summary(assignments: list[dict[str, Any]]) -> dict[str, Any]:
         ideas = {idea["id"]: idea for idea in assignment["creative_pool"]}
         columns = []
         for index, image in enumerate(assignment["images"], 1):
-            composition = image["composition"]
+            composition = image.get("composition", {})
             columns.append({
                 "index": index,
                 "idea_id": image["idea_id"],
@@ -1568,8 +1576,8 @@ def design_summary(assignments: list[dict[str, Any]]) -> dict[str, Any]:
                 "rhythm": (image.get("rhythm") or {}).get("type"),
                 "exaggeration": image.get("exaggeration"),
                 "panel_count": image["panel_count"], "layout": image["layout"],
-                "shot": composition["shot"], "staging": composition["staging"],
-                "text_placement": composition["text_placement"],
+                "shot": composition.get("shot", ""), "staging": composition.get("staging", ""),
+                "text_placement": composition.get("text_placement", ""),
                 "template": image["text_style"],
                 "beats": [item["action"] for item in image["action_plan"]],
                 "dialogue": image["core_text"],
@@ -1694,11 +1702,12 @@ def validate_assignment(path: Path) -> dict[str, Any]:
         if (idea_id, note.casefold()) in execution_notes:
             raise RunError(f"{label}.execution_note must differentiate executions of the same idea")
         execution_notes.add((idea_id, note.casefold()))
-        composition = image.get("composition")
+        composition = image.setdefault("composition", {})
         if not isinstance(composition, dict):
             raise RunError(f"{label}.composition must be an object")
         for field in ("shot", "staging", "text_placement", "reason"):
-            text(composition.get(field), f"{label}.composition.{field}")
+            if field in composition:
+                text(composition[field], f"{label}.composition.{field}")
         if image.get("proportion_check") not in {"measured", "visible-only"}:
             raise RunError(f"{label}.proportion_check must be measured or visible-only")
         # Whether the framing supports landmarks is a visual-review judgment,
@@ -1852,10 +1861,10 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     manifest = read_json(run_dir / "manifest.json")
     if assignment.get("schema_version") not in RESUMABLE_SCHEMA_VERSIONS:
         raise RunError(f"Run assignment schema_version must be one of {sorted(RESUMABLE_SCHEMA_VERSIONS)}")
-    if assignment["schema_version"] == 15 and (
+    if assignment["schema_version"] in {15, 16} and (
         manifest.get("review_workflow_version") != 1 or not isinstance(manifest.get("collection"), dict)
     ):
-        raise RunError("v15 requires its collection review workflow")
+        raise RunError("v15/v16 requires its collection review workflow")
     if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         raise RunError(f"Manifest schema_version must be {MANIFEST_SCHEMA_VERSION}")
     _assets, _forms, current_hash = catalog()
@@ -1881,7 +1890,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     for image in images:
         if not isinstance(image, dict) or set(image) - IMAGE_FIELDS:
             raise RunError("Frozen image specification has unsupported fields")
-        expected_qa = {11} if assignment["schema_version"] == 15 else {10} if is_tiered(assignment) else {9}
+        expected_qa = {11} if assignment["schema_version"] in {15, 16} else {10} if is_tiered(assignment) else {9}
         if image.get("qa_contract_version") not in expected_qa:
             raise RunError(f"Frozen image qa_contract_version must be one of {sorted(expected_qa)}")
         references = image.get("references")
@@ -2040,6 +2049,15 @@ def validate_exaggeration_evidence(evidence: dict[str, Any], image: dict[str, An
         if not set(seen) <= known or len(set(seen)) < tiers["identity_anchor_minimum"]:
             raise RunError(f"Deformed panel {item['panel']} needs at least "
                            f"{tiers['identity_anchor_minimum']} visible identity anchors")
+
+
+def visual_prompt():
+    import importlib.util
+    from types import SimpleNamespace
+    spec = importlib.util.spec_from_file_location("comic_visual_prompt", Path(__file__).with_name("visual_prompt.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.VisualPrompt(SimpleNamespace(**globals()))
 
 
 def review_workflow():
@@ -2279,7 +2297,7 @@ def resolve_transport(args: argparse.Namespace, audit_path: Path | None) -> str 
 
 def record_image(args: argparse.Namespace, component: bool) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] == 15:
+    if assignment["schema_version"] in {15, 16}:
         if component:
             raise RunError("QA 11 accepts complete candidates only")
         return review_workflow().record_candidate(args, run_dir, assignment, manifest)
@@ -2556,7 +2574,7 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
         },
         "created_at": now(), "updated_at": now(), "images": states,
     }
-    if assignment["schema_version"] == 15:
+    if assignment["schema_version"] in {15, 16}:
         manifest["review_workflow_version"] = 1
         manifest["collection"] = {"status": "pending", "reviews": [], "sheets": [], "repair_rounds": 0}
         manifest["events"] = []
@@ -2592,7 +2610,7 @@ def cmd_record_composite(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
     state = state_for(manifest, args.image)
     image_spec = next(item for item in assignment["images"] if item["id"] == args.image)
-    if assignment["schema_version"] == 15:
+    if assignment["schema_version"] in {15, 16}:
         raise RunError("QA 11 reviews complete candidates, not component composites")
     source_ids = args.source_attempt
     expected = image_spec["panel_count"]
@@ -2635,7 +2653,7 @@ def cmd_record_composite(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_promote(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] == 15:
+    if assignment["schema_version"] in {15, 16}:
         return review_workflow().promote(args, run_dir, assignment, manifest)
     state = state_for(manifest, args.image)
     passing = [item for item in state["attempts"] + state["derived"] if item.get("verdict") == "PASS" and item.get("role") != "component"]
@@ -2662,7 +2680,7 @@ def cmd_promote(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_finalize(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] == 15:
+    if assignment["schema_version"] in {15, 16}:
         review_workflow().before_finalize(run_dir, assignment, manifest)
     expected = len(assignment["images"])
     passed = [key for key, value in manifest["images"].items() if value["status"] == "passed"]

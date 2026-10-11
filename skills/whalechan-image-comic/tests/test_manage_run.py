@@ -219,8 +219,12 @@ def assignment() -> dict:
         image.update(source_rank=index, idea_id=idea["id"], premise=idea["premise"], execution=1,
                      core_text=list(idea["key_lines"]), exaggeration=tier,
                      effects_plan=[] if tier == "C" else [{"axis": "effect_lines", "effect": "speed lines behind the factory"}])
+        image["lettering_description"] = "Bold dark lettering in clear white balloons."
+        for line in image["dialogue_plan"]:
+            line["placement"] = "above the speaker, with a tail toward their mouth"
         for entry in image["expression_plan"]:
             entry["tier"] = tier
+            entry["visual_description"] = "She gazes steadily at the work with a quiet, closed mouth."
     value["worker_plan"] = {"coordinator": "main", "max_parallelism": 3,
                             "workers": [{"id": "worker-1", "idea_ids": ["idea_01", "idea_04"]},
                                         {"id": "worker-2", "idea_ids": ["idea_02", "idea_05"]},
@@ -324,7 +328,7 @@ class RunStateTests(unittest.TestCase):
         self.run_dir = Path(result["run_dir"])
         frozen = manage.read_json(self.run_dir / "assignment.json")
         # Existing lifecycle/QA tests exercise frozen v14 recovery. New workflow
-        # tests opt in to v15 explicitly; neither fixture represents a real review.
+        # tests opt in to the current version explicitly; neither fixture represents a real review.
         if not getattr(self, "current_review_workflow", False):
             frozen["schema_version"] = 14
             for image in frozen["images"]:

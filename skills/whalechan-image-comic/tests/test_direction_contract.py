@@ -76,9 +76,9 @@ class DirectionTests(unittest.TestCase):
         normalized = self.validate(fixtures.confirm_fixture_plan(rhythmic))
         self.assertEqual(manage.design_summary([normalized])["rhythm_images"], 1)
         prompt = builder.build_prompt(normalized, normalized["images"][0])
-        self.assertIn("COMEDY DIRECTION: reversal", prompt)
-        self.assertIn("RHYTHM: triple, landing in panel 1", prompt)
-        self.assertIn("final beat deviate", prompt)
+        self.assertNotIn("COMEDY DIRECTION:", prompt)
+        self.assertNotIn("RHYTHM:", prompt)
+        self.assertIn(normalized["images"][0]["action_plan"][0]["action"], prompt)
         self.assertNotIn("RHYTHM:", builder.build_prompt(normalized, normalized["images"][1]))
 
 

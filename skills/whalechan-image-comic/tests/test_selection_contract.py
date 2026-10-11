@@ -180,11 +180,13 @@ class SelectionTests(unittest.TestCase):
         draft = copy.deepcopy(value)
         images = draft.pop("images")
         draft.pop("confirmation")
+        with self.assertRaisesRegex(manage.RunError, "before confirmation"):
+            manage.selection_summary(draft)
+        draft["images"] = images
         draft_summary = manage.selection_summary(draft)
         self.assertIn("worker-1", manage.selection_markdown(draft_summary))
         self.assertEqual(draft_summary["summary_sha256"], summary["summary_sha256"])
         fixtures.confirm_fixture_plan(draft)
-        draft["images"] = images
         normalized = self.validate(draft)
         self.assertEqual(manage.selection_summary(normalized)["summary_sha256"], draft_summary["summary_sha256"])
         with tempfile.TemporaryDirectory() as directory:

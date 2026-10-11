@@ -1,4 +1,4 @@
-# Review workflow — assignment v15 / QA 11
+# Review workflow — assignments v15/v16 / QA 11
 
 Contents: [Ownership](#ownership) · [Criteria](#criteria) · [Candidate](#candidate) · [Collection](#collection) · [Failure](#failure) · [Timing](#timing)
 
@@ -12,6 +12,8 @@ Review each returned candidate once, at its original resolution, by one designat
 Local edits produce new candidates and consume slots. Inspect their whole canvas once. Never infer unchanged pixels from the edit instruction. New runs use complete canvases; panel-component rescue remains a frozen-run recovery feature.
 
 ## Criteria
+
+For v16, inspect against the authored panel actions, `visual_description`, exact dialogue and explicit user locks. Preset names and unused effect menus are planning aids, not additional pixel requirements. Nonessential details left open during planning remain open during QA.
 
 Keep J1 joke, K1 source anchor, I1 identity, C1 cast/performance, P1 panels, T1 lettering/ownership, A1 anatomy, V1 visual/expression, S1 style, O1 costume, B1 background, X1 action, E1 tier and H1 proportion. `checked` explicitly attests that the reviewer inspected each category; scripts cannot inspect pixels or prove this assertion.
 
@@ -109,4 +111,4 @@ When the collection is complete, run `promote` for each `collection_accepted` ta
 
 `manifest.events` records generation/review starts, receipt saving, automatic-check completion, single-review recording, sheet creation, collection-review recording, promotion and finalization. The receipt timestamp is when `prepare-candidate` receives the saved output, not backend GPU completion time. Pair it with provider/session timestamps when separating transport delay. Record starts through `mark-stage`; never backfill invented timestamps. Scripts enforce stored decisions, not the truthfulness or real-world count of LLM image inspections.
 
-Frozen assignments v11/v13/v14 keep their original QA 9/10 and recovery behavior. New assignments must use v15 and QA 11; never migrate approval histories or old PASS results merely to change policy.
+Frozen assignments v11/v13/v14 keep their original QA 9/10 and recovery behavior. Frozen v15 retains its original prompt contract and this QA 11 workflow. New assignments use v16 and QA 11; never migrate approval histories or old PASS results merely to change policy.

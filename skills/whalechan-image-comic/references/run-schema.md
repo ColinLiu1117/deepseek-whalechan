@@ -1,8 +1,8 @@
-# Run schema v15
+# Run schema v16
 
-New assignments use v15 and QA contract 11. The planning fields, ten-idea tournament, five images, output and reference contracts remain the same as v14. The v15 confirmation hash additionally binds the fixed review workflow policy; it cannot reuse a v14 approval. The new execution/QA lifecycle is specified in `review-workflow.md`: one candidate inspection, minor-issue tolerance, a five-slot contact sheet and at most one collection repair round. Both visual checks share the original three-call budget; technical failures never authorize regeneration.
+New assignments use v16 and QA 11. All five visual image records are written before confirmation. The v16 plan hash adds a normalized visual projection; `build-prompt.py` assembles only drawing instructions from it. See `prompt-design.md` for authoring and semantic consistency checks. No extra LLM rewrite or visual review is added.
 
-Frozen v11/v13/v14 runs keep their original approvals, QA contracts and recovery commands. v13 retains intensity and QA 9; v14 retains A/B/C exaggeration and QA 10. Never rewrite their history. New `validate-assignment` and `init` require v15.
+Frozen v11/v13/v14/v15 retain their original approval hashes, prompt builders and recovery behavior. v15 and v16 share the unchanged QA 11 contact-sheet workflow and three-call budget in `review-workflow.md`. New validation and initialization require v16.
 
 Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Directions](#comedy-directions) · [Confirmation](#final-plan-and-one-user-gate) · [Images](#image-fragment) · [Exaggeration](#exaggeration-tiers) · [Output](#output-size-and-aspect-ratio) · [Text](#visible-text) · [Dialogue](#participant-and-dialogue-contract) · [Preflight](#preflight-and-prompt-construction) · [Visual fields](#custom-visual-fields) · [References](#typed-references) · [Execution](#execution)
 
@@ -10,7 +10,7 @@ Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Di
 
 ```json
 {
-  "schema_version": 15,
+  "schema_version": 16,
   "run_name": "refrigerator-permission-loophole",
   "input": {
     "type": "text",
@@ -140,7 +140,7 @@ Each `premise`, `scene` and `direction` matches its pool idea; `twist` equals th
 
 New plans record `proportion` on every option using the same preset/custom object as an image: `{"mode": "preset", "preset": "semi-chibi"}` by default, or e.g. `{"mode": "custom", "target_head_ratio": 3.0}`. Preset targets and intervals come from the catalog; custom intervals default to target ± 0.15 with the lower bound above 1.0. All five options must record it if any does. The proposal already participates in the confirmation hash, so changing a planned proportion invalidates that confirmation. Completed images must normalize to the same proportion as their corresponding options. Historical records with no option-level proportions keep their original hash and recovery contract; do not retrofit their approval history.
 
-`render-proposal --draft <file>` and `summarize-selection --draft <file>` are read-only views of this same complete planning record and accept only v15 drafts. Both return an eight-column table (序号、创意、方向、格数、档位、场景／分镜、关键台词、入选理由), with fixed descriptive tier labels, followed by the panel and tier distribution line, target head-to-body ratios, five images total, worker allocations, one execution-confirmation question and `summary_sha256`. Ratios appear below the table, shared when identical or grouped by table row number when different. Drafts do not need full `images` or a confirmation yet.
+`render-proposal --draft <file>` and `summarize-selection --draft <file>` are read-only views of this same complete planning record and accept only v16 drafts. Both return an eight-column table (序号、创意、方向、格数、档位、场景／分镜、关键台词、入选理由), with fixed descriptive tier labels, followed by the panel and tier distribution line, target head-to-body ratios, five images total, worker allocations, one execution-confirmation question and `summary_sha256`. Ratios appear below the table, shared when identical or grouped by table row number when different. Drafts require all five visual `images`, but no confirmation yet; the scene/staging cells are rendered from those same panel records.
 
 Show the table, five images per source, combined batch total, worker allocation and per-image budget before asking whether to execute. Planning-only requests stop here without formal initialization or image calls. The sole confirmation record is:
 
@@ -154,9 +154,11 @@ Show the table, five images per source, combined batch total, worker allocation 
 }
 ```
 
-Hash canonical JSON using SHA-256 (`ensure_ascii=False`, sorted keys, separators `,` and `:`). For v15 the plan hash additionally binds the fixed review workflow version, one candidate inspection, minor tolerance, one collection repair round and the two allowed regeneration sources. The plan hash binds `input`, `proposal`, `creative_pool`, `duels`, `ranked_ideas`, `selection_reason`, `worker_plan`, `tie_breaks`, `panel_policy`, `exaggeration_policy` and normalized `execution`. An edit to any bound content invalidates the old confirmation. Redisplay the revised plan and obtain a real reply; never refresh a stored confirmation hash yourself. Scripts check consistency, not whether a quoted reply actually happened or meant approval.
+Hash canonical JSON using SHA-256 (`ensure_ascii=False`, sorted keys, separators `,` and `:`). For v15/v16 the plan hash additionally binds the fixed review workflow version, one candidate inspection, minor tolerance, one collection repair round and the two allowed regeneration sources. The plan hash binds `input`, `proposal`, `creative_pool`, `duels`, `ranked_ideas`, `selection_reason`, `worker_plan`, `tie_breaks`, `panel_policy`, `exaggeration_policy` and normalized `execution`. An edit to any bound content invalidates the old confirmation. Redisplay the revised plan and obtain a real reply; never refresh a stored confirmation hash yourself. Scripts check consistency, not whether a quoted reply actually happened or meant approval.
 
-Full visual `images` are constructed after confirmation and excluded from that planning hash. Their idea links, premises, panel counts, exaggeration tiers, contrasts, planned proportions and exact visible text must match the approved plan; internal composition details cannot change its comic turn. Initialization, frozen loading and prompt construction enforce the same contract. Five tasks allow at most 15 image calls, three per task. Delivery groups results and missing tasks by their five ideas. See `proposal-selection.md` for interaction details.
+For v16 the same hash also binds `visual_plan`: normalized drawing settings, proportion, ordered reference roles/instructions/content hashes, framing, panel actions, visible expressions, exact text with its speaker/carrier/position, cast and landing effects. Runtime paths, timestamps and generated IDs are excluded. Full images are required before confirmation; normalization and reference copying preserve this projection. Idea links, panel counts, tiers, contrasts, proportions and exact wording must still match the selected options. No old confirmation can authorize changed visual content.
+
+Five tasks allow at most 15 image calls, three per task. See `proposal-selection.md` for the single user gate.
 
 ## Image fragment
 
@@ -198,7 +200,8 @@ Full visual `images` are constructed after confirmation and excluded from that p
     }
   },
   "expression_plan": [
-    {"panel": 1, "preset": "smug", "performance": "manga_burst", "tier": "A"}
+    {"panel": 1, "preset": "smug", "performance": "manga_burst", "tier": "A",
+     "visual_description": "Her half-lidded gaze and broad one-sided grin show exaggerated satisfaction."}
   ],
   "action_plan": [
     {"panel": 1, "action": "Whale-chan pushes the entire refrigerator away on a cart while the blank indigo user on the left points in disbelief."}
@@ -217,12 +220,13 @@ Full visual `images` are constructed after confirmation and excluded from that p
     "origin": "tier"
   },
   "core_text": ["可以吃冰箱里的东西", "收到，冰箱归我了", "咚——！"],
+  "lettering_description": "Bold dark brush lettering with a blue rectangular caption band and white speech balloons.",
   "text_style": "03_blue-banner",
   "text_style_reason": "Her oversized confident ownership claim overturns the user's modest permission.",
   "dialogue_plan": [
-    {"text_index": 0, "panel": 1, "speaker": "user", "delivery": "speech"},
-    {"text_index": 1, "panel": 1, "speaker": "whalechan", "delivery": "speech"},
-    {"text_index": 2, "panel": 1, "speaker": "narrator", "delivery": "sfx"}
+    {"text_index": 0, "panel": 1, "speaker": "user", "delivery": "speech", "placement": "upper left, tail to the user"},
+    {"text_index": 1, "panel": 1, "speaker": "whalechan", "delivery": "speech", "placement": "upper right, tail to Whale-chan"},
+    {"text_index": 2, "panel": 1, "speaker": "narrator", "delivery": "sfx", "placement": "beside the refrigerator wheels"}
   ],
   "cast_plan": [
     {
@@ -263,7 +267,7 @@ Full visual `images` are constructed after confirmation and excluded from that p
 }
 ```
 
-Missing optional render fields normalize to the defaults shown above. `rhythm` defaults to `null`; when declared it is `{"type": "triple" | "pause" | "callback" | "deadpan", "panel": <landing panel>, "reason": "why the punchline needs it"}`. When a set of two or more images has rhythm on more than half of them, `validate-assignment` requires a `{"code": "rhythm_majority", "reason": "..."}` entry in the root `warning_dispositions`. `idea_id`, `execution_note`, `composition`, `proportion_check`, `core_text`, `text_style`, `text_style_reason`, `dialogue_plan`, `cast_plan`, `action_plan` and `expression_plan` are required. See `review-workflow.md` for the compact QA JSON and collection records. All four composition fields are nonempty strings. `proportion_check` is `measured` or `visible-only`, chosen from the planned shot. Action and expression plans contain exactly one consecutive entry per panel. Speaker and cast decisions are never inferred from missing fields. Normalized images carry `qa_contract_version: 11`. Every QA record is checked against the complete frozen image specification.
+Missing optional render fields normalize to the defaults shown above. `rhythm` defaults to `null`; when declared it is `{"type": "triple" | "pause" | "callback" | "deadpan", "panel": <landing panel>, "reason": "why the punchline needs it"}`. When a set of two or more images has rhythm on more than half of them, `validate-assignment` requires a `{"code": "rhythm_majority", "reason": "..."}` entry in the root `warning_dispositions`. `idea_id`, `execution_note`, `lettering_description`, `proportion_check`, `core_text`, `text_style`, `text_style_reason`, `dialogue_plan`, `cast_plan`, `action_plan` and `expression_plan` are required. See `review-workflow.md` for the compact QA JSON and collection records. For v16, composition is optional; supplied shot/staging fields describe necessary shared framing. Legacy reason/text_placement fields may remain internal. Every expression requires a nonempty `visual_description`, and every dialogue entry requires a nonempty `placement`. `proportion_check` is `measured` or `visible-only`, chosen from the planned shot. Action and expression plans contain exactly one consecutive entry per panel. Speaker and cast decisions are never inferred from missing fields. Normalized images carry `qa_contract_version: 11`. Every QA record is checked against the complete frozen image specification.
 
 ## Exaggeration tiers
 
@@ -350,9 +354,11 @@ Each image's `cast_plan` contains exactly one entry for every input participant,
 
 Physical and avatar roles require the bundled abstract-user pose sheet. Offscreen/absent-only plans must not load it. A card avatar is counted separately and cannot satisfy a physical-character plan. `cast_plan` is the sole source of participant representation and staging.
 
-Each `dialogue_plan` entry contains `{text_index, panel, speaker, delivery}`. It covers each `core_text` item exactly once, ordered from zero, with nondecreasing panel numbers. `speaker` is `whalechan`, an input participant, `narrator`, or the in-scene `device`; `delivery` is `speech`, `thought`, `caption`, `label` or `sfx`. Narrators use captions, labels for printed writing that belongs to no character, or `sfx` for drawn sound effects; `sfx` always belongs to the narrator and is hand-lettered into the scene without a balloon or tail. A `label` is writing that belongs to an object — a tag, sign, screen title or a short legible excerpt of a poem scroll — drawn on it without a bubble or tail; it also requires `prop`, naming that object, and `speaker` names who wrote it. A prop needs a `label` only when its readable content is part of the joke (a poem, a sign, a title, a tag the punchline points at); then it carries a legible excerpt and any further writing is drawn as clearly non-letter strokes. Ordinary documents whose words do not matter are drawn with plain gray bars and need no label. A supporting speaker must be physical, avatar or offscreen in the assigned panel, never absent. These checks establish consistency; source fidelity and the reason for an omission remain design-review responsibilities.
+Each `dialogue_plan` entry contains `{text_index, panel, speaker, delivery, placement}`. It covers each `core_text` item exactly once, ordered from zero, with nondecreasing panel numbers. `speaker` is `whalechan`, an input participant, `narrator`, or the in-scene `device`; `delivery` is `speech`, `thought`, `caption`, `label` or `sfx`. Narrators use captions, labels for printed writing that belongs to no character, or `sfx` for drawn sound effects; `sfx` always belongs to the narrator and is hand-lettered into the scene without a balloon or tail. A `label` is writing that belongs to an object — a tag, sign, screen title or a short legible excerpt of a poem scroll — drawn on it without a bubble or tail; it also requires `prop`, naming that object, and `speaker` names who wrote it. A prop needs a `label` only when its readable content is part of the joke (a poem, a sign, a title, a tag the punchline points at); then it carries a legible excerpt and any further writing is drawn as clearly non-letter strokes. Ordinary documents whose words do not matter are drawn with plain gray bars and need no label. A supporting speaker must be physical, avatar or offscreen in the assigned panel, never absent. These checks establish consistency; source fidelity and the reason for an omission remain design-review responsibilities.
 
 ## Preflight and prompt construction
+
+Author the drawing fields and resolve semantic conflicts before `render-proposal`; see `prompt-design.md`. Missing visual records fail before confirmation. Use absolute external-reference paths in v16 planning; bundled references may be skill-relative.
 
 `validate-assignment` and `init` enforce this structural contract before generation. For multi-input work, pass every planning draft to `validate-batch` with repeated `--draft` flags before displaying the plan, and every confirmed assignment with repeated `--assignment` flags before generating; one call takes one kind. The draft summary covers direction, panel count, tier, staging and key lines from the planned options; the assignment summary adds layouts, templates, shots, beats and cast. Both include distributions, a case-by-position matrix and repetition warnings. Warnings require source-grounded review, not arbitrary rotation. A structurally valid batch still requires creative review even when no warnings appear. Save the actual cross-case decisions in `batch-review.md` alongside the assignments before generating; see `batch-review.md` in this reference directory. Categories of cast representation can overlap within an image.
 

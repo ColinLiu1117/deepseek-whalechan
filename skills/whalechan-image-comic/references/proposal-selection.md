@@ -8,15 +8,19 @@ Show one eight-column Markdown table per source, with five rows. The headers, di
 
 | 序号 | 创意 | 方向 | 格数 | 档位 | 场景／分镜 | 关键台词 | 入选理由 |
 |---|---|---|---|---|---|---|---|
-| 1 | 具体创意 | 方向及笑点如何落地 | 1 | A | 画面事件、镜头、互动 | 准备上图的关键文字 | 对决中体现的具体优势 |
-| 2 | … | … | 2 | C | … | … | … |
-| 3 | … | … | 4 | B | … | … | … |
-| 4 | … | … | 2 | A（脸→C） | … | … | … |
-| 5 | … | … | 1 | C | … | … | … |
+| 1 | 具体创意 | 方向及笑点如何落地 | 1 | A-日漫冲击 | 画面事件、镜头、互动 | 准备上图的关键文字 | 对决中体现的具体优势 |
+| 2 | … | … | 2 | C-克制冷幽默 | … | … | … |
+| 3 | … | … | 4 | B-漫画爆发 | … | … | … |
+| 4 | … | … | 2 | A-日漫冲击（脸→C） | … | … | … |
+| 5 | … | … | 1 | C-克制冷幽默 | … | … | … |
 
-> 格数分布：1 格 ×2 · 2 格 ×2 · 4 格 ×1 ✓ ｜ 档位分布：A ×2 · B ×1 · C ×2 ✓
+> 格数分布：1 格 ×2 · 2 格 ×2 · 4 格 ×1 ✓ ｜ 档位分布：A-日漫冲击 ×2 · B-漫画爆发 ×1 · C-克制冷幽默 ×2 ✓
 
-Numbers identify rows, not mechanisms, layouts or tiers. Name the actual comedy direction; optionally mark a native-direction idea with “（原）” and explain the marker. Write a declared contrast as the tier followed by the lowered axes, such as “A（脸→C）”. The helper computes the distribution line and marks each coverage policy as satisfied or user-overridden. Do not impose native/character quotas. Keep cells concise, escape pipes and use `<br>` for line breaks.
+> 本次目标头身比：2.8 头身（半 Q 版，semi-chibi），适用于全部 5 张。
+
+Numbers identify rows, not mechanisms, layouts or tiers. Name the actual comedy direction; optionally mark a native-direction idea with “（原）” and explain the marker. Use the fixed labels `A-日漫冲击`, `B-漫画爆发`, `C-克制冷幽默` in both the tier column and distribution line (`A-Manga impact`, `B-Comic outburst`, `C-Restrained deadpan` in English). Write a declared contrast after the descriptive label, such as “A-日漫冲击（脸→C）”. The helper computes the distribution line and marks each coverage policy as satisfied or user-overridden. Do not impose native/character quotas. Keep cells concise, escape pipes and use `<br>` for line breaks.
+
+Show the target head-to-body ratio immediately below the distribution line and before image totals, never as another table column. Record `proportion` in every new `proposal.options` entry before rendering, including the default `{"mode": "preset", "preset": "semi-chibi"}`. Resolve targets from the preset catalog or the explicit custom ratio. When all five match, show one shared target; otherwise group table row numbers by target, for example “第 1、3、5 张为 2.8 头身（半 Q 版，semi-chibi）；第 2、4 张为 2.5 头身（Q 版，chibi）”. Custom ratios read “3.0 头身（自定义）”. These are planned targets, not measurements of generated images. Historical plans without this field retain their original confirmation contract and are marked as not having recorded a planning target.
 
 Below the table, show:
 

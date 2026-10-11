@@ -67,6 +67,14 @@ DIRECTION_LABELS = {
     "en": {"reversal": "Reversal", "exposure": "Exposure", "escalation": "Escalation",
            "recognition": "Recognition", "character": "Character gag"},
 }
+TIER_LABELS = {
+    "zh": {"A": "A-日漫冲击", "B": "B-漫画爆发", "C": "C-克制冷幽默"},
+    "en": {"A": "A-Manga impact", "B": "B-Comic outburst", "C": "C-Restrained deadpan"},
+}
+FORM_LABELS = {
+    "standard": "标准版", "compact": "紧凑版", "semi-chibi": "半 Q 版",
+    "chibi": "Q 版", "super-deformed": "超 Q 版",
+}
 PLAN_TEXT = {
     "zh": {
         "tiered_header": "| 序号 | 创意 | 方向 | 格数 | 档位 | 场景／分镜 | 关键台词 | 入选理由 |",
@@ -74,7 +82,8 @@ PLAN_TEXT = {
         "colon": "：", "list": "、", "override": "（用户指定）",
         "panels": "> 格数分布：", "panel_item": "{count} 格 ×{n}", "tiers": " ｜ 档位分布：",
         "panel_staging": "{count} 格：{staging}",
-        "legend": "档位：A 日漫冲击 · B 漫画式爆发 · C 克制冷幽默；括号内为刻意压低的维度。",
+        "legend": "档位：A-日漫冲击 · B-漫画爆发 · C-克制冷幽默；括号内为刻意压低的维度。",
+        "proportion": "> 本次目标头身比：", "proportion_legacy": "历史方案未记录。",
         "totals": "共 **5 个创意，各 1 张，共 5 张图片**。每张最多 3 次产图调用，共最多 15 次。",
         "route": "生图通道：Codex ImageGen → OpenAI → Nano Banana → Seedream。",
         "workers": "**sub-agent 分配**（并发上限 {limit}）：",
@@ -96,7 +105,8 @@ PLAN_TEXT = {
         "colon": ": ", "list": ", ", "override": "(user override)",
         "panels": "> Panels: ", "panel_item": "{count}-panel ×{n}", "tiers": " | Tiers: ",
         "panel_staging": "{count} panel(s): {staging}",
-        "legend": "Tiers: A manga impact · B comic outburst · C restrained deadpan; parentheses name deliberately lowered axes.",
+        "legend": "Tiers: A-Manga impact · B-Comic outburst · C-Restrained deadpan; parentheses name deliberately lowered axes.",
+        "proportion": "> Target head-to-body ratio: ", "proportion_legacy": "Not recorded in this historical plan.",
         "totals": "**5 ideas, 1 image each, 5 images in total.** At most 3 image-producing calls per image, 15 in total.",
         "route": "Providers: Codex ImageGen → OpenAI → Nano Banana → Seedream.",
         "workers": "**Sub-agent allocation** (concurrency limit {limit}):",
@@ -494,7 +504,22 @@ def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
         if (not isinstance(images, list) or any(not isinstance(i, dict) for i in images)
                 or Counter(i.get("idea_id") for i in images) != Counter(selected)):
             raise RunError("images must contain five selected ideas exactly once each")
-    return worker_summary(value, selected, ranking, policy, tier_policy)
+    proportions = []
+    if any("proportion" in option for option in options):
+        form_profiles = read_json(CATALOG_PATH)["character_forms"]
+        for option in options:
+            if not isinstance(option.get("proportion"), dict):
+                raise RunError("Every proposal option must record proportion when the plan includes proportions")
+            proportion, _anchor = normalize_proportion(option, form_profiles, "proposal")
+            proportions.append(proportion)
+            for image in value.get("images", []):
+                if image["idea_id"] == option["idea_id"]:
+                    actual, _anchor = normalize_proportion(image, form_profiles, "image")
+                    if actual != proportion:
+                        raise RunError("Each image must preserve its confirmed proportion")
+    summary = worker_summary(value, selected, ranking, policy, tier_policy)
+    summary["proportions"] = proportions
+    return summary
 
 
 def exaggeration_policy(value: dict[str, Any], options: list[dict[str, Any]]) -> dict[str, Any]:
@@ -578,7 +603,32 @@ def distribution_line(options: list[dict[str, Any]], panel_policy: dict[str, Any
 
     return (words["panels"] + " · ".join(words["panel_item"].format(count=count, n=panels[count]) for count in (1, 2, 4))
             + mark(panel_policy) + words["tiers"]
-            + " · ".join(f"{tier} ×{tiers[tier]}" for tier in reversed(TIER_ORDER)) + mark(tier_policy))
+            + " · ".join(f"{TIER_LABELS[language][tier]} ×{tiers[tier]}" for tier in reversed(TIER_ORDER)) + mark(tier_policy))
+
+
+def proportion_line(proportions: list[dict[str, Any]], language: str) -> str:
+    words = PLAN_TEXT[language]
+    if not proportions:
+        return words["proportion"] + words["proportion_legacy"]
+    groups: dict[str, list[str]] = {}
+    for index, proportion in enumerate(proportions, 1):
+        ratio = str(proportion["target_head_ratio"])
+        preset = proportion["preset"]
+        if language == "zh":
+            name = f"{FORM_LABELS[preset]}，{preset}" if preset else "自定义"
+            label = f"{ratio} 头身（{name}）"
+        else:
+            label = f"{ratio} heads ({preset or 'custom'})"
+        groups.setdefault(label, []).append(str(index))
+    if len(groups) == 1:
+        label = next(iter(groups))
+        return words["proportion"] + (f"{label}，适用于全部 {len(proportions)} 张。" if language == "zh"
+                                      else f"{label}, for all {len(proportions)} images.")
+    if language == "zh":
+        return words["proportion"] + "；".join(f"第 {'、'.join(indices)} 张为 {label}"
+                                               for label, indices in groups.items()) + "。"
+    return words["proportion"] + "; ".join(f"Images {', '.join(indices)}: {label}"
+                                           for label, indices in groups.items()) + "."
 
 
 def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, language: str = "zh") -> str:
@@ -597,7 +647,7 @@ def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, 
                      "\n".join(item["key_lines"]), item["selection_reason"]]
             lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
         lines.extend(["", distribution_line(options, value.get("panel_policy", {"mode": "narrative"}), tier_policy, language),
-                      "", words["legend"]])
+                      "", proportion_line(summary["proportions"], language), "", words["legend"]])
     else:
         lines = [words["legacy_header"], "|---|---|---|---|---|---|---|"]
         for index, item in enumerate(options, 1):
@@ -1000,16 +1050,17 @@ def contrast_axes(value: Any, tiers: dict[str, Any], label: str) -> list[str]:
 
 
 def tier_label(item: dict[str, Any], tiers: dict[str, Any], language: str = "zh") -> str:
-    """Render a tier and any lowered axes, such as A（脸→C） or A (facial expression→C)."""
+    """Render a fixed descriptive tier label and any deliberately lowered axes."""
+    label = TIER_LABELS[language][item["exaggeration"]]
     contrast = item.get("contrast")
     if not contrast:
-        return item["exaggeration"]
+        return label
     key = "label_zh" if language == "zh" else "label"
     labels = {axis["id"]: axis[key] for axis in tiers["axes"]}
     axes = PLAN_TEXT[language]["list"].join(labels[axis] for axis in contrast["axes"])
     if language == "zh":
-        return f"{item['exaggeration']}（{axes}→{contrast['lowered_to']}）"
-    return f"{item['exaggeration']} ({axes}→{contrast['lowered_to']})"
+        return f"{label}（{axes}→{contrast['lowered_to']}）"
+    return f"{label} ({axes}→{contrast['lowered_to']})"
 
 
 def required_markers(image: dict[str, Any], tiers: dict[str, Any]) -> list[dict[str, Any]]:

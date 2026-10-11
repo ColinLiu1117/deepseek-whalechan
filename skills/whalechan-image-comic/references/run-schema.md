@@ -127,6 +127,7 @@ Author the selected five options in ranking order. These are information rows, n
       "panel_count": 1,
       "exaggeration": "A",
       "contrast": null,
+      "proportion": {"mode": "preset", "preset": "semi-chibi"},
       "staging": "单格全景：用户许可的气泡旁，鲸鱼娘已经推走整台冰箱。",
       "key_lines": ["可以吃冰箱里的东西", "收到，冰箱归我了", "咚——！"],
       "selection_reason": "实物移动使权限偷换比同池中口头争辩的创意更直观。"
@@ -137,7 +138,9 @@ Author the selected five options in ranking order. These are information rows, n
 
 Each `premise`, `scene` and `direction` matches its pool idea; `twist` equals that idea's `punchline`, preserving the candidate that won. `is_native` is boolean and equals whether the idea direction matches the non-null source direction. No native or character count is forced. `exaggeration` is `A`, `B` or `C`; `contrast` is `null` or `{axes, lowered_to}` and must match the image's contrast. `twist` describes any comic landing, not necessarily a reversal. Explicit wording revisions may update final `key_lines` within the same idea; do not disguise a replacement premise as a wording edit.
 
-`render-proposal --draft <file>` and `summarize-selection --draft <file>` are read-only views of this same complete planning record and accept only v14 drafts. Both return an eight-column table (序号、创意、方向、格数、档位、场景／分镜、关键台词、入选理由) followed by the panel and tier distribution line, five images total, worker allocations, one execution-confirmation question and `summary_sha256`. Drafts do not need full `images` or a confirmation yet.
+New plans record `proportion` on every option using the same preset/custom object as an image: `{"mode": "preset", "preset": "semi-chibi"}` by default, or e.g. `{"mode": "custom", "target_head_ratio": 3.0}`. Preset targets and intervals come from the catalog; custom intervals default to target ± 0.15 with the lower bound above 1.0. All five options must record it if any does. The proposal already participates in the confirmation hash, so changing a planned proportion invalidates that confirmation. Completed images must normalize to the same proportion as their corresponding options. Historical records with no option-level proportions keep their original hash and recovery contract; do not retrofit their approval history.
+
+`render-proposal --draft <file>` and `summarize-selection --draft <file>` are read-only views of this same complete planning record and accept only v14 drafts. Both return an eight-column table (序号、创意、方向、格数、档位、场景／分镜、关键台词、入选理由), with fixed descriptive tier labels, followed by the panel and tier distribution line, target head-to-body ratios, five images total, worker allocations, one execution-confirmation question and `summary_sha256`. Ratios appear below the table, shared when identical or grouped by table row number when different. Drafts do not need full `images` or a confirmation yet.
 
 Show the table, five images per source, combined batch total, worker allocation and per-image budget before asking whether to execute. Planning-only requests stop here without formal initialization or image calls. The sole confirmation record is:
 
@@ -153,7 +156,7 @@ Show the table, five images per source, combined batch total, worker allocation 
 
 Hash canonical JSON using SHA-256 (`ensure_ascii=False`, sorted keys, separators `,` and `:`). The plan hash binds `input`, `proposal`, `creative_pool`, `duels`, `ranked_ideas`, `selection_reason`, `worker_plan`, `tie_breaks`, `panel_policy`, `exaggeration_policy` and normalized `execution`. An edit to any bound content invalidates the old confirmation. Redisplay the revised plan and obtain a real reply; never refresh a stored confirmation hash yourself. Scripts check consistency, not whether a quoted reply actually happened or meant approval.
 
-Full visual `images` are constructed after confirmation and excluded from that planning hash. Their idea links, premises, panel counts, exaggeration tiers, contrasts and exact visible text must match the approved plan; internal composition details cannot change its comic turn. Initialization, frozen loading and prompt construction enforce the same contract. Five tasks allow at most 15 image calls, three per task. Delivery groups results and missing tasks by their five ideas. See `proposal-selection.md` for interaction details.
+Full visual `images` are constructed after confirmation and excluded from that planning hash. Their idea links, premises, panel counts, exaggeration tiers, contrasts, planned proportions and exact visible text must match the approved plan; internal composition details cannot change its comic turn. Initialization, frozen loading and prompt construction enforce the same contract. Five tasks allow at most 15 image calls, three per task. Delivery groups results and missing tasks by their five ideas. See `proposal-selection.md` for interaction details.
 
 ## Image fragment
 

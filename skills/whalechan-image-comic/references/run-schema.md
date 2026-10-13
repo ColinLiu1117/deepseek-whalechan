@@ -45,7 +45,7 @@ Contents: [Root](#root-contract) · [Selection](#independent-priority-selection)
   "confirmation": {},
   "images": [],
   "panel_policy": {"mode": "narrative"},
-  "exaggeration_policy": {"mode": "narrative"},
+  "exaggeration_policy": {"mode": "target-ratio", "ratio": {"A": 3, "B": 1, "C": 1}},
   "worker_plan": {"coordinator": "main", "allocation": "dynamic"},
   "text_style_policy": {"mode": "semantic"},
   "execution": {
@@ -68,7 +68,7 @@ The example is a root fragment; populate candidates, independent selection recor
 
 Each of N images links to a different selected `idea_id`, retains its `premise` verbatim and uses `execution: 1`. `source_rank` follows the selected order; conflicting values are rejected. Match the displayed option's `panel_count` and exact ordered `key_lines` in `core_text`. Require an individual `execution_note` describing the idea's distinct visible payoff. Shared source wording is allowed; changing lettering, pose or panel count alone does not establish a different joke.
 
-Default `panel_policy` is `{"mode":"narrative"}` and requires all three supported counts, 1, 2 and 4, across N images when N>=3. Only a real user instruction permits `{"mode":"user-override","user_instruction":"All five comics must be single-panel closeups."}`. The override relaxes panel variety, not N distinct ideas or N images. Default `exaggeration_policy` is `{"mode":"narrative"}` and requires tiers A, B and C across N options when N>=3; only a real user instruction permits `{"mode":"user-override","user_instruction":"五张都用 C 档，安静一点。"}`. Typography has no quota.
+Default `panel_policy` is `{"mode":"narrative"}` and requires all three supported counts, 1, 2 and 4, across N images when N>=3. Only a real user instruction permits `{"mode":"user-override","user_instruction":"All five comics must be single-panel closeups."}`. The override relaxes panel variety, not N distinct ideas or N images. New sources use exaggeration_policy={"mode":"target-ratio","ratio":{"A":3,"B":1,"C":1}}: N=5 requires 3:1:1 exactly; other N are allocated by content close to 60%/20%/20%, with all three present when N>=3. A real user instruction permits {"mode":"user-override","user_instruction":"..."}. Frozen narrative or omitted policies keep their original coverage and hash; only new batch-prepare injects the target policy. The source inventory and detail/proposal must agree on it, and the existing confirmation projection binds it. Typography has no quota.
 
 ## Independent priority selection
 
@@ -93,7 +93,7 @@ selection-submit accepts the semantic fields below; scripts fill identities and 
 
 This illustrates shape only. ranking must contain all 2N candidates exactly once, ordered by comprehensive priority, with no extra score fields. Optional attention_points records risks for detail work. The reviewer must be a different real sub-agent from every author, never main. Selection commands bind the real task owner; merely authoring a different string is not proof of delegation.
 
-The script derives ranked_ideas from ranking[:N]. N proposal.options and N images follow that exact order. Pool, ranking, source and candidate key_lines stay frozen while the author expands selected drawings. No extra candidate pool, early elimination to fewer than N, low-score regeneration or default re-ranking. v19 rejects duels, tie_breaks and tournament_results. N=1/2 automatically relaxes panel/tier coverage; N>=3 retains the independent coverage rules.
+The script derives ranked_ideas from ranking[:N]. N proposal.options and N images follow that exact order. Pool, ranking, source and candidate key_lines stay frozen while the author expands selected drawings. No extra candidate pool, early elimination to fewer than N, low-score regeneration or default re-ranking. v19 rejects duels, tie_breaks and tournament_results. N=1/2 relaxes coverage while aiming close to the tier target; N>=3 retains independent panel/tier coverage. The new ratio policy additionally fixes 3:1:1 when N=5.
 
 The confirmation projection additionally includes target_images, source_id, author_agent_ids, concept_task_id, pool_sha256 and the complete selection_review instead of duels/tie_breaks. It retains the existing visual_plan, tool, role policy and QA11 bindings. Subsequent generation task owners remain dynamic.
 

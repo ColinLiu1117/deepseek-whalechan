@@ -4,6 +4,8 @@ For v17/v18/v19 a planning sub-agent authors the selected N-image visual plan af
 
 Write the visual plan during the existing planning pass, before the single confirmation. The builder assembles these fields directly; do not add another LLM rewrite, review agent or confirmation. Keep analysis, selection reasons, approval and QA records internal. Every sentence sent to the image model should guide a visible result.
 
+Allocate each source's tier mix during detail planning: exactly 3A/1B/1C for new five-image sets; other N approach 60%/20%/20% by content. Translate each image's assigned tier into visible performance. Keep the batch ratio in internal plans and confirmation summaries; the API prompt contains the individual drawing descriptions.
+
 Write drawing prose in English and visible dialogue in its resolved language. The rendered plan quotes the drawing fields: translate its scene cells faithfully into the communication language when presenting them, preserving all locked details and exact dialogue. This is presentation within planning, not another rewrite of the image prompt.
 
 ## Author the drawing

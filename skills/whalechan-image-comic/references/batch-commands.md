@@ -46,6 +46,8 @@ This creates source inventory, planning tasks and common execution policy. It pr
 
 batch-prepare defaults to schema_version=19; each source defaults target_images to 5. N must be a positive integer, independently per source. Frozen v18 recovery may explicitly retain schema_version=18. Use the common returned execution in every draft and a unique run_name per source.
 
+New v19 inventory explicitly records exaggeration_policy={"mode":"target-ratio","ratio":{"A":3,"B":1,"C":1}}. Source specs may instead supply a user-override with the actual user_instruction. All three planning task packets include this policy in inputs.source; authors/selectors read it before their content work. The detail draft must copy it unchanged. N=5 requires exact 3:1:1; other N use agent allocation close to 60%/20%/20%, with three-tier coverage for N>=3. Old batches without this inventory field retain their original policy.
+
 Claim the concepts-<source> task as its real author. Read task-packet; write input plus exactly 2N concise creative_pool records, without proposal/images/winners. Submit:
 
 ~~~bash
@@ -77,6 +79,8 @@ python3 scripts/manage-run.py planning-task detail-submit --batch <batch.json> \
 ~~~
 
 Use the returned output path for batch-proposal; arbitrary drafts cannot mark unfinished stages complete. Generic agent-batch finish cannot complete staged planning tasks. Replay identical saved content after a receipt interruption; no re-ranking. Structural errors may be corrected before successful freezing, never by regenerating the pool. See run-schema.md and agent-orchestration.md for identity and recovery.
+
+batch-proposal checks that the completed draft still matches the inventory tier policy. Its tables show actual tier counts, percentages and deviation from the target; inspect other-N allocation in the existing cross-source review. The confirmation hash binds policy and assigned tiers.
 
 After all detail tasks complete, dispatch the existing cross-source comparison as a planning task with inputs.kind=cross-review and dependencies on all detail task IDs. Use generic agent-batch enqueue/claim/finish for this existing content-review task (not inputs.stage). Its worker records the task receipt and submits this observation to batch-proposal:
 
@@ -215,3 +219,5 @@ Optional sleep input: {"intervals":[["ISO start with timezone","ISO end with tim
 Separate role/task duration, request preparation, generation-to-ingest, archive, automatic checks, review setup and visual review/recording. Stage unions overlap; worker time is not user waiting. Generation-to-ingest includes tool/transport/agent latency, not GPU time. Pair session tool timestamps with events for precise provider waiting.
 
 For v19 timing-summary additionally reports concepts, selection, detail and their queue residence. Role totals and stage slices overlap; do not add them together. Record cross-source review as its existing planning task to retain that duration. Exclude provided sleep intervals; use real session timestamps for user waiting.
+
+For target-ratio runs, batch-deliver includes tier_distributions in its result and delivery.json, and planned/delivered/missing A:B:C counts in delivery-index.md. Count each final once; retries are not additional allocated images. Report shortfalls under the existing budget and collection rules.

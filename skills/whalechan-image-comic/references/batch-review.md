@@ -10,6 +10,8 @@ Start with each source's actual turn, comic target, tone, language differences a
 
 `validate-batch` provides structural signals, not semantic verdicts; a near-copy that differs in one cell still needs your eye. Same-position layouts/templates, identical panel sequences and repeated staging deserve inspection. A repeated visual identity is expected. Neither repeated structure nor every image passing structural checks is automatically wrong; the question is whether each decision follows its source. Different template counts are not proof of different jokes.
 
+Review each source's tier policy in this same pass. New five-image sets use 3A/1B/1C; other N aim close to 60%/20%/20% with content-based integer allocation. Inspect the displayed deviations and whether the selected actions/expressions actually support the assigned tiers. A repeated aggregate 3:1:1 count is expected under this policy; ordinal or panel-tier pairings still need source-specific reasoning. Preserve frozen historical policies.
+
 Inspect repeated key lines, complete dialogue sequences and final punchlines as well as layout warnings. Cite the affected images. Shared source wording can be necessary, but identical replies and consequences require a concrete explanation or an in-idea revision. A generic claim that the ideas share a source is insufficient. Text similarity is a review signal, not an automatic elimination threshold or permission to generate another pool.
 
 Use two counterfactual checks:

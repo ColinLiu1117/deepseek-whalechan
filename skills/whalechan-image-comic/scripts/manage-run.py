@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import math
@@ -127,6 +128,7 @@ PLAN_TEXT = {
 RHYTHM_TYPES = {"triple", "pause", "callback", "deadpan"}
 # Lowest to highest; the order compares a panel tier with the landing tier.
 TIER_ORDER = ("C", "B", "A")
+DEFAULT_TIER_POLICY = {"mode": "target-ratio", "ratio": {"A": 3, "B": 1, "C": 1}}
 PERFORMANCE_LEVELS = ("grounded", "heightened", "punchline_peak", "manga_burst")
 DELIVERIES = {"speech", "thought", "caption", "label", "sfx"}
 SAME_DIRECTION_LIMIT = 4
@@ -551,8 +553,23 @@ def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
+def normalize_tier_policy(policy):
+    if not isinstance(policy, dict) or policy.get("mode") not in {"narrative", "target-ratio", "user-override"}:
+        raise RunError("exaggeration_policy.mode must be narrative, target-ratio or user-override")
+    if policy["mode"] == "user-override":
+        text(policy.get("user_instruction"), "exaggeration_policy.user_instruction")
+    elif policy["mode"] == "target-ratio":
+        ratio = policy.get("ratio")
+        if (policy != DEFAULT_TIER_POLICY or not isinstance(ratio, dict)
+                or any(type(n) is not int for n in ratio.values())):
+            raise RunError("target-ratio requires ratio A=3, B=1, C=1")
+    elif set(policy) != {"mode"}:
+        raise RunError("narrative exaggeration_policy only accepts mode")
+    return copy.deepcopy(policy)
+
+
 def exaggeration_policy(value: dict[str, Any], options: list[dict[str, Any]]) -> dict[str, Any]:
-    """Each confirmed option carries its tier; by default the five cover A, B and C."""
+    """Validate the recorded policy; absent policies retain historical coverage."""
     tiers = exaggeration_tiers()
     for option in options:
         tier = option.get("exaggeration")
@@ -565,14 +582,16 @@ def exaggeration_policy(value: dict[str, Any], options: list[dict[str, Any]]) ->
             contrast_axes(contrast["axes"], tiers, "proposal.contrast.axes")
             if contrast["lowered_to"] not in TIER_ORDER or tier_rank(contrast["lowered_to"]) >= tier_rank(tier):
                 raise RunError("proposal.contrast.lowered_to must be below the option's tier")
-    policy = value.get("exaggeration_policy", {"mode": "narrative"})
-    if not isinstance(policy, dict) or policy.get("mode") not in {"narrative", "user-override"}:
-        raise RunError("exaggeration_policy.mode must be narrative or user-override")
+    policy = normalize_tier_policy(value.get("exaggeration_policy", {"mode": "narrative"}))
+    if policy["mode"] == "target-ratio" and value.get("schema_version") != 19:
+        raise RunError("target-ratio requires schema v19")
     if policy["mode"] == "user-override":
-        text(policy.get("user_instruction"), "exaggeration_policy.user_instruction")
-    elif set(policy) != {"mode"}:
-        raise RunError("narrative exaggeration_policy only accepts mode")
-    elif target_images(value) >= 3 and {option["exaggeration"] for option in options} != set(TIER_ORDER):
+        return policy
+    counts = Counter(option["exaggeration"] for option in options)
+    if policy["mode"] == "target-ratio" and target_images(value) == 5 and counts != policy["ratio"]:
+        difference = {tier: policy["ratio"][tier] - counts[tier] for tier in "ABC"}
+        raise RunError(f"Five-image target requires A=3, B=1, C=1; actual={dict(counts)}; target-minus-actual={difference}")
+    if target_images(value) >= 3 and set(counts) != set(TIER_ORDER):
         raise RunError("The selected comics must cover exaggeration tiers A, B and C")
     return policy
 
@@ -650,9 +669,17 @@ def distribution_line(options: list[dict[str, Any]], panel_policy: dict[str, Any
     def mark(policy: dict[str, Any]) -> str:
         return " " + (words["override"] if policy.get("mode") == "user-override" else "✓")
 
-    return (words["panels"] + " · ".join(words["panel_item"].format(count=count, n=panels[count]) for count in (1, 2, 4))
+    line = (words["panels"] + " · ".join(words["panel_item"].format(count=count, n=panels[count]) for count in (1, 2, 4))
             + mark(panel_policy) + words["tiers"]
             + " · ".join(f"{TIER_LABELS[language][tier]} ×{tiers[tier]}" for tier in reversed(TIER_ORDER)) + mark(tier_policy))
+    if tier_policy.get("mode") == "target-ratio":
+        actual = " / ".join(f"{100 * tiers[t] / len(options):.1f}%" for t in "ABC")
+        deviation = " / ".join(f"{100 * tiers[t] / len(options) - 20 * tier_policy['ratio'][t]:+.1f}" for t in "ABC")
+        line += (f"\n\n档位目标 A:B:C＝3:1:1（60% / 20% / 20%）；实际占比 {actual}；偏差 {deviation} 个百分点。" if language == "zh" else
+                 f"\n\nTier target A:B:C=3:1:1 (60% / 20% / 20%); actual {actual}; deviation {deviation} percentage points.")
+        line += (" 五张配比已满足。" if language == "zh" else " Five-image ratio satisfied.") if len(options) == 5 else (
+            " 按内容自主分配，接近目标的合理性由策划审查。" if language == "zh" else " Author allocates by content and reviews closeness to the target.")
+    return line
 
 
 def proportion_line(proportions: list[dict[str, Any]], language: str) -> str:

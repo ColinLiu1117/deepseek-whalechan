@@ -24,6 +24,7 @@ def draft(n=5, source="source-a"):
                  author_agent_ids=["author"], concept_task_id="concepts-" + source)
     value["execution"].update(planning_mode=selection.METHOD)
     value["execution"]["role_limits"]["selection"] = 2
+    value["exaggeration_policy"] = {"mode": "target-ratio", "ratio": {"A": 3, "B": 1, "C": 1}}
     value["creative_pool"] = []
     value["images"], value["proposal"]["options"] = [], []
     for i in range(2 * n):
@@ -32,11 +33,13 @@ def draft(n=5, source="source-a"):
                          punchline=f"punchline {i+1}", key_lines=[f"任务 {i+1}", f"独有结果 {i+1}"])
         value["creative_pool"].append(candidate)
         if i < n:
-            option = copy.deepcopy(base["proposal"]["options"][i % 5])
+            template = 0 if n == 5 and i >= 3 else i % 5
+            option = copy.deepcopy(base["proposal"]["options"][template])
             option.update(idea_id=candidate["id"], premise=candidate["premise"], scene=candidate["scene"],
-                          twist=candidate["punchline"], key_lines=candidate["key_lines"])
+                          twist=candidate["punchline"], key_lines=candidate["key_lines"],
+                          direction=candidate["direction"], is_native=candidate["direction"] == "reversal")
             value["proposal"]["options"].append(option)
-            image = copy.deepcopy(base["images"][i % 5])
+            image = copy.deepcopy(base["images"][template])
             image.update(name=f"comic_{i+1}", idea_id=candidate["id"], source_rank=i+1,
                          premise=candidate["premise"], core_text=candidate["key_lines"])
             value["images"].append(image)

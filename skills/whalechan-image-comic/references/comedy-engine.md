@@ -61,7 +61,7 @@ Write one short reason per candidate and one paragraph explaining the selected s
 
 Return the detail task to the original author. Make one image plan per selected idea, preserving its premise, key lines, scene and payoff. Compare replies and visual consequences within the selected set. Pose, font and background swaps alone do not establish different jokes. Only selected ideas need full panel/action/expression/typography fields.
 
-For N>=3, cover panel counts 1/2/4 and tiers A/B/C independently unless the user explicitly overrides a policy. For N=1/2 choose by content without a fake override. Never add empty beats or map rank to panels or tiers. Review complete visual plans across sources before the one confirmation in proposal-selection.md.
+Receive the source tier policy before creating/selecting ideas. New N=5 sets require 3 A, 1 B and 1 C; for other N the author allocates tiers by content close to 60%/20%/20%. For N>=3 retain independent panel counts 1/2/4 and tier coverage, unless explicitly overridden. N=1/2 relaxes coverage while aiming close to the ratio. Never add empty beats or map rank to panels or tiers. Review complete visual plans and their allocation across sources before the one confirmation in proposal-selection.md.
 
 Frozen v13–v18 retain their original ten-candidate, 45-pair tournament and historical ranking/recovery. See the historical tournament section in run-schema.md; do not apply it to new runs.
 

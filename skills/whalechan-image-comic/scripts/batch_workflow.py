@@ -63,6 +63,10 @@ class BatchWorkflow:
                 item = {"id": ident, "files": files, "text": source.get("text")}
                 if version == 19:
                     item["target_images"] = self.m.extension_module("selection_contract").count(source.get("target_images", 5))
+                    item["exaggeration_policy"] = self.m.normalize_tier_policy(
+                        source.get("exaggeration_policy", self.m.DEFAULT_TIER_POLICY))
+                    self.require(item["exaggeration_policy"]["mode"] != "narrative",
+                                 "New sources use target-ratio or an explicit user-override")
                 inventory.append(item)
             self.require(len({s["id"] for s in inventory}) == len(inventory), "Duplicate source id")
             preflight = self.policy.preflight(self.m, spec.get("availability", {}), spec.get("requests", []))
@@ -133,6 +137,9 @@ class BatchWorkflow:
             if batch.get("schema_version") == 19:
                 self.require(draft["schema_version"] == 19 and draft["source_id"] == source and
                              draft["target_images"] == origin["target_images"], "Draft source/count differs")
+                if "exaggeration_policy" in origin:
+                    self.require(draft.get("exaggeration_policy") == origin["exaggeration_policy"],
+                                 "Draft must preserve the source tier policy")
             if origin["files"]:
                 planned = draft["input"]["content"]
                 planned = planned if isinstance(planned, list) else [planned]
@@ -506,7 +513,7 @@ class BatchWorkflow:
             self.owned(path, args.task_id, args.owner, "delivery")
             runs = list(batch["runs"].values())
             self.require(bool(runs), "No runs to deliver")
-            outcomes, final_paths = [], []
+            outcomes, final_paths, tier_distributions = [], [], []
             for filename in runs:
                 run, assignment, manifest = self.m.load_run(filename)
                 if manifest["status"] == "in_progress":
@@ -528,6 +535,13 @@ class BatchWorkflow:
                                      "Final file/hash mismatch")
                         final_paths.append(str(final))
                     outcomes.append(record)
+                if assignment.get("exaggeration_policy", {}).get("mode") == "target-ratio":
+                    planned = {t: sum(i["exaggeration"] == t for i in assignment["images"]) for t in "ABC"}
+                    delivered = {t: sum(i["exaggeration"] == t and manifest["images"][i["id"]]["status"] == "passed"
+                                        for i in assignment["images"]) for t in "ABC"}
+                    tier_distributions.append({"run": assignment["run_name"], "target_ratio": {"A": 3, "B": 1, "C": 1},
+                        "planned": planned, "delivered": delivered,
+                        "missing": {t: planned[t] - delivered[t] for t in "ABC"}})
             output = Path(args.output or path.parent / "gallery").resolve()
             binding_path = path.parent / "delivery-inputs.json"
             binding = {"output": str(output), "outcomes": outcomes,
@@ -580,6 +594,14 @@ class BatchWorkflow:
             index.write_text(f"# Comics: {len(final_paths)}/{len(outcomes)}\n\n" + "\n".join(
                 f"- [{r['image']}]({r['final']})" if r["final"] else
                 f"- {r['run']} / {r['image']}: {r['status']}" for r in outcomes))
+            if tier_distributions:
+                delivery["tier_distributions"] = tier_distributions
+                with index.open("a") as handle:
+                    handle.write("\n\n" + ("## 档位配比（A:B:C）" if batch.get("language", "zh") == "zh" else "## Tier distribution (A:B:C)") + "\n\n")
+                    for row in tier_distributions:
+                        counts = {k: ":".join(str(row[k][t]) for t in "ABC") for k in ("planned", "delivered", "missing")}
+                        handle.write((f"- {row['run']}：目标 3:1:1；计划 {counts['planned']}；交付 {counts['delivered']}；缺项 {counts['missing']}。\n" if batch.get("language", "zh") == "zh" else
+                            f"- {row['run']}: target 3:1:1; planned {counts['planned']}; delivered {counts['delivered']}; missing {counts['missing']}.\n"))
             delivery["index"] = str(index)
             self.m.write_json(receipt_file, delivery)
             result = self.receipt(path, args.task_id, args.owner,
@@ -590,7 +612,8 @@ class BatchWorkflow:
                 if not any(e["event"] == "delivered" for e in batch["events"]):
                     self.event(batch, "delivered")
                 self.m.write_json(path, batch)
-            return {**result, "passed": len(final_paths), "expected": len(outcomes)}
+            return {**result, "passed": len(final_paths), "expected": len(outcomes),
+                    **({"tier_distributions": tier_distributions} if tier_distributions else {})}
 
     def timing(self, args):
         batch = self.state(args.batch)

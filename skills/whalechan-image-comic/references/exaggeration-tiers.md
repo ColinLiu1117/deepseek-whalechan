@@ -25,9 +25,22 @@ Pick the tier that performs this idea best, not by rank, image number or panel c
 
 For a bittersweet or tender source, prefer mock epic or a `contrast` for its `A` image, and record why that idea can carry the impact without trampling the tone.
 
-## Cover all three tiers
+## Allocate the target ratio
 
-By default (`exaggeration_policy: {"mode": "narrative"}`) each run with N>=3 includes at least one `A`, one `B` and one `C`; the other N-3 are free. N=1/2 chooses tiers by content without a fabricated override. Frozen five-image plans keep their original policy. Only a real user instruction such as "全部 C 档" permits `{"mode": "user-override", "user_instruction": "..."}`. Coverage binds the plan; when an image fails its budget, finalize reports the missing tier instead of reassigning another image.
+For new sources record exaggeration_policy={"mode":"target-ratio","ratio":{"A":3,"B":1,"C":1}}. This targets A 60%, B 20%, C 20% independently for each source.
+
+- N=5: exactly 3 A, 1 B and 1 C.
+- Other N: the planning agent allocates integer counts by content, aiming close to that ratio. With N>=3 retain at least one of each tier; with N=1/2 coverage is relaxed.
+- Examples: N=3 -> 1:1:1; N=4 -> 2:1:1; N=6 -> 4:1:1; N=7 -> 4:2:1 or 4:1:2; N=10 -> 6:2:2. These guide judgment; the script does not select an allocation for other N.
+- A real user instruction may use user-override with the quoted user_instruction.
+
+Concept authors and independent selectors receive the target before creating/selecting ideas. The original author assigns actual tiers during detail work, selecting which ideas suit stronger performance. Realize those tiers through visible actions, expressions and effects. Rank, image order and panel count do not prescribe tiers.
+
+The five-image count is a hard structural check; other N show actual percentages and deviations for review during existing planning/cross-source review. No extra review stage is needed. Confirm the actual allocation with the full plan. Changed tiers or policy invalidate confirmation.
+
+Frozen narrative policies, including old v19 batches, retain their original coverage and hashes. They are not retrofitted. New batches explicitly bind the target policy from inventory through detail and proposal; a real user override is recorded before planning.
+
+Report actual delivered counts and missing tiers when images fail within their budgets. Collection repairs retain their existing limits; a shortfall never changes another image’s declared tier.
 
 ## Lower one axis on purpose
 

@@ -12,9 +12,11 @@ Show one eight-column Markdown table per source, with N rows (the following is a
 | 2 | … | … | 2 | C-克制冷幽默 | … | … | … |
 | 3 | … | … | 4 | B-漫画爆发 | … | … | … |
 | 4 | … | … | 2 | A-日漫冲击（脸→C） | … | … | … |
-| 5 | … | … | 1 | C-克制冷幽默 | … | … | … |
+| 5 | … | … | 1 | A-日漫冲击 | … | … | … |
 
-> 格数分布：1 格 ×2 · 2 格 ×2 · 4 格 ×1 ✓ ｜ 档位分布：A-日漫冲击 ×2 · B-漫画爆发 ×1 · C-克制冷幽默 ×2 ✓
+> 格数分布：1 格 ×2 · 2 格 ×2 · 4 格 ×1 ✓ ｜ 档位分布：A-日漫冲击 ×3 · B-漫画爆发 ×1 · C-克制冷幽默 ×1 ✓
+
+> 档位目标 A:B:C＝3:1:1（60% / 20% / 20%）；实际占比 60% / 20% / 20%；偏差 0 / 0 / 0 个百分点。五张配比已满足。
 
 > 本次目标头身比：2.8 头身（半 Q 版，semi-chibi），适用于全部 5 张。
 
@@ -64,6 +66,6 @@ For v18/v19 use batch-proposal to combine per-source tables, tool/capacity discl
 
 Candidate authors submit only input and creative_pool via concepts-submit. Candidates carry no scores, preselected winners or complete images. The selection worker reads the original source and frozen pool and submits exactly 2N ordered {idea_id, reason} rows and selection_reason, optionally attention_points. The script fills provenance and derives the first N IDs. Use one concise reason per row; no new candidate pool, low-score regeneration or second semantic ranking.
 
-The detail worker preserves the frozen pool, selected order and exact candidate key_lines while completing N proposal.options and images. N>=3 covers panels 1/2/4 and tiers A/B/C independently; N=1/2 is an automatic small-set exception. A real content/constraint conflict is reported, not hidden by replacing selected ideas. User-requested changes to N/core content start an explicit new planning revision.
+The detail worker preserves the frozen pool, selected order and exact candidate key_lines while completing N proposal.options and images. Copy the source exaggeration_policy from the task packet. New N=5 sets require exactly 3 A, 1 B and 1 C; for other N allocate by content close to 60%/20%/20% and review the displayed percentage deviations. N>=3 retains independent panel/tier coverage; N=1/2 relaxes coverage. Candidate authors and selectors consider this target before the author assigns tiers in detail work. A real content/constraint conflict is reported, not hidden by replacing selected ideas. User-requested changes to N/core content start an explicit new planning revision.
 
 See batch-commands.md for staged submissions and run-schema.md for record shapes.

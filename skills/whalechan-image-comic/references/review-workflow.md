@@ -1,8 +1,10 @@
-# Review workflow — assignments v15/v16/v17 / QA 11
+# Review workflow — assignments v15/v16/v17/v18 / QA 11
 
 Contents: [Ownership](#ownership) · [Criteria](#criteria) · [Candidate](#candidate) · [Collection](#collection) · [Failure](#failure) · [Timing](#timing)
 
 ## Ownership
+
+For v18 use image-task start/ingest/review-start/submit and collection-task prepare/submit from batch-commands.md. Keep all fourteen actual checks and required form evidence. Scripts fill mechanical metadata only; never default checked declarations or PASS. Service errors pause the locked tool; visual failures alone allow same-tool retries.
 
 For v17 use the role/task commands in `agent-orchestration.md`: the same generation worker performs the single-image lifecycle, collection workers make and review sheets, and delivery workers promote/finalize/export. The coordinator handles no content or visual work. The direct prepare-candidate/record-candidate examples below are the frozen v15/v16 path; v17 calls the same validators through image-task prepare/review.
 
@@ -15,7 +17,7 @@ Local edits produce new candidates and consume slots. Inspect their whole canvas
 
 ## Criteria
 
-For v16/v17, inspect against the authored panel actions, `visual_description`, exact dialogue and explicit user locks. Preset names and unused effect menus are planning aids, not additional pixel requirements. Nonessential details left open during planning remain open during QA.
+For v16/v17/v18, inspect against the authored panel actions, `visual_description`, exact dialogue and explicit user locks. Preset names and unused effect menus are planning aids, not additional pixel requirements. Nonessential details left open during planning remain open during QA.
 
 Keep J1 joke, K1 source anchor, I1 identity, C1 cast/performance, P1 panels, T1 lettering/ownership, A1 anatomy, V1 visual/expression, S1 style, O1 costume, B1 background, X1 action, E1 tier and H1 proportion. `checked` explicitly attests that the reviewer inspected each category; scripts cannot inspect pixels or prove this assertion.
 
@@ -115,4 +117,4 @@ When the collection is complete, run `promote` for each `collection_accepted` ta
 
 `manifest.events` records generation/review starts, receipt saving, automatic-check completion, single-review recording, sheet creation, collection-review recording, promotion and finalization. The receipt timestamp is when `prepare-candidate` receives the saved output, not backend GPU completion time. Pair it with provider/session timestamps when separating transport delay. Record starts through `mark-stage`; never backfill invented timestamps. Scripts enforce stored decisions, not the truthfulness or real-world count of LLM image inspections.
 
-Frozen assignments v11/v13/v14 keep their original QA 9/10 and recovery behavior. Frozen v15 retains its original prompt contract and this QA 11 workflow. New assignments use v17 and QA 11; never migrate approval histories or old PASS results merely to change policy.
+Frozen assignments v11/v13/v14 keep their original QA 9/10 and recovery behavior. Frozen v15 retains its original prompt contract and this QA 11 workflow. New assignments use v18 and QA 11; never migrate approval histories or old PASS results merely to change policy.

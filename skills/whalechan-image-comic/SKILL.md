@@ -1,6 +1,6 @@
 ---
 name: whalechan-image-comic
-description: Create five DeepSeek Whale-chan comics from text, screenshots, images, chat logs, or reasoning traces. Compare ten ideas in 45 pairwise duels, select five, then obtain one confirmation of the plan, total and worker allocation. Use for funny 1/2/4-panel Whale-chan adaptations with exact dialogue, consistent identity, configurable visuals, provider fallbacks, one candidate review and one collection review with at most one repair round. Generate one image per selected idea, covering 1/2/4-panel layouts and A/B/C exaggeration tiers (manga impact, comic outburst, restrained deadpan) across the set.
+description: Create five DeepSeek Whale-chan comics from text, screenshots, images, chat logs, or reasoning traces. Compare ten ideas in 45 pairwise duels, select five, then obtain one confirmation of the plan, total and worker allocation. Use for funny 1/2/4-panel Whale-chan adaptations with exact dialogue, consistent identity, configurable visuals, one preflight-selected tool per batch, one candidate review and one collection review with at most one repair round. Generate one image per selected idea, covering 1/2/4-panel layouts and A/B/C exaggeration tiers (manga impact, comic outburst, restrained deadpan) across the set.
 ---
 
 # Whale-chan Image Comic
@@ -11,9 +11,11 @@ Workflow: analyze → freeze ten ideas → 45 pairwise duels → select five →
 
 ## Load the guidance
 
-Main reads `references/agent-orchestration.md` and delegates the remaining guidance to the responsible role. Planning workers load creative/prompt guidance; generation workers load provider/QA guidance; collection and delivery workers load their lifecycle/gallery guidance.
+Main reads `references/agent-orchestration.md` and the role boundaries in `references/batch-commands.md` and delegates the remaining guidance to the responsible role. Planning workers load creative/prompt guidance; generation workers load provider/QA guidance; collection and delivery workers load their lifecycle/gallery guidance.
 
 Role references:
+
+- `references/batch-commands.md` for v18 fixed commands, task packets, tool preflight/locking, pause/resume and delivery; workers load their role section.
 
 - `references/prompt-design.md` for drawing-only visual plans authored before confirmation.
 - `references/proposal-selection.md` for the information-only eight-column table with its panel and tier distribution, the single user confirmation and its record.
@@ -69,30 +71,29 @@ Assign one planning sub-agent per original source, up to the planning cap. The f
 
 ## Complete the plan, confirm once, then freeze
 
-Have planning workers author and render the plan, including the existing cross-source comparison. Main assembles their results for consent without rewriting content. After consent, delegate freezing/initialization.
+Use batch-prepare for inventory, language evidence, tool preflight and planning tasks. Have planning workers author and render the plan, including the existing cross-source comparison. Main assembles their results for consent without rewriting content. Use batch-proposal to produce bound tables and requests; after consent, delegate batch-start. Use the fixed commands in batch-commands.md rather than authoring per-run bookkeeping scripts.
 
 Prepare these decisions before the user confirmation:
 
 1. Set `ranked_ideas` to the five winners and explain the ranking in `selection_reason`. Link one image to each `idea_id` and describe its unique payoff in `execution_note`. Cover 1/2/4 panels across the set unless explicitly overridden by the user. Choose worker assignments and effective concurrency from actual capacity. Record each option's `proportion` before confirmation, defaulting to `{"mode": "preset", "preset": "semi-chibi"}`; completed image proportions must match.
-2. Settle scenes, key lines, panel counts, staging and worker assignments before confirmation. Resolve fields from explicit user instructions, declared reference roles, source semantics, then defaults. For v17, finish all five visual image records before displaying the confirmation plan. Write actions as visible moments, add natural expression descriptions and text positions, and resolve semantic conflicts in this same planning pass; see `prompt-design.md`. Freeze the completed composition, exact text and speaker/cast plans, output, style, costume, background, typography, actions, expressions and proportions before initialization. Assign image numbers last. Intentional close-ups use `visible-only`; measurable full-body shots use `measured`.
+2. Settle scenes, key lines, panel counts, staging and worker assignments before confirmation. Resolve fields from explicit user instructions, declared reference roles, source semantics, then defaults. For v18, finish all five visual image records before displaying the confirmation plan. Write actions as visible moments, add natural expression descriptions and text positions, and resolve semantic conflicts in this same planning pass; see `prompt-design.md`. Freeze the completed composition, exact text and speaker/cast plans, output, style, costume, background, typography, actions, expressions and proportions before initialization. Assign image numbers last. Intentional close-ups use `visible-only`; measurable full-body shots use `measured`.
 3. Use a canonical identity reference first and the selected bundled text-style reference as the sole `typography` reference. Declare each reference's roles: `identity`, `style`, `pose_action`, `composition`, `costume`, `background`, `typography`, or `proportion`. Load the abstract-user pose sheet only when a supporting character appears. Use at most five effective references; never silently drop required typography.
-4. Review each execution against its selected idea and user constraints, then check typography, speaker ownership and cast staging against the source. Reject random template rotation, generic reasons and offscreen choices made just to simplify drawing. Refine expression without replacing the frozen candidate. Decide each image's exaggeration tier, landing panel, per-panel tiers, landing `effects_plan` and any `contrast`. Decide its optional `rhythm`; leave it `null` unless the punchline clearly needs it. Write the schema v17 draft and render the complete information table, image total, worker allocation and budget as specified in `proposal-selection.md`. After the single real confirmation, save its bound record in `assignment.json`, then validate and initialize; initialization writes `creative-record.md`:
+4. Review each execution against its selected idea and user constraints, then check typography, speaker ownership and cast staging against the source. Reject random template rotation, generic reasons and offscreen choices made just to simplify drawing. Refine expression without replacing the frozen candidate. Decide each image's exaggeration tier, landing panel, per-panel tiers, landing `effects_plan` and any `contrast`. Decide its optional `rhythm`; leave it `null` unless the punchline clearly needs it. Write the schema v18 draft and render the complete information table, image total, worker allocation and budget as specified in `proposal-selection.md`. After the single real confirmation, save the actual reply and batch summary hash in the confirmation record; delegate validation, initialization and queue creation to the fixed command, which writes each creative-record.md:
 
    ```bash
-   python3 scripts/manage-run.py validate-assignment --assignment <assignment.json>
-   python3 scripts/manage-run.py init --assignment <assignment.json> \
-     --effective-parallelism <current-capacity> --effective-subagents <actual-worker-count>
+   python3 scripts/manage-run.py batch-start --batch <batch.json> \
+     --confirmation <confirmation.json> --root <runs-root> --slots <available-subagent-slots>
    ```
 
-For multiple inputs, compare source-specific mechanisms, narrative beats and staging before displaying the consolidated plan: run `python3 scripts/manage-run.py validate-batch --draft <first-draft.json> --draft <second-draft.json>` with every planning draft, which flags repeated panel, tier and panel-by-tier recipes from the planned options. Once assignments are confirmed, run `validate-batch --assignment <first.json> --assignment <second.json>` with every assignment before the first generation call. Review its case-by-position matrix and warnings, not just aggregate counts. Compare mechanisms, narrative beats, shots, cast positions and text placement across cases and across positions; changing order must not hide a repeated skeleton. Ask whether another case's dialogue could replace this one's without changing the drawing. Save a `batch-review.md` beside the assignments naming the compared cases, warning dispositions, source-specific reasons for retained similarities, and revisions. Do not generate until this review is actually performed. Structural validity is not creative approval; no warnings is not approval either. For final images use only the per-source contact-sheet collection review in `review-workflow.md`; do not add a cross-source visual sweep. See `references/batch-review.md`.
+For multiple inputs, the planning worker compares source-specific mechanisms, narrative beats, shots, cast positions and text placement before displaying the consolidated plan. Run validate-batch on every draft and inspect its case-by-position matrix and warnings; no warnings is not creative approval. Ask whether another case's dialogue could replace this one's without changing the drawing. Submit the actual cross-source observation, warning dispositions and retained-similarity reasons to batch-proposal. That command checks the complete records and emits bound tables; batch-start revalidates confirmed assignments. Do not add a cross-source visual sweep of final images. See references/batch-review.md.
 
 In the confirmation table and distribution line, use fixed descriptive labels: `A-日漫冲击`, `B-漫画爆发`, `C-克制冷幽默` (English: `A-Manga impact`, `B-Comic outburst`, `C-Restrained deadpan`). Keep contrast suffixes, such as `A-日漫冲击（脸→C）`. Immediately below the distribution line, show the current target head-to-body ratio, shared across all five images or grouped by table row numbers when different. Label custom ratios explicitly. Keep this outside the eight-column table and distinguish planned targets from measurements of finished images.
 
-Use schema v17 in `references/run-schema.md` for new runs. Preserve frozen v11, v13, v14, v15 and v16 runs (v13 keeps QA 9; v14 keeps QA 10; v15 keeps its QA 11 and original prompt builder) under their original recovery contracts; never rewrite their approval history. The initialized run belongs under `artifacts/whalechan-image-comic/<run-name>/` unless the user gives another destination. External references are frozen into the run with hashes.
+Use schema v18 in `references/run-schema.md` for new runs. Preserve frozen v11, v13, v14, v15, v16 and v17 runs (v13 keeps QA 9; v14 keeps QA 10; v15 keeps its QA 11 and original prompt builder) under their original recovery contracts; never rewrite their approval history. The initialized run belongs under `artifacts/whalechan-image-comic/<run-name>/` unless the user gives another destination. External references are frozen into the run with hashes.
 
 ## Generate and review
 
-Use the v17 image-task commands in `references/agent-orchestration.md`. The generation worker owns one whole image: build the drawing-only request, begin the attempt, call the provider, preserve/prepare locally, inspect once and record QA. It may make permitted targeted retries within the original three-call budget without a coordinator content handoff. Technical failures never authorize regeneration. Frozen v15/v16 retain their original preparation/recording path.
+Use the v18 combination commands in `references/batch-commands.md`. The generation worker owns one whole image: build the drawing-only request, begin the attempt, call the provider, preserve/prepare locally, inspect once and record QA. It may make permitted targeted retries within the original three-call budget without a coordinator content handoff. Technical failures never authorize regeneration. Frozen v15/v16 retain their original preparation/recording path.
 Have the same generation worker inspect the whole candidate once. Record concise actual observations, exact text, core defects and tolerated minor issues. Do not have the main agent repeat a worker's visual inspection at handoff. Only core single-image defects authorize a retry within the three-call budget. A passed candidate waits for collection review.
 
 After the five tasks resolve, assign a collection worker to build one numbered contact sheet per source with `build-review-sheet.py`. Review distinctness, consistency and overall performance once. Only named failed images may enter one collection repair round, sharing their original three-call budgets. Inspect each new candidate once, then do at most one focused collection recheck on the updated sheet. Recheck failure means a shortfall, never another collection round. Promote only collection-accepted candidates.
@@ -101,16 +102,11 @@ Keep safety halts, source fidelity, exact semantic text and explicit user locks 
 
 For frozen v11/v13/v14 runs, retain their original candidate recording, promotion, component rescue and QA contracts; see `qa-rubric.md`. Never rewrite old approvals or records.
 
-## Route providers strictly
+## Lock one tool per batch
 
-Use this order and never move backward:
+For v18 preflight in priority order: Codex ImageGen, OpenAI Images API, Nano Banana, Seedream. Check actual tool presence, configuration and required capabilities without producing a test image. Lock the first compatible configured tool before the single confirmation. After consent start parallel generation immediately; do not wait for first-image verification. Preflight cannot guarantee live service or quota.
 
-1. Codex ImageGen / GPT Image (built-in tool inside Codex, `generate-codex.py` elsewhere)
-2. OpenAI Images API
-3. Nano Banana
-4. Seedream
-
-Use the adapters described in `references/provider-routing.md`. Move forward only after the current provider returned a visual-QA-failed candidate eligible for retry, lacks the required capability before producing an image, or recorded an availability/authentication/quota/service failure. Provider errors do not authorize skipping an untouched intermediate provider.
+Keep this provider and transport throughout the batch, including visual-QA retries. Any service error pauses new generation dispatch with no automatic retry or switch; reconcile outputs already in flight. Resume only after an actual user request and successful recheck of the same tool. Unknown output status keeps the call unresolved. Safety rejection remains a hard stop. See provider-routing.md and batch-commands.md. Frozen v11–v17 keep their original ordered-routing contracts.
 
 ## Coordinate parallel work safely
 
@@ -118,15 +114,16 @@ Use one batch queue with independent role limits, actual runtime capacity and dy
 
 ## Finalize honestly
 
-Have collection workers complete or skip the empty collection review; have the delivery worker promote accepted images, and finalize after all open tasks are resolved:
+Have collection workers complete or skip empty collection review. After all source lifecycles resolve, have the delivery worker call:
 
 ```bash
-python3 scripts/manage-run.py finalize --run-dir <run>
+python3 scripts/manage-run.py batch-deliver --batch <batch.json> \
+  --task-id delivery-all --owner <actual-worker-id> --output <gallery-directory>
 ```
 
-Finalize against the confirmed task total. If fewer tasks pass because budgets are exhausted, collection recheck failed or technical blockers remain, use `--allow-partial`, deliver only passed comics grouped by proposal, and report the missing tasks per proposal. Never fill the set with a failed image.
+This promotes accepted candidates, finalizes complete or resolved partial sources and exports/verifies the gallery. Report missing tasks against the confirmed total; never fill gaps with failures. Paused service work remains open. Frozen v11–v17 retain their original promote/finalize/export commands and partial-run rules.
 
-If every provider failed only for setup reasons (`unavailable`, `authentication` or `quota`) while tasks still have unused slots, leave the run open instead: a finalized run cannot accept more images. Report what to configure (install and log in to Codex CLI, or set a provider key) so the same run can resume within its confirmed scope. Use `--allow-partial` in that case only when the user asks to close the run.
+For frozen v11–v17, if every provider failed only for setup reasons (`unavailable`, `authentication` or `quota`) while tasks still have unused slots, leave the run open instead: a finalized run cannot accept more images. Report what to configure (install and log in to Codex CLI, or set a provider key) so the same run can resume within its confirmed scope. Use `--allow-partial` in that case only when the user asks to close the run.
 
 Keep every image-producing candidate, prompt, QA record, asset hash, duel, error log, and final path. Report final paths, provider/model, attempt count, any shortfall, and the actual typography/cast distribution. Separate pre-generation design review from post-generation visual QA; neither substitutes for the other.
 
@@ -134,7 +131,7 @@ Inspect the actual candidate and record candidate-bound observations before comp
 
 ## Preview gallery
 
-Have the delivery worker export the finalized run with `python3 scripts/export-gallery.py --run-dir <run> --language <zh|en>` and link the returned `gallery` HTML path. For multiple sources, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Default each source to Passed finals, with Attempts and All filters and visible picture counts. Keep all available attempt images, including failures and composites, in the chronological All view without proposal sections. Final cards link to that idea’s generation history; lightbox navigation follows the active filter. Preserve filter state across source, language and layout switches, and keep ambiguous or missing final provenance explicit. Mark the matching PASS as the final rather than duplicating its image; retain distinct generation records even when their bytes match. Keep proposal summaries, prompts and QA in collapsed details. Local composites show their component prompts and consume no extra generation call. Open runs awaiting setup recovery are exported only after completion. Export errors do not require regeneration. See `references/gallery.md`.
+For v18 use batch-deliver to promote, finalize, export and mechanically verify the whole batch; retain paused work open. For frozen runs have the delivery worker export with `python3 scripts/export-gallery.py --run-dir <run> --language <zh|en>` and link the returned `gallery` HTML path. For multiple sources, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Default each source to Passed finals, with Attempts and All filters and visible picture counts. Keep all available attempt images, including failures and composites, in the chronological All view without proposal sections. Final cards link to that idea’s generation history; lightbox navigation follows the active filter. Preserve filter state across source, language and layout switches, and keep ambiguous or missing final provenance explicit. Mark the matching PASS as the final rather than duplicating its image; retain distinct generation records even when their bytes match. Keep proposal summaries, prompts and QA in collapsed details. Local composites show their component prompts and consume no extra generation call. Open runs awaiting setup recovery are exported only after completion. Export errors do not require regeneration. See `references/gallery.md`.
 
 ## Hard stops
 

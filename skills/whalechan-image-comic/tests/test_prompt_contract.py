@@ -38,7 +38,7 @@ class PromptContractTests(unittest.TestCase):
         result = m.cmd_init(argparse.Namespace(assignment=str(self.path),
                            root=str(Path(self.tmp.name) / "runs"), effective_parallelism=1))
         run, frozen, manifest = m.load_run(result["run_dir"])
-        self.assertEqual(frozen["schema_version"], 17)
+        self.assertEqual(frozen["schema_version"], 18)
         self.assertEqual(m.selection_summary(frozen)["summary_sha256"], before)
         self.assertEqual(manifest["review_workflow_version"], 1)
         self.assertTrue(all(i["qa_contract_version"] == 11 for i in frozen["images"]))

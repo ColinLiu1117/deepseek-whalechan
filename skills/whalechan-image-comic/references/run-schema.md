@@ -1,8 +1,8 @@
-# Run schema v17
+# Run schema v18
 
-New assignments use v17, independent role limits and exclusive image-task journals. Retain QA 11 and the v16 drawing-only visual contract. See agent-orchestration.md for task commands and ownership.
+New assignments use v18, independent role limits and exclusive image-task journals. Retain QA 11 and the v16 drawing-only visual contract. See agent-orchestration.md for task commands and ownership.
 
-Frozen v11/v13/v14/v15/v16 retain their original approval hashes, prompt builders and recovery behavior. v17 changes execution ownership and recording, not the visual acceptance standard. New initialization requires v17.
+Frozen v11/v13/v14/v15/v16/v17 retain their original approval hashes, prompt builders and recovery behavior. v18 adds a batch-locked tool and fixed commands without changing QA11. New initialization requires v18.
 
 Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Directions](#comedy-directions) · [Confirmation](#final-plan-and-one-user-gate) · [Images](#image-fragment) · [Exaggeration](#exaggeration-tiers) · [Output](#output-size-and-aspect-ratio) · [Text](#visible-text) · [Dialogue](#participant-and-dialogue-contract) · [Preflight](#preflight-and-prompt-construction) · [Visual fields](#custom-visual-fields) · [References](#typed-references) · [Execution](#execution)
 
@@ -10,7 +10,7 @@ Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Di
 
 ```json
 {
-  "schema_version": 17,
+  "schema_version": 18,
   "run_name": "refrigerator-permission-loophole",
   "input": {
     "type": "text",
@@ -49,7 +49,8 @@ Contents: [Root](#root-contract) · [Tournament](#tournament-and-ranking) · [Di
     "role_limits": {"planning": 5, "generation": 5, "codex_generation": 3, "collection": 2, "delivery": 1},
     "batch_limit": 10,
     "scheduling": "source-first-generation-priority",
-    "commit_strategy": "worker-serial-merge"
+    "commit_strategy": "worker-serial-merge",
+    "tool": {"provider": "codex", "transport": "builtin", "model": "unknown", "on_error": "pause"}
   },
   "budget": {"per_image_candidates": 3},
   "warning_dispositions": []
@@ -136,7 +137,7 @@ Each `premise`, `scene` and `direction` matches its pool idea; `twist` equals th
 
 New plans record `proportion` on every option using the same preset/custom object as an image: `{"mode": "preset", "preset": "semi-chibi"}` by default, or e.g. `{"mode": "custom", "target_head_ratio": 3.0}`. Preset targets and intervals come from the catalog; custom intervals default to target ± 0.15 with the lower bound above 1.0. All five options must record it if any does. The proposal already participates in the confirmation hash, so changing a planned proportion invalidates that confirmation. Completed images must normalize to the same proportion as their corresponding options. Historical records with no option-level proportions keep their original hash and recovery contract; do not retrofit their approval history.
 
-`render-proposal --draft <file>` and `summarize-selection --draft <file>` are read-only views of this same complete planning record and accept only v16 drafts. Both return an eight-column table (序号、创意、方向、格数、档位、场景／分镜、关键台词、入选理由), with fixed descriptive tier labels, followed by the panel and tier distribution line, target head-to-body ratios, five images total, worker allocations, one execution-confirmation question and `summary_sha256`. Ratios appear below the table, shared when identical or grouped by table row number when different. Drafts require all five visual `images`, but no confirmation yet; the scene/staging cells are rendered from those same panel records.
+`render-proposal --draft <file>` and `summarize-selection --draft <file>` are read-only views of this same complete planning record and accept only v18 drafts. Both return an eight-column table (序号、创意、方向、格数、档位、场景／分镜、关键台词、入选理由), with fixed descriptive tier labels, followed by the panel and tier distribution line, target head-to-body ratios, five images total, worker allocations, one execution-confirmation question and `summary_sha256`. Ratios appear below the table, shared when identical or grouped by table row number when different. Drafts require all five visual `images`, but no confirmation yet; the scene/staging cells are rendered from those same panel records.
 
 Show the table, five images per source, combined batch total, worker allocation and per-image budget before asking whether to execute. Planning-only requests stop here without formal initialization or image calls. The sole confirmation record is:
 
@@ -304,7 +305,7 @@ Normalization adds `"recommended": null` for a non-default automatic ratio. An e
 }
 ```
 
-The normalized ratio is `16:9`. When both ratio and explicit resolution are supplied, they must agree exactly. Width and height are positive integers. Provider adapters may reject an otherwise valid output contract with `capability` when that provider cannot guarantee the requested ratio or exact pixels; this causes ordered fallback, never silent resizing.
+The normalized ratio is `16:9`. When both ratio and explicit resolution are supplied, they must agree exactly. Width and height are positive integers. Provider adapters may reject an otherwise valid output contract with `capability` when that provider cannot guarantee the requested ratio or exact pixels; v18 checks compatibility before confirmation and pauses on later errors; frozen versions retain ordered fallback, never silent resizing.
 
 ## Visible text
 
@@ -395,4 +396,6 @@ Each image journal at tasks/<image>/state.json binds assignment_sha256, image, o
 
 Claim unique image ownership before beginning a call. Record begin before invoking the provider and prepare immediately after preserving returned bytes. An unresolved flight prevents another call. Only recorded single-image core failures or collection repair targets allow retries. Finish releases ownership only after single-image resolution. Recovery changes owner after factual reconciliation and never clears flight or replenishes budget.
 
-Use agent-orchestration.md for queue/worker receipts, task dependencies, CLI examples and capacity degradation. Frozen v11/v13/v14/v15/v16 retain their original worker_plan/execution and coordinator-serial behavior; do not convert their records.
+Use agent-orchestration.md for queue/worker receipts, task dependencies, CLI examples and capacity degradation. Frozen v11/v13/v14/v15/v16/v17 retain their original worker_plan/execution and version-specific ownership behavior; do not convert their records.
+
+For v18 the confirmation binds execution.tool (provider, transport, model, on_error=pause). Preflight evidence/timestamps live in the batch, outside this semantic projection. The manifest batch_file points to the shared queue, whose execution must match. Batch status distinguishes planning, initializing, preflight_required, ready, paused and complete. Paused is not a finalized shortfall. Batch lock precedes run/image locks for claim, begin and error; never acquire a batch lock while holding a run/image lock. Combination commands release local locks before writing queue receipts. See batch-commands.md.

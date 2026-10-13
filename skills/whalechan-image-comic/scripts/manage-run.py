@@ -30,11 +30,11 @@ FORMS = set(FORM_ORDER)
 ASSET_CATALOG_SCHEMA_VERSION = 3
 EXPRESSION_PRESETS_SCHEMA_VERSION = 2
 EXAGGERATION_TIERS_SCHEMA_VERSION = 1
-ASSIGNMENT_SCHEMA_VERSION = 17
+ASSIGNMENT_SCHEMA_VERSION = 18
 # Frozen runs from these versions may still be generated and finalized, never newly initialized.
-RESUMABLE_SCHEMA_VERSIONS = {11, 13, 14, 15, 16, ASSIGNMENT_SCHEMA_VERSION}
+RESUMABLE_SCHEMA_VERSIONS = {11, 13, 14, 15, 16, 17, ASSIGNMENT_SCHEMA_VERSION}
 # Tournament contracts: v13 predates exaggeration tiers, v14 adds them.
-TOURNAMENT_SCHEMA_VERSIONS = {13, 14, 15, 16, ASSIGNMENT_SCHEMA_VERSION}
+TOURNAMENT_SCHEMA_VERSIONS = {13, 14, 15, 16, 17, ASSIGNMENT_SCHEMA_VERSION}
 QA_CONTRACT_VERSION = 11
 # Frozen v13 runs keep reviewing under QA contract 9, which has no E1 exaggeration gate.
 QA_CONTRACT_VERSIONS = {9, 10, QA_CONTRACT_VERSION}
@@ -263,7 +263,7 @@ def uses_tournament(value: dict[str, Any]) -> bool:
 
 
 def is_tiered(value: dict[str, Any]) -> bool:
-    return value.get("schema_version") in {14, 15, 16, 17}
+    return value.get("schema_version") in {14, 15, 16, 17, 18}
 
 
 def selection_summary(value: dict[str, Any]) -> dict[str, Any]:
@@ -553,8 +553,10 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
     plan = value.get("worker_plan")
     if not isinstance(plan, dict) or plan.get("coordinator") != "main":
         raise RunError("worker_plan requires coordinator=main")
-    if value.get("schema_version") == 17:
+    if value.get("schema_version") in {17, 18}:
         execution = role_execution(value.get("execution"))
+        if value["schema_version"] == 18:
+            extension_module("provider_policy").validate(execution.get("tool"))
         if plan != {"coordinator": "main", "allocation": "dynamic"}:
             raise RunError("v17 worker_plan requires dynamic allocation")
     else:
@@ -589,11 +591,11 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
     if tier_policy is not None:
         # Only v14 binds the tier policy, so historical v13 confirmation hashes stay unchanged.
         payload["exaggeration_policy"] = tier_policy
-    if value.get("schema_version") in {15, 16, 17}:
+    if value.get("schema_version") in {15, 16, 17, 18}:
         payload["review_workflow"] = {"version": 1, "candidate_reviews": 1,
                                       "minor_tolerance": True, "collection_repair_rounds": 1,
                                       "regeneration_sources": ["single_image_qa", "collection_review"]}
-    if value.get("schema_version") in {16, 17}:
+    if value.get("schema_version") in {16, 17, 18}:
         payload["visual_plan"] = visual_prompt().contract(value)
     return {"proposal_count": 5, "image_count": 5, "choices": rows, "adjustments": [],
             "worker_plan": plan, "maximum_total": 15, "standings": ranking,
@@ -692,7 +694,7 @@ def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, 
         lines.extend(["", words["panel_override"] + markdown_cell(value["panel_policy"]["user_instruction"])])
     if (tier_policy or {}).get("mode") == "user-override":
         lines.extend(["", words["tier_override"] + markdown_cell(tier_policy["user_instruction"])])
-    if value.get("schema_version") in {15, 16, 17}:
+    if value.get("schema_version") in {15, 16, 17, 18}:
         review_note = ("审阅：每个候选看图一次；轻微瑕疵可接受；每组五图拼图审阅一次。"
                        "集合最多返工一轮并复验一次，与单图 QA 共用每张三次产图预算。"
                        "主代理不重复看图复核，技术检查失败不触发生图。" if language == "zh" else
@@ -701,6 +703,11 @@ def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, 
                        "No coordinator visual rereview; technical checks never trigger regeneration.")
         lines.extend(["", review_note])
     lines.extend(["", words["question"]])
+    if value.get("schema_version") == 18:
+        tool = summary["execution"]["tool"]
+        label = "本批工具：" if language == "zh" else "Batch tool: "
+        policy = "；服务错误即暂停，不自动重试或切换。" if language == "zh" else "; service errors pause; no automatic retry or switch."
+        lines.append("\n" + label + tool["provider"] + " / " + tool["transport"] + " / " + tool["model"] + policy)
     return "\n".join(lines) + "\n"
 
 
@@ -1632,7 +1639,7 @@ def design_summary(assignments: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def validate_assignment(path: Path) -> dict[str, Any]:
+def validate_assignment(path: Path, require_approval: bool = True) -> dict[str, Any]:
     assignment = read_json(path)
     assets, form_profiles, catalog_hash = catalog()
     presets, performance_levels = expression_presets()
@@ -1842,7 +1849,8 @@ def validate_assignment(path: Path) -> dict[str, Any]:
                 )
         image["id"] = f"{index:02d}_{name}"
     validate_text_style_policy(assignment)
-    validate_approval(assignment)
+    if require_approval:
+        validate_approval(assignment)
     rhythmic = sum(image["rhythm"] is not None for image in images)
     rhythm_warnings = []
     if len(images) >= 2 and rhythmic * 2 > len(images):
@@ -1872,7 +1880,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     manifest = read_json(run_dir / "manifest.json")
     if assignment.get("schema_version") not in RESUMABLE_SCHEMA_VERSIONS:
         raise RunError(f"Run assignment schema_version must be one of {sorted(RESUMABLE_SCHEMA_VERSIONS)}")
-    if assignment["schema_version"] in {15, 16, 17} and (
+    if assignment["schema_version"] in {15, 16, 17, 18} and (
         manifest.get("review_workflow_version") != 1 or not isinstance(manifest.get("collection"), dict)
     ):
         raise RunError("v15/v16 requires its collection review workflow")
@@ -1901,7 +1909,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     for image in images:
         if not isinstance(image, dict) or set(image) - IMAGE_FIELDS:
             raise RunError("Frozen image specification has unsupported fields")
-        expected_qa = {11} if assignment["schema_version"] in {15, 16, 17} else {10} if is_tiered(assignment) else {9}
+        expected_qa = {11} if assignment["schema_version"] in {15, 16, 17, 18} else {10} if is_tiered(assignment) else {9}
         if image.get("qa_contract_version") not in expected_qa:
             raise RunError(f"Frozen image qa_contract_version must be one of {sorted(expected_qa)}")
         references = image.get("references")
@@ -1919,7 +1927,12 @@ def save_manifest(run_dir: Path, manifest: dict[str, Any]) -> None:
     write_json(run_dir / "manifest.json", manifest)
 
 
-def provider_allowed(state: dict[str, Any], provider: str) -> None:
+def provider_allowed(state: dict[str, Any], provider: str, assignment=None) -> None:
+    if assignment and assignment["schema_version"] == 18:
+        tool = extension_module("provider_policy").validate(assignment["execution"].get("tool"))
+        if provider != tool["provider"]:
+            raise RunError("Batch tool is locked; provider switching is forbidden")
+        return
     if provider not in PROVIDERS:
         raise RunError(f"Unsupported provider: {provider}")
     events = state.get("attempts", []) + state.get("provider_errors", [])
@@ -2064,6 +2077,9 @@ def validate_exaggeration_evidence(evidence: dict[str, Any], image: dict[str, An
 
 def extension_module(name):
     import importlib.util
+    scripts = str(Path(__file__).parent)
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
     spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(name + ".py"))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -2328,9 +2344,9 @@ def resolve_transport(args: argparse.Namespace, audit_path: Path | None) -> str 
 
 def record_image(args: argparse.Namespace, component: bool) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] == 17:
+    if assignment["schema_version"] in {17, 18}:
         raise RunError("Use image-task review for v17")
-    if assignment["schema_version"] in {15, 16, 17}:
+    if assignment["schema_version"] in {15, 16, 17, 18}:
         if component:
             raise RunError("QA 11 accepts complete candidates only")
         return review_workflow().record_candidate(args, run_dir, assignment, manifest)
@@ -2458,7 +2474,7 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
         "", f"Final ranking: {' > '.join(assignment['ranked_ideas'])}",
         "", "## Execution", "",
         f"- Mode: {assignment['execution'].get('mode', 'role-queues')}",
-        (f"- Execution: {assignment['execution']}" if assignment["schema_version"] == 17 else
+        (f"- Execution: {assignment['execution']}" if assignment["schema_version"] in {17, 18} else
          f"- Requested parallelism: {assignment['execution']['requested_parallelism']}"),
         f"- Commit strategy: {assignment['execution']['commit_strategy']}",
         "", f"## {len(assignment['images'])} tasks", "",
@@ -2546,10 +2562,31 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.root).resolve()
     root.mkdir(parents=True, exist_ok=True)
     run_dir = root / assignment["run_name"]
-    suffix = 2
-    while run_dir.exists():
-        run_dir = root / f"{assignment['run_name']}-{suffix:02d}"
-        suffix += 1
+    checkpoint = None
+    if assignment["schema_version"] == 18 and getattr(args, "batch", None):
+        identity = contract_hash({"assignment": assignment, "batch": str(Path(args.batch).resolve())})
+        checkpoint_path = run_dir / "init-checkpoint.json"
+        if run_dir.exists():
+            if not checkpoint_path.is_file() or read_json(checkpoint_path)["identity"] != identity:
+                raise RunError("Run path belongs to another initialization")
+            checkpoint = read_json(checkpoint_path)
+            if (run_dir / "manifest.json").is_file():
+                _, frozen, existing = load_run(str(run_dir))
+                return {"run_dir": str(run_dir), "images": list(existing["images"]), "execution": existing["execution"]}
+        else:
+            checkpoint = {"identity": identity, "frozen_at": now()}
+            write_json(checkpoint_path, checkpoint)
+    else:
+        suffix = 2
+        while run_dir.exists():
+            run_dir = root / f"{assignment['run_name']}-{suffix:02d}"
+            suffix += 1
+    def init_copy(source, destination):
+        if checkpoint and destination.exists():
+            if sha256(source) != sha256(destination):
+                raise RunError("Interrupted initialization bytes differ")
+        else:
+            copy_once(source, destination)
     for folder in ("source", "prompts", "candidates", "qa", "logs", "final", "staging", "inputs/references"):
         (run_dir / folder).mkdir(parents=True, exist_ok=True)
     copied: dict[tuple[str, str], str] = {}
@@ -2561,14 +2598,14 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
             key = (reference["sha256"], source.suffix.lower())
             if key not in copied:
                 destination = run_dir / "inputs" / "references" / f"{reference['sha256'][:16]}{source.suffix.lower()}"
-                copy_once(source, destination)
+                init_copy(source, destination)
                 if sha256(destination) != reference["sha256"]:
                     raise RunError(f"Frozen reference SHA-256 mismatch: {destination}")
                 copied[key] = str(destination)
             reference["path"] = copied[key]
         (run_dir / "staging" / image["id"]).mkdir(parents=True, exist_ok=True)
     assignment["run_dir"] = str(run_dir)
-    assignment["frozen_at"] = now()
+    assignment["frozen_at"] = checkpoint["frozen_at"] if checkpoint else now()
     write_json(run_dir / "assignment.json", assignment)
     assignment_hash = sha256(run_dir / "assignment.json")
     (run_dir / "creative-record.md").write_text(creative_markdown(assignment), encoding="utf-8")
@@ -2582,7 +2619,7 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
             if not source_path.is_absolute():
                 source_path = (assignment_path.parent / source_path).resolve()
             if source_path.is_file():
-                copy_once(
+                init_copy(
                     source_path,
                     run_dir / "source" / f"original-{index:02d}{source_path.suffix.lower()}",
                 )
@@ -2608,10 +2645,13 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
         },
         "created_at": now(), "updated_at": now(), "images": states,
     }
-    if assignment["schema_version"] in {15, 16, 17}:
+    if assignment["schema_version"] in {15, 16, 17, 18}:
         manifest["review_workflow_version"] = 1
         manifest["collection"] = {"status": "pending", "reviews": [], "sheets": [], "repair_rounds": 0}
         manifest["events"] = []
+    if assignment["schema_version"] == 18:
+        from types import SimpleNamespace
+        extension_module("batch_workflow").BatchWorkflow(SimpleNamespace(**globals())).attach(args, run_dir, assignment, manifest)
     write_json(run_dir / "manifest.json", manifest)
     return {
         "run_dir": str(run_dir),
@@ -2622,7 +2662,7 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_record_error(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, _assignment, manifest = load_run(args.run_dir)
-    if _assignment["schema_version"] == 17:
+    if _assignment["schema_version"] in {17, 18}:
         raise RunError("Use image-task error for v17")
     if manifest.get("status") != "in_progress":
         raise RunError("Run is not open")
@@ -2646,7 +2686,7 @@ def cmd_record_composite(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
     state = state_for(manifest, args.image)
     image_spec = next(item for item in assignment["images"] if item["id"] == args.image)
-    if assignment["schema_version"] in {15, 16, 17}:
+    if assignment["schema_version"] in {15, 16, 17, 18}:
         raise RunError("QA 11 reviews complete candidates, not component composites")
     source_ids = args.source_attempt
     expected = image_spec["panel_count"]
@@ -2689,7 +2729,7 @@ def cmd_record_composite(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_promote(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] in {15, 16, 17}:
+    if assignment["schema_version"] in {15, 16, 17, 18}:
         return review_workflow().promote(args, run_dir, assignment, manifest)
     state = state_for(manifest, args.image)
     passing = [item for item in state["attempts"] + state["derived"] if item.get("verdict") == "PASS" and item.get("role") != "component"]
@@ -2716,7 +2756,7 @@ def cmd_promote(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_finalize(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] in {15, 16, 17}:
+    if assignment["schema_version"] in {15, 16, 17, 18}:
         review_workflow().before_finalize(run_dir, assignment, manifest)
     expected = len(assignment["images"])
     passed = [key for key, value in manifest["images"].items() if value["status"] == "passed"]
@@ -2804,6 +2844,7 @@ def parser() -> argparse.ArgumentParser:
 
     init = commands.add_parser("init")
     init.add_argument("--assignment", required=True)
+    init.add_argument("--batch")
     init.add_argument("--root", default="artifacts/whalechan-image-comic")
     init.add_argument("--effective-subagents", type=int, help="Actual worker count, including 0 for main-agent fallback")
     init.add_argument("--effective-parallelism", type=int)
@@ -2838,12 +2879,13 @@ def parser() -> argparse.ArgumentParser:
     from types import SimpleNamespace
     extension_module("agent_orchestration").Orchestration(SimpleNamespace(**globals())).register(commands)
     image_tasks().register(commands)
+    extension_module("batch_workflow").BatchWorkflow(SimpleNamespace(**globals())).register(commands)
     return root
 
 
 def invoke(args):
     shared = {"build-review-sheet", "record-collection-review", "promote", "finalize"}
-    if args.command in shared and read_json(Path(args.run_dir) / "assignment.json").get("schema_version") == 17:
+    if args.command in shared and read_json(Path(args.run_dir) / "assignment.json").get("schema_version") in {17, 18}:
         return image_tasks().shared(args, args.handler)
     return args.handler(args)
 

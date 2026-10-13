@@ -1,6 +1,8 @@
-# Role-specific sub-agent orchestration — v17
+# Role-specific sub-agent orchestration — v17/v18
 
 Contents: [Limits](#limits) · [Ownership](#ownership) · [Planning](#planning) · [Queue](#queue) · [Image task](#image-task) · [Collection and delivery](#collection-and-delivery) · [Recovery](#recovery)
+
+For new v18 batches use `batch-commands.md` for fixed prepare/proposal/start, image, collection and delivery operations. The low-level commands below remain the ownership/recovery protocol and frozen v17 path. v18 adds a preflight-locked tool and batch pause; service errors never auto-switch or retry.
 
 ## Limits
 
@@ -41,7 +43,7 @@ Start planning sub-agents before generation consent; planning never calls an ima
 
 Assign the existing cross-source comparison to a planning worker after all drafts are available. Resolve its findings in the drafts before the single consent. Bind one actual user reply to all approved source plans. Delegate validation and initialization after consent. No production run or image call precedes consent.
 
-Use v17 execution and dynamic worker_plan from run-schema.md. Bind approved role limits and batch strategy, not transient worker identities. Disclose current runtime capacity separately. Lower dispatch or recovery within approved role/batch limits does not alter the visual plan. Raising approved limits or materially changing content requires updated consent.
+Use v18 execution (including the locked tool) and dynamic worker_plan from run-schema.md. Bind approved role limits and batch strategy, not transient worker identities. Disclose current runtime capacity separately. Lower dispatch or recovery within approved role/batch limits does not alter the visual plan. Raising approved limits or materially changing content requires updated consent.
 
 ## Queue
 
@@ -103,14 +105,14 @@ python3 scripts/manage-run.py image-task review --run-dir <run> --image <image> 
   --provider codex --model <actual-model> --visual-json <review.json>
 ```
 
-A core FAIL with remaining budget returns pending. Build a targeted drawing-only retry and repeat begin/call/prepare/review without waiting for main-agent judgment. Preserve frozen premise/text locks and provider order. PASS, exhaustion or technical/safety blockage ends the image task:
+A core FAIL with remaining budget returns pending. Build a targeted drawing-only retry and repeat begin/call/prepare/review without waiting for main-agent judgment. Preserve frozen premise/text locks. v18 stays on the locked tool; frozen v17 follows its original provider order. PASS, exhaustion or technical/safety blockage ends the image task:
 ```bash
 python3 scripts/manage-run.py image-task finish --run-dir <run> --image <image> --owner <worker> --task-id <task>
 ```
 
 Return the journal path and complete receipt. Single-image journals are the authoritative attempt ledger. Same-image retries stay serial; all returned images consume the original maximum of three, including technical failures. Candidate/QA hashes bind evidence; malformed records permit mechanical repair, not another image or visual inspection.
 
-For a proven no-image provider failure use image-task error with provider/model/category/evidence. Preserve uncertainty as an in-flight call. Advance providers through the existing order rather than retrying an unavailable provider indefinitely. A safety rejection stops new batch dispatch and is reported immediately. Setup-only failure may leave the run open for later authorized recovery; do not silently finalize it.
+For a proven no-image provider failure use image-task error with provider/model/category/evidence. Preserve uncertainty as an in-flight call. For v18 pause new dispatch and wait for explicit user resume. Only frozen v17 advances providers through its original order. A safety rejection stops new batch dispatch and is reported immediately. Setup-only failure may leave the run open for later authorized recovery; do not silently finalize it.
 
 ## Collection and delivery
 

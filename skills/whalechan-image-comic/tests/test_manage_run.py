@@ -192,6 +192,8 @@ def historical_execution(value):
 
 def confirm_fixture_plan(value: dict) -> dict:
     """Synthetic single approval for tests only; never user authorization."""
+    if value.get("schema_version", 18) < 18:
+        value.get("execution", {}).pop("tool", None)
     if value.get("schema_version", 17) < 17 and "role_limits" in value.get("execution", {}):
         historical_execution(value)
     value["confirmation"] = {"status": "confirmed", "user_reply": "Synthetic plan confirmation",
@@ -241,7 +243,7 @@ def assignment() -> dict:
                                         {"id": "worker-2", "idea_ids": ["idea_02", "idea_05"]},
                                         {"id": "worker-3", "idea_ids": ["idea_03"]}]}
     value["execution"].update(mode="parallel", requested_parallelism=3, max_parallelism=10, subagent_count=3)
-    value["execution"] = manage.role_execution({"batch_id": "synthetic-batch"})
+    value["execution"] = manage.role_execution({"batch_id": "synthetic-batch", "tool": {"provider": "codex", "transport": "builtin", "model": "unknown", "on_error": "pause"}})
     value["worker_plan"] = {"coordinator": "main", "allocation": "dynamic"}
     return confirm_fixture_plan(value)
 
@@ -356,6 +358,14 @@ class RunStateTests(unittest.TestCase):
                 manifest.pop("collection", None)
                 manifest.pop("review_workflow_version", None)
                 manifest.pop("events", None)
+            manage.write_json(self.run_dir / "manifest.json", manifest)
+        if getattr(self, "image_task_workflow", False) and not getattr(self, "v18_workflow", False):
+            frozen["schema_version"] = 17
+            confirm_fixture_plan(frozen)
+            manage.write_json(self.run_dir / "assignment.json", frozen)
+            manifest = manage.read_json(self.run_dir / "manifest.json")
+            manifest["assignment_sha256"] = manage.sha256(self.run_dir / "assignment.json")
+            manifest["execution"].pop("tool", None)
             manage.write_json(self.run_dir / "manifest.json", manifest)
         self.image_spec = frozen["images"][0]
         self.image = self.image_spec["id"]

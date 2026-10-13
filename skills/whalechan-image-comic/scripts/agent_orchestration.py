@@ -25,9 +25,12 @@ def execution(value=None):
     if value is not None and not isinstance(value, dict):
         raise ValueError("execution must be an object")
     value = copy.deepcopy(value or {})
-    allowed = {"batch_id", "role_limits", "batch_limit", "scheduling", "commit_strategy"}
+    allowed = {"batch_id", "role_limits", "batch_limit", "scheduling", "commit_strategy", "tool"}
     if set(value) - allowed:
         raise ValueError("Role execution contains unsupported fields")
+    if "tool" in value:
+        from provider_policy import validate
+        validate(value["tool"])
     limits = value.get("role_limits", DEFAULT_LIMITS)
     if not isinstance(limits, dict) or set(limits) != set(DEFAULT_LIMITS) or any(type(n) is not int or not 1 <= n <= 10 for n in limits.values()):
         raise ValueError("role_limits must name all five positive limits, at most 10")
@@ -91,7 +94,7 @@ class Orchestration:
         if len(runs) != len(paths):
             raise self.m.RunError("Missing frozen run path")
         for run, assignment, manifest in runs:
-            if assignment["schema_version"] != 17 or assignment["execution"] != policy:
+            if assignment["schema_version"] not in {17, 18} or assignment["execution"] != policy:
                 raise self.m.RunError("Task run must share the approved v17 batch execution")
             if task["role"] in {"collection", "delivery"} and task.get("recovery_evidence"):
                 return True  # Resume the existing sheet/receipt, never repeat its visual judgment.
@@ -158,6 +161,7 @@ class Orchestration:
             elif args.action in {"next", "claim"}:
                 slots = min(capacity(args.slots, args.scope, args.external), state["execution"]["batch_limit"])
                 ready = [t for t in tasks.values() if t["status"] == "pending" and
+                         not (state.get("status") in {"paused", "preflight_required", "planning", "initializing"} and t["role"] == "generation") and
                          all(tasks[d]["status"] == "complete" for d in t["depends_on"]) and
                          self.ready(t, state["execution"])]
                 active = [t for t in tasks.values() if t["status"] == "running"]
@@ -170,7 +174,8 @@ class Orchestration:
                 ready = [t for t in ready if work_key(t) not in occupied]
                 counts = {r: sum(t["role"] == r for t in active) for r in ROLES}
                 demand = {r: counts[r] + sum(t["role"] == r for t in ready) for r in ROLES}
-                allocation = targets(state["execution"], slots, demand, args.provider, args.provider_limit)
+                allocation = targets(state["execution"], slots, demand,
+                                     state["execution"].get("tool", {}).get("provider", args.provider), args.provider_limit)
                 ordered = sorted(ready, key=lambda t: (state["sources"].index(t["source"]), t["queued_at"], t["id"]))
                 choice = next((t for t in ordered if counts[t["role"]] < allocation[t["role"]]
                                and (not args.task or t["id"] == args.task)), None)

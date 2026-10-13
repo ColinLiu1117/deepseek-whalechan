@@ -1,8 +1,14 @@
 # Provider routing
 
-Use providers in this order: Codex ImageGen, OpenAI Images API, Nano Banana, Seedream. Never move backward.
+## New v18 batches
 
-Move forward only after the current provider has produced a failed candidate, cannot perform the required reference/edit operation, or has a recorded availability, authentication, quota, rate-limit, timeout, or service error. Never use fallback to bypass a safety rejection.
+Preflight in priority order: Codex ImageGen, OpenAI Images API, Nano Banana, Seedream. Lock the first compatible configured provider/transport/model in execution.tool. Use batch-prepare and batch-proposal from batch-commands.md; no probe image and no first-image barrier. Builtin availability comes from actual runtime tool evidence, not a shell guess. Preflight checks configuration/capability, not live quota or service health.
+
+Visual failure retries stay on that tool. Any service error pauses new generation; do not retry automatically or switch. Preserve uncertain calls until reconciled, collect already in-flight results, and resume the same tool only after a user request. Safety rejection cannot be treated as a service retry.
+
+## Frozen v11–v17
+
+Use the original order: Codex ImageGen, OpenAI Images API, Nano Banana, Seedream; never move backward. Advance only after a visual failure, unavailable required capability, or recorded availability/authentication/quota/rate-limit/timeout/service error. Never use fallback to bypass a safety rejection.
 
 ## Codex ImageGen
 
@@ -53,9 +59,9 @@ Each adapter accepts `--request <json> --output <png>` and supports `--dry-run`:
 }
 ```
 
-For v16, the prompt contains only the authored drawing descriptions in `prompt-design.md`; output configuration and reference metadata stay in the request. A retry prompt describes the visual correction, never QA codes, reviewer reports or budgets.
+For v16–v18, the prompt contains only the authored drawing descriptions in `prompt-design.md`; output configuration and reference metadata stay in the request. A retry prompt describes the visual correction, never QA codes, reviewer reports or budgets.
 
-`build-prompt.py --write-request` writes this request from the frozen assignment; prefer it over hand-written JSON. `quality` is optional and only affects OpenAI; the other adapters accept and ignore it, so one request works across the whole fallback chain. The nested `output` object is required and must specify format, aspect ratio and resolution. Use 1–5 bundled or frozen user references. Resolve relative paths from the request JSON. Adapters preserve the requested output, reference roles, and hashes in audit output while reporting the effective provider size or tier. Never silently approximate an explicit resolution or drop a required role because of a provider limit; report `capability` and route forward. A live adapter writes one PNG and never overwrites an existing path.
+`build-prompt.py --write-request` writes this request from the frozen assignment; prefer it over hand-written JSON. `quality` is optional and only affects OpenAI; the other adapters accept and ignore it, so one request works across the whole fallback chain. The nested `output` object is required and must specify format, aspect ratio and resolution. Use 1–5 bundled or frozen user references. Resolve relative paths from the request JSON. Adapters preserve the requested output, reference roles, and hashes in audit output while reporting the effective provider size or tier. Never silently approximate an explicit resolution or drop a required role because of a provider limit; report `capability`; select before locking in v18, or route forward only under a frozen policy. A live adapter writes one PNG and never overwrites an existing path.
 
 ### OpenAI
 
@@ -86,11 +92,11 @@ For v16, the prompt contains only the authored drawing descriptions in `prompt-d
 
 Record credentials neither in stdout nor in the run. Provider errors without images consume no candidate slot; any viewable returned image consumes one.
 
-## v17 worker execution
+## v17/v18 worker execution
 
 Use independent role limits and image-task commands from `agent-orchestration.md`. Default generation capacity is 3 for Codex and 5 for general providers, reduced by known provider limits and runtime slots. Defaults are not a claim about backend capacity. Do not reduce unknown capacity to one automatically.
 
-One generation worker owns an image through automatic checks, single-image QA and permitted retries. It writes only its image journal. Record no-image errors with image-task error; returned images consume budget even if automatic/audit checks fail. Preserve the provider ordering and safety rules above. The coordinator only dispatches tasks and reports status; it does not inspect images or write detailed QA. Collection/delivery workers perform serial manifest reconciliation.
+One generation worker owns an image through automatic checks, single-image QA and permitted retries. It writes only its image journal. Record no-image errors with image-task error; returned images consume budget even if automatic/audit checks fail. Use the version-specific tool policy above; v18 forbids changing the selected tool. The coordinator only dispatches tasks and reports status; it does not inspect images or write detailed QA. Collection/delivery workers perform serial manifest reconciliation.
 
 Delegate a separate ready image to each generation worker. Never use concurrent calls inside one agent as evidence of provider concurrency. On explicit capacity/rate-limit failures, report the evidence and reduce new dispatch; do not interrupt successful in-flight image calls solely to rebalance roles.
 

@@ -32,3 +32,5 @@ Perform this agent review before displaying the complete plan for the single use
 ## Honest limits
 
 Scripts cannot establish humor or independent visual inspection from prose fields. Record what was actually inspected and leave pending work pending. Compare final images with their sources as well as with each other; a perfectly rendered wrong interpretation still fails.
+
+For v18 the planning worker submits the actual cross-source observation and warning dispositions to batch-proposal in the ordered source list. The command verifies/computes structural data but never substitutes for creative comparison. Use collection-task for the existing final per-source review; do not add another cross-source visual pass.

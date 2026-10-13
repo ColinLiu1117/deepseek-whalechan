@@ -1,6 +1,6 @@
 # Offline preview gallery
 
-For v17 a delivery sub-agent merges completed image journals, promotes/finalizes and exports HTML. Main returns the resulting links. File/link/count checks do not authorize generation or another visual review.
+For v17/v18 a delivery sub-agent merges completed image journals, promotes/finalizes and exports HTML. Main returns the resulting links. File/link/count checks do not authorize generation or another visual review.
 
 After generation and QA, finalize the run and export its gallery before delivery. This uses Python 3 and the existing ImageMagick `magick` dependency, with no image API calls or frontend build step.
 
@@ -38,4 +38,6 @@ Image files are copied byte for byte and deduplicated by content hash. HTML embe
 
 ## QA 11 records
 
-For v15/v16/v17, display accepted minor issues and core defects with each attempt. A single-image PASS awaiting or failing collection is not a delivered final. Include collection contact sheets, set-level decisions, task outcomes and stage events in collapsed details; these sheets do not count as provider calls or comic candidates. Technical blockers may have no visual QA, because technical rejection does not require LLM inspection or regeneration. Preserve all returned-image call counts.
+For v15/v16/v17/v18, display accepted minor issues and core defects with each attempt. A single-image PASS awaiting or failing collection is not a delivered final. Include collection contact sheets, set-level decisions, task outcomes and stage events in collapsed details; these sheets do not count as provider calls or comic candidates. Technical blockers may have no visual QA, because technical rejection does not require LLM inspection or regeneration. Preserve all returned-image call counts.
+
+For v18 use batch-deliver for promotion, finalization, aggregate export, index, file/hash/count verification and the task receipt. It reuses matching interrupted outputs. Keep service-paused runs open. HEIC/HEIF source images retain an original asset plus a local PNG display copy; candidates/finals are never converted by this compatibility path. Verify hashes of all embedded gallery-data asset references, not only static src/href attributes.

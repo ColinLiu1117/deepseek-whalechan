@@ -81,7 +81,7 @@ class RunReader:
         self.warnings = []
         self.assignment = read_json(run / "assignment.json")
         self.manifest = read_json(run / "manifest.json")
-        if self.assignment.get("schema_version") not in ({11, 13, 14, 15, 16, 17} if COMIC else {5, 6}):
+        if self.assignment.get("schema_version") not in ({11, 13, 14, 15, 16, 17, 18} if COMIC else {5, 6}):
             raise GalleryError(f"Unsupported assignment schema: {run.name}")
         if self.manifest.get("schema_version") != (1 if COMIC else 3):
             raise GalleryError(f"Unsupported manifest schema: {run.name}")
@@ -126,6 +126,17 @@ class RunReader:
         format_name, width, height = result.stdout.split()
         extension = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp", "GIF": "gif"}.get(format_name)
         width, height = int(width), int(height)
+        if extension is None and kind == "source" and format_name in {"HEIC", "HEIF"}:
+            native = self.assets / (sha + path.suffix.lower())
+            if not native.exists():
+                shutil.copyfile(path, native)
+            preview = self.assets / (".preview-" + sha + ".png")
+            subprocess.run(["magick", f"{path}[0]", str(preview)], check=True,
+                           capture_output=True, timeout=60)
+            result = self.picture(preview, label, kind=kind)
+            preview.unlink()
+            return {**result, "original_src": "assets/" + native.name,
+                    "original_sha256": sha, "display_conversion": "HEIC/HEIF source to PNG"}
         if extension is None:
             raise GalleryError(f"Unsupported image format: {picture_name(kind, label, 'en')}")
         name = f"{sha}.{extension}"

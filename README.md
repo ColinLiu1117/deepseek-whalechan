@@ -351,7 +351,7 @@ Example result:
 
 ## 🛠️ Local Command-Line Toolchain
 
-After generation and `finalize`, both skills deliver an ivory offline gallery with source/theme tabs, results grouped by proposal, grid/list views, a lightbox, actual prompts, candidate history and generation counts. Unselected proposals remain available as collapsed summaries.
+After generation and `finalize`, both skills deliver an ivory offline gallery with a sticky source/theme sidebar index, results grouped by proposal, grid/list views, a full-screen zoomable viewer with input-image comparison, actual prompts, candidate history and generation counts. Unselected proposals remain available as collapsed summaries.
 
 ```bash
 python3 skills/whalechan-image-character/scripts/export-gallery.py --run-dir <completed-character-run>

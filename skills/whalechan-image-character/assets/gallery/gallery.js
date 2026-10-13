@@ -5,12 +5,17 @@ const dialog = document.getElementById("lightbox");
 const largeImage = document.getElementById("large-image");
 const stage = document.getElementById("image-stage");
 const info = document.getElementById("lightbox-info");
+const viewerMain = document.getElementById("lightbox-main");
 const STRINGS = {
   zh: {
     htmlLang: "zh-CN", toggle: "EN", toggleLabel: "Switch to English",
-    masthead: "CREATIVE ARCHIVE / 创作图册", footer: "Whale-chan · 每个灵感，都有迹可循。",
-    lightbox: "图片预览", originalSize: "原始尺寸", fitWindow: "适应窗口", imageDetails: "图片详情",
-    close: "关闭 ×", closeLabel: "关闭预览", previous: "← 上一张", next: "下一张 →",
+    footer: "Whale-chan · 每个灵感，都有迹可循。",
+    lightbox: "图片预览", fit: "适应", imageDetails: "图片详情",
+    closeLabel: "关闭预览", previous: "上一张 (←)", next: "下一张 (→)",
+    zoomIn: "放大 (+)", zoomOut: "缩小 (−)", zoomToggle: "适应窗口 ↔ 100% (Z)",
+    compare: "对照原图", compareTitle: "对照输入原图 (S)", detailsTitle: "图片详情 (I)", closeTitle: "关闭 (Esc)",
+    collection: "当前集合", sourceInput: "输入原图",
+    viewerHint: "滚轮缩放 · 拖动平移 · 单击 适应↔100% · ← → 切换 · S 对照原图 · I 详情 · Esc 关闭",
     notRecorded: "未记录",
     roles: {candidate: "整图候选", component: "分格组件", composite: "本地合成"},
     refRoles: {identity: "角色身份", style: "画风", proportion: "比例", typography: "文字样式", composition: "构图", costume: "服装", background: "背景", pose_action: "动作"},
@@ -40,21 +45,28 @@ const STRINGS = {
     viewAttempts: "查看尝试版本", finalOriginAmbiguous: "成品来源记录不唯一；生成过程保留全部同图记录。",
     selectedProposal: "入选方案", unselectedProposal: "未入选方案",
     imageSummary: "{name} · {calls} 次出图 · {errors} 次无图错误", attemptMissing: "{id}：图片文件缺失",
-    startingPoint: "THE STARTING POINT / 创作起点",
+    startingPoint: "创作起点",
     groupStats: "{passed} / {planned} 张已通过 · 产图 {calls} 次 · {errors} 次接口错误 · {date}",
-    request: "用户原始要求", noRequest: "用户原始文字要求未记录；输入素材见下方。",
+    request: "用户原始要求", noRequest: "未记录用户原始文字要求。",
     analysis: "素材转述 · 非用户原话", references: "角色与视觉参考图 · {n} 张", recordNotes: "记录提示 · {n}",
+    expand: "展开全文", collapse: "收起",
     allImages: "全部图片 · {n}", proposalsWorks: "方案与作品 · {n}", grid: "▦ 网格", list: "☰ 列表",
     notGenerated: "未生成", proposalPassed: "{passed} / {planned} 张已通过",
-    titleComic: "鲸鱼娘 · 漫画图册", titleCharacter: "鲸鱼娘 · 角色图册", tagline: "从一份素材，到一个灵感，再到一张作品。",
+    titleComic: "鲸鱼娘 · 漫画图册", titleCharacter: "鲸鱼娘 · 角色图册",
     statSources: "素材 / 主题", statFinals: "交付成品", statCalls: "产图次数",
-    tabsLabel: "素材组或创作主题", inputOrReference: "输入素材或视觉参考图",
+    tabsLabel: "素材组或创作主题", tabsHeading: "素材组 · {n}", switchGroups: "切换",
+    tabMeta: "{passed}/{planned} 已通过 · 产图 {calls} 次", groupPager: "切换素材组",
+    inputOrReference: "输入素材或视觉参考图",
   },
   en: {
     htmlLang: "en", toggle: "中文", toggleLabel: "切换到中文",
-    masthead: "CREATIVE ARCHIVE", footer: "Whale-chan · Every idea leaves a trail.",
-    lightbox: "Image preview", originalSize: "Original size", fitWindow: "Fit window", imageDetails: "Image details",
-    close: "Close ×", closeLabel: "Close preview", previous: "← Previous", next: "Next →",
+    footer: "Whale-chan · Every idea leaves a trail.",
+    lightbox: "Image preview", fit: "Fit", imageDetails: "Details",
+    closeLabel: "Close preview", previous: "Previous (←)", next: "Next (→)",
+    zoomIn: "Zoom in (+)", zoomOut: "Zoom out (−)", zoomToggle: "Fit window ↔ 100% (Z)",
+    compare: "Compare source", compareTitle: "Show the input image alongside (S)", detailsTitle: "Image details (I)", closeTitle: "Close (Esc)",
+    collection: "Current collection", sourceInput: "Input image",
+    viewerHint: "Scroll to zoom · drag to pan · click for fit↔100% · ← → browse · S source · I details · Esc close",
     notRecorded: "Not recorded",
     roles: {candidate: "Full-canvas candidate", component: "Panel component", composite: "Local composite"},
     refRoles: {identity: "Identity", style: "Style", proportion: "Proportion", typography: "Typography", composition: "Composition", costume: "Costume", background: "Background", pose_action: "Pose & action"},
@@ -83,28 +95,32 @@ const STRINGS = {
     viewAttempts: "View attempts", finalOriginAmbiguous: "The final’s source record is ambiguous; all matching records remain in its history.",
     selectedProposal: "Selected", unselectedProposal: "Not selected",
     imageSummary: "{name} · {calls} image call(s) · {errors} error(s) without images", attemptMissing: "{id}: image file missing",
-    startingPoint: "THE STARTING POINT",
+    startingPoint: "STARTING POINT",
     groupStats: "{passed} / {planned} passed · {calls} image call(s) · {errors} provider error(s) · {date}",
-    request: "Original request", noRequest: "No written request was recorded; see the input material below.",
+    request: "Original request", noRequest: "No written request was recorded.",
     collectionQA: "Collection reviews and repairs", minorIssues: "Accepted minor issues", outcomes: "Task outcomes and timing",
     analysis: "Source transcription · not the user's words", references: "Character and visual references · {n}", recordNotes: "Record notes · {n}",
+    expand: "Show all", collapse: "Show less",
     allImages: "All images · {n}", proposalsWorks: "Proposals and works · {n}", grid: "▦ Grid", list: "☰ List",
     notGenerated: "Not generated", proposalPassed: "{passed} / {planned} passed",
-    titleComic: "Whale-chan · Comic Gallery", titleCharacter: "Whale-chan · Character Gallery", tagline: "From one source, to one idea, to one finished piece.",
+    titleComic: "Whale-chan · Comic Gallery", titleCharacter: "Whale-chan · Character Gallery",
     statSources: "Sources / themes", statFinals: "Finals delivered", statCalls: "Image calls",
-    tabsLabel: "Source groups or themes", inputOrReference: "Input material or visual reference",
+    tabsLabel: "Source groups or themes", tabsHeading: "Sources · {n}", switchGroups: "switch",
+    tabMeta: "{passed}/{planned} passed · {calls} call(s)", groupPager: "Switch source group",
+    inputOrReference: "Input material or visual reference",
   },
 };
 function storedLanguage() {
   try { return localStorage.getItem("whalechan-gallery-language"); } catch { return null; }
 }
 let language = [storedLanguage(), data.language].find(value => value in STRINGS) || "zh";
-let activeGroup = 0, view = "grid", currentPictures = [], currentIndex = 0, opener;
+let activeGroup = 0, view = "grid", currentGroup = null, currentPictures = [], currentIndex = 0, opener;
 const comicFilters = new Map();
 function t(key, values = {}) {
   return String(STRINGS[language][key]).replace(/\{(\w+)\}/g, (match, name) => name in values ? values[name] : match);
 }
 function format(template, values) { return template.replace(/\{(\w+)\}/g, (match, name) => name in values ? values[name] : match); }
+function pad(number) { return String(number).padStart(2, "0"); }
 function pictureName(picture) {
   if (!picture) return "";
   if (picture.kind === "reference" && !picture.label) return t("reference");
@@ -143,6 +159,11 @@ function details(title) {
 function text(value) { return value == null || value === "" ? t("notRecorded") : typeof value === "string" ? value : JSON.stringify(value, null, 2); }
 function badge(value, kind = "") { return el("span", `badge ${kind}`, value); }
 function date(value) { return value ? value.replace("T", " ").replace(/\.\d+/, "") : t("notRecorded"); }
+function thumbnail(src, className) {
+  const img = el("img", className);
+  img.src = src; img.alt = ""; img.loading = "lazy"; img.decoding = "async";
+  return img;
+}
 function promptBlock(value) {
   const block = details(t("prompt"));
   if (!value) { block.append(el("p", "muted", t("notRecorded"))); return block; }
@@ -192,23 +213,15 @@ function attemptInfo(attempt, all = []) {
   box.append(qa);
   return box;
 }
-function imageButton(picture, collection, detailFactory) {
+function imageButton(picture, collection, detailFactory, title) {
   if (!picture?.src) return el("div", "missing", picture ? t("imageMissing") : t("noFinal"));
-  const entry = {picture, detailFactory};
+  const entry = {picture, detailFactory, title, group: currentGroup};
   collection.push(entry);
-  const node = button("", () => {
-    opener = node;
-    currentPictures = collection;
-    currentIndex = collection.indexOf(entry);
-    updateLightbox();
-    dialog.showModal();
-    document.body.style.overflow = "hidden";
-    document.getElementById("close-lightbox").focus();
-  });
+  const node = button("", () => openLightbox(collection, collection.indexOf(entry), node));
   node.className = "picture";
-  node.setAttribute("aria-label", t("enlarge", {label: pictureName(picture)}));
-  const img = el("img");
-  img.src = picture.src; img.alt = pictureName(picture); img.loading = "lazy";
+  node.setAttribute("aria-label", t("enlarge", {label: title || pictureName(picture)}));
+  const img = thumbnail(picture.src);
+  img.alt = title || pictureName(picture);
   node.append(img);
   return node;
 }
@@ -232,7 +245,6 @@ function card(image, collection) {
   const delivered = image.status === "passed";
   meta.append(badge(delivered ? t("passed") : image.calls ? t("failed") : t("notProduced"), delivered ? "good" : "warn"), badge(t("calls", {n: image.calls})));
   if (image.tier) meta.append(badge(tierText(image.tier)));
-  if (image.final?.width) meta.append(badge(`${image.final.width} × ${image.final.height}`));
   body.append(meta);
   if (image.note) body.append(el("p", "note", image.note));
   if (delivered) body.append(attemptInfo(image.origin, image.attempts));
@@ -258,6 +270,10 @@ function galleryImageInfo(item) {
   box.append(el("h3", "", item.proposal_title),
              el("p", "note", [item.scene, item.detail].filter(Boolean).join(" · ")),
              el("p", "note", `${item.image_name} · ${item.attempt?.id || t("final")}`));
+  if (item.tier) {
+    const meta = el("div", "meta");
+    meta.append(badge(tierText(item.tier))); box.append(meta);
+  }
   if (item.note) box.append(el("p", "note", item.note));
   if (item.matches_final && !item.is_final) {
     box.append(el("p", "note", t("sameAsFinal")));
@@ -275,20 +291,25 @@ function galleryImageInfo(item) {
 }
 function galleryImageCard(item, collection, showHistory) {
   const article = el("article", "card gallery-image");
-  article.append(imageButton(item.picture, collection, () => galleryImageInfo(item)));
+  article.append(imageButton(item.picture, collection, () => galleryImageInfo(item), item.proposal_title));
   const body = el("div", "card-content"), meta = el("div", "meta");
   body.append(el("h3", "", item.proposal_title));
   const verdict = item.attempt?.verdict;
-  meta.append(badge(verdict === "PASS" ? t("verdictPass") : verdict === "FAIL" ? t("verdictFail") : t("verdictNone"),
-                    verdict === "PASS" ? "good" : "warn"));
   if (item.is_final) meta.append(badge(t("final"), "good"));
-  else if (item.matches_final) meta.append(badge(t("finalTwin"), "warn"));
-  if (item.attempt) meta.append(badge(item.attempt.id), badge(roleName(item.attempt.role)));
-  if (item.picture.width) meta.append(badge(`${item.picture.width} × ${item.picture.height}`));
+  else meta.append(badge(verdict === "PASS" ? t("verdictPass") : verdict === "FAIL" ? t("verdictFail") : t("verdictNone"),
+                         verdict === "PASS" ? "good" : "warn"));
+  if (!item.is_final && item.matches_final) meta.append(badge(t("finalTwin"), "warn"));
+  if (item.attempt) {
+    meta.append(badge(item.attempt.id));
+    if (item.attempt.role !== "candidate") meta.append(badge(roleName(item.attempt.role)));
+  }
+  if (item.tier) meta.append(badge(tierText(item.tier)));
   body.append(meta);
-  const more = details(t("imageDetails"));
-  more.append(galleryImageInfo(item)); body.append(more);
-  if (item.is_final && showHistory) body.append(button(t("viewHistory"), () => showHistory(item.image_id)));
+  if (item.scene) body.append(el("p", "card-scene", item.scene));
+  if (item.is_final && showHistory) {
+    const history = button(t("viewHistory"), () => showHistory(item.image_id));
+    history.className = "link-button"; body.append(history);
+  }
   article.append(body);
   return article;
 }
@@ -298,7 +319,7 @@ function comicCollections(group) {
   function contextualize(entry) {
     const {proposal, image} = contexts.get(entry.image_id);
     return {...entry, image_name: image.name, proposal_title: proposal.title,
-                  scene: proposal.scene, detail: proposal.detail, note: image.note,
+                  scene: proposal.scene, detail: proposal.detail, note: image.note, tier: image.tier,
                   attempt: entry.attempt_index == null ? image.origin : image.attempts[entry.attempt_index],
                   attempts: image.attempts, errors: image.errors};
   }
@@ -315,7 +336,7 @@ function comicCollections(group) {
   });
   return {finals, attempts: all.filter(item => !item.is_final), all};
 }
-function renderComicImages(group, panel, heading) {
+function renderComicImages(group, panel, heading, slot) {
   const sets = comicCollections(group);
   if (!comicFilters.has(group)) comicFilters.set(group, {mode: "finals", imageId: null});
   const state = comicFilters.get(group);
@@ -332,7 +353,7 @@ function renderComicImages(group, panel, heading) {
       });
       control.setAttribute("aria-pressed", String(state.mode === mode)); filters.append(control);
     });
-    browser.append(filters);
+    slot.replaceChildren(filters);
     if (state.imageId) {
       const item = sets.all.find(item => item.image_id === state.imageId) || sets.finals.find(item => item.image_id === state.imageId);
       const context = el("div", "history-context");
@@ -345,7 +366,7 @@ function renderComicImages(group, panel, heading) {
     heading.textContent = t("shownImages", {n: items.length});
     items.forEach(item => cards.append(galleryImageCard(item, collection, state.imageId ? null : imageId => {
       state.imageId = imageId; state.mode = "all"; render(true);
-      browser.scrollIntoView({block: "start"});
+      heading.scrollIntoView({block: "start"});
     })));
     browser.append(cards);
     if (!items.length) {
@@ -360,6 +381,7 @@ function renderComicImages(group, panel, heading) {
   }
   panel.append(browser); render();
   const records = details(t("proposalRecords"));
+  records.className = "proposal-records";
   group.proposals.forEach(proposal => {
     const summary = details(proposal.title);
     summary.append(el("p", "note", proposal.selected ? t("selectedProposal") : t("unselectedProposal")),
@@ -375,28 +397,47 @@ function renderComicImages(group, panel, heading) {
   });
   panel.append(records);
 }
+function sourceText(label, value, clamp) {
+  const box = el("div", "source-block");
+  box.append(el("p", "section-label", label));
+  const body = el("p", "source-text", value);
+  box.append(body);
+  if (clamp && value.length > 160) {
+    body.classList.add("clamped");
+    const toggle = button(t("expand"), () => {
+      const open = body.classList.toggle("clamped");
+      toggle.textContent = open ? t("expand") : t("collapse");
+    });
+    toggle.className = "link-button"; box.append(toggle);
+  }
+  return box;
+}
 function renderGroup(group, panel) {
   panel.replaceChildren();
+  currentGroup = group;
+  const index = data.groups.indexOf(group);
   const source = el("section", "source");
-  source.append(el("div", "section-label", t("startingPoint")), el("h2", "", group.title));
-  source.append(el("p", "note", t("groupStats", {passed: group.passed, planned: group.planned, calls: group.calls, errors: group.errors, date: date(group.date)})));
-  if (group.request) {
-    source.append(el("p", "section-label", t("request")), el("p", "source-text", group.request));
-  } else source.append(el("p", "note", t("noRequest")));
-  if (group.originals.length) source.append(sourceStrip(group.originals));
-  if (group.analysis) {
+  if (group.originals.length) { source.classList.add("with-originals"); source.append(sourceStrip(group.originals)); }
+  const about = el("div", "source-info");
+  about.append(el("div", "section-label", `${t("startingPoint")} · ${pad(index + 1)} / ${pad(data.groups.length)}`), el("h2", "", group.title));
+  about.append(el("p", "source-stats", t("groupStats", {passed: group.passed, planned: group.planned, calls: group.calls, errors: group.errors, date: date(group.date)})));
+  if (group.request) about.append(sourceText(t("request"), group.request, true));
+  else about.append(el("p", "note", t("noRequest")));
+  const records = el("div", "source-records");
+  if (group.analysis && !group.request) about.append(sourceText(t("analysis"), group.analysis, true));
+  else if (group.analysis) {
     const analysis = details(t("analysis"));
-    analysis.append(el("p", "source-text", group.analysis)); source.append(analysis);
+    analysis.append(el("p", "source-text", group.analysis)); records.append(analysis);
   }
   if (group.references.length) {
     const refs = details(t("references", {n: group.references.length}));
-    refs.append(sourceStrip(group.references)); source.append(refs);
+    refs.append(sourceStrip(group.references)); records.append(refs);
   }
   if (group.warnings.length) {
     const warnings = details(t("recordNotes", {n: group.warnings.length}));
-    warnings.className = "warnings";
+    warnings.classList.add("warnings");
     group.warnings.forEach(warning => warnings.append(el("p", "", warningText(warning))));
-    source.append(warnings);
+    records.append(warnings);
   }
   if (group.collection_reviews?.length) {
     const collection = details(t("collectionQA"));
@@ -404,19 +445,22 @@ function renderGroup(group, panel) {
       collection.append(sourceStrip([item.picture]));
       collection.append(el("pre", "source-text", JSON.stringify(item.review, null, 2)));
     });
-    source.append(collection);
+    records.append(collection);
   }
   if (group.stage_events?.length) {
     const outcomes = details(t("outcomes"));
     outcomes.append(el("pre", "source-text", JSON.stringify({tasks: group.task_outcomes, events: group.stage_events}, null, 2)));
-    source.append(outcomes);
+    records.append(outcomes);
   }
+  if (records.childElementCount) about.append(records);
+  source.append(about);
   panel.append(source);
   const toolbar = el("div", "toolbar");
   const heading = el("h2", "", data.skill === "comic"
     ? t("allImages", {n: group.gallery_images.length}) : t("proposalsWorks", {n: group.proposals.length}));
-  heading.setAttribute("aria-live", "polite"); toolbar.append(heading);
-  const controls = el("div", "controls");
+  heading.setAttribute("aria-live", "polite");
+  const slot = el("div", "filter-slot");
+  const controls = el("div", "controls view-toggle");
   const modes = [];
   for (const [mode, label] of [["grid", t("grid")], ["list", t("list")]]) {
     const control = button(label, () => {
@@ -426,10 +470,10 @@ function renderGroup(group, panel) {
     control.setAttribute("aria-pressed", String(view === mode));
     modes.push([mode, control]); controls.append(control);
   }
-  toolbar.append(controls); panel.append(toolbar);
+  toolbar.append(heading, slot, controls); panel.append(toolbar);
   panel.classList.toggle("list", view === "list");
-  if (data.skill === "comic") { renderComicImages(group, panel, heading); return; }
-  group.proposals.forEach(proposal => {
+  if (data.skill === "comic") renderComicImages(group, panel, heading, slot);
+  else group.proposals.forEach(proposal => {
     if (!proposal.selected) {
       const folded = details(""); folded.className = "unselected";
       folded.firstChild.append(el("span", "letter", proposal.choice), el("span", "", proposal.title), badge(t("notGenerated")));
@@ -444,83 +488,248 @@ function renderGroup(group, panel) {
     proposal.images.forEach(image => cards.append(card(image, collection)));
     section.append(cards); panel.append(section);
   });
+  panel.append(groupPager(index));
 }
-let tabButtons = [], panel;
-function selectGroup(index) {
+function groupPager(index) {
+  const pager = el("nav", "group-pager");
+  pager.setAttribute("aria-label", t("groupPager"));
+  const last = data.groups.length - 1;
+  const previous = button(`← ${index > 0 ? data.groups[index - 1].title : ""}`, () => selectGroup(index - 1, true));
+  const next = button(`${index < last ? data.groups[index + 1].title : ""} →`, () => selectGroup(index + 1, true));
+  previous.disabled = index === 0; next.disabled = index === last;
+  pager.append(previous, el("span", "", `${pad(index + 1)} / ${pad(data.groups.length)}`), next);
+  return pager;
+}
+function groupThumb(group) {
+  return group.originals.find(picture => picture.src)
+    || group.proposals.flatMap(proposal => proposal.images).map(image => image.final).find(picture => picture?.src);
+}
+let tabButtons = [], tabList, panel;
+function revealTab(tab) {
+  if (!tab || !tabList) return;
+  const box = tabList.getBoundingClientRect(), rect = tab.getBoundingClientRect();
+  if (tabList.scrollHeight > tabList.clientHeight) {
+    if (rect.top < box.top) tabList.scrollTop += rect.top - box.top - 12;
+    else if (rect.bottom > box.bottom) tabList.scrollTop += rect.bottom - box.bottom + 12;
+  }
+  if (tabList.scrollWidth > tabList.clientWidth) {
+    if (rect.left < box.left) tabList.scrollLeft += rect.left - box.left - 12;
+    else if (rect.right > box.right) tabList.scrollLeft += rect.right - box.right + 12;
+  }
+}
+function selectGroup(index, fromUser = false) {
+  if (index < 0 || index >= data.groups.length) return;
   activeGroup = index;
   tabButtons.forEach((tab, i) => { tab.setAttribute("aria-selected", String(i === index)); tab.tabIndex = i === index ? 0 : -1; });
   panel.setAttribute("aria-labelledby", tabButtons[index].id);
   renderGroup(data.groups[index], panel);
+  revealTab(tabButtons[index]);
+  if (fromUser && panel.getBoundingClientRect().top < 0) panel.scrollIntoView({block: "start"});
 }
 function renderStatic() {
   document.documentElement.lang = t("htmlLang");
   document.querySelectorAll("[data-i18n]").forEach(node => { node.textContent = t(node.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-title]").forEach(node => { node.title = t(node.dataset.i18nTitle); });
+  document.querySelectorAll("[data-i18n-label]").forEach(node => { node.setAttribute("aria-label", t(node.dataset.i18nLabel)); });
   const toggle = document.getElementById("language-toggle");
   toggle.textContent = t("toggle");
   toggle.setAttribute("aria-label", t("toggleLabel"));
   dialog.setAttribute("aria-label", t("lightbox"));
   document.getElementById("close-lightbox").setAttribute("aria-label", t("closeLabel"));
-  document.getElementById("size-toggle").textContent = stage.classList.contains("original") ? t("fitWindow") : t("originalSize");
+  document.getElementById("page-title").textContent = data.skill === "comic" ? t("titleComic") : t("titleCharacter");
+  const stats = document.getElementById("page-stats");
+  stats.replaceChildren();
+  for (const [label, value] of [[t("statSources"), data.groups.length], [t("statFinals"), data.groups.reduce((sum, group) => sum + group.passed, 0)], [t("statCalls"), data.groups.reduce((sum, group) => sum + group.calls, 0)]]) {
+    const stat = el("span", "stat"); stat.append(el("strong", "", String(value).padStart(2, "0")), el("span", "", label)); stats.append(stat);
+  }
+  if (dialog.open) updateLightbox();
 }
 function renderApp() {
   renderStatic();
   app.replaceChildren();
-  const hero = el("section", "hero"), introduction = el("div");
-  introduction.append(el("div", "eyebrow", "A COLLECTION OF LITTLE IDEAS"), el("h1", "", data.skill === "comic" ? t("titleComic") : t("titleCharacter")), el("p", "", t("tagline")));
-  const stats = el("div", "stats");
-  for (const [label, value] of [[t("statSources"), data.groups.length], [t("statFinals"), data.groups.reduce((sum, group) => sum + group.passed, 0)], [t("statCalls"), data.groups.reduce((sum, group) => sum + group.calls, 0)]]) {
-    const stat = el("div", "stat"); stat.append(el("strong", "", String(value).padStart(2, "0")), el("span", "", label)); stats.append(stat);
-  }
-  hero.append(introduction, stats); app.append(hero);
-  const tabs = el("nav", "tabs"); tabs.setAttribute("role", "tablist"); tabs.setAttribute("aria-label", t("tabsLabel"));
-  panel = el("div"); panel.id = "group-panel"; panel.setAttribute("role", "tabpanel");
+  app.classList.toggle("single-group", data.groups.length < 2);
+  tabList = el("nav", "tabs"); tabList.setAttribute("role", "tablist"); tabList.setAttribute("aria-label", t("tabsLabel"));
+  tabList.setAttribute("aria-orientation", "vertical");
+  const tabsHeading = el("div", "tabs-heading"), hint = el("span", "shortcut");
+  hint.append(el("kbd", "", "["), " ", el("kbd", "", "]"), ` ${t("switchGroups")}`);
+  tabsHeading.append(el("span", "", t("tabsHeading", {n: data.groups.length})), hint);
+  tabList.append(tabsHeading);
+  panel = el("div", "group-panel"); panel.id = "group-panel"; panel.setAttribute("role", "tabpanel");
   tabButtons = data.groups.map((group, index) => {
-    const tab = button(`${String(index + 1).padStart(2,"0")} / ${group.title}`, () => selectGroup(index));
-    tab.id = `group-tab-${index}`; tab.setAttribute("role", "tab"); tab.setAttribute("aria-controls", panel.id);
+    const tab = button("", () => selectGroup(index, true));
+    tab.className = "tab"; tab.id = `group-tab-${index}`;
+    tab.setAttribute("role", "tab"); tab.setAttribute("aria-controls", panel.id);
+    const picture = groupThumb(group);
+    const label = el("span", "tab-text");
+    label.append(el("span", "tab-title", `${pad(index + 1)} · ${group.title}`),
+                 el("span", "tab-meta", t("tabMeta", {passed: group.passed, planned: group.planned, calls: group.calls})));
+    tab.append(picture ? thumbnail(picture.src, "tab-thumb") : el("span", "tab-thumb", pad(index + 1)), label);
     tab.addEventListener("keydown", event => {
-      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      const step = {ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1}[event.key];
+      if (step === undefined && event.key !== "Home" && event.key !== "End") return;
       event.preventDefault();
-      const next = event.key === "Home" ? 0 : event.key === "End" ? data.groups.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + data.groups.length) % data.groups.length;
+      const next = event.key === "Home" ? 0 : event.key === "End" ? data.groups.length - 1 : (index + step + data.groups.length) % data.groups.length;
       selectGroup(next); tabButtons[next].focus();
     });
-    tabs.append(tab); return tab;
+    tabList.append(tab); return tab;
   });
-  app.append(tabs, panel); selectGroup(activeGroup);
+  app.append(tabList, panel); selectGroup(activeGroup);
 }
 document.getElementById("language-toggle").onclick = () => {
   language = language === "zh" ? "en" : "zh";
   try { localStorage.setItem("whalechan-gallery-language", language); } catch {}
   renderApp();
 };
+document.addEventListener("keydown", event => {
+  if (dialog.open || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable) return;
+  if (event.key !== "[" && event.key !== "]") return;
+  const next = activeGroup + (event.key === "]" ? 1 : -1);
+  if (next < 0 || next >= data.groups.length) return;
+  event.preventDefault(); selectGroup(next, true); tabButtons[next].focus({preventScroll: true});
+});
 renderApp();
+
+// Viewer: fit/zoom/pan the current collection, with an optional source comparison and details panel.
+const viewer = {scale: 1, fit: 1, x: 0, y: 0, compare: false, info: window.innerWidth > 1180, hinted: false, drag: null};
+function entryTitle(entry) { return entry.title || pictureName(entry.picture); }
+function comparisonSources(entry) {
+  if (!entry.group || entry.picture.kind === "source" || entry.picture.kind === "reference") return [];
+  return entry.group.originals.filter(picture => picture.src);
+}
+function openLightbox(collection, index, origin) {
+  opener = origin; currentPictures = collection; currentIndex = index;
+  document.body.style.overflow = "hidden";
+  dialog.showModal(); stage.focus({preventScroll: true});
+  buildStrip(); updateLightbox();
+  const hint = document.getElementById("lightbox-hint");
+  hint.classList.toggle("gone", viewer.hinted);
+  if (!viewer.hinted) { viewer.hinted = true; setTimeout(() => hint.classList.add("gone"), 3200); }
+}
+function buildStrip() {
+  const strip = document.getElementById("lightbox-strip");
+  strip.replaceChildren();
+  dialog.classList.toggle("single", currentPictures.length < 2);
+  currentPictures.forEach((entry, index) => {
+    const node = button("", () => moveTo(index));
+    node.title = entryTitle(entry); node.setAttribute("aria-label", entryTitle(entry));
+    node.append(thumbnail(entry.picture.src));
+    strip.append(node);
+  });
+}
 function updateLightbox() {
-  const entry = currentPictures[currentIndex];
-  largeImage.src = entry.picture.src; largeImage.alt = pictureName(entry.picture);
-  document.getElementById("lightbox-title").textContent = pictureName(entry.picture);
-  document.getElementById("image-position").textContent = `${currentIndex + 1} / ${currentPictures.length} · ${entry.picture.width} × ${entry.picture.height}`;
+  const entry = currentPictures[currentIndex], picture = entry.picture;
+  largeImage.classList.add("loading");
+  largeImage.onload = () => { fitImage(); largeImage.classList.remove("loading"); };
+  largeImage.src = picture.src; largeImage.alt = entryTitle(entry);
+  if (largeImage.complete && largeImage.naturalWidth) largeImage.onload();
+  document.getElementById("lightbox-title").textContent = entryTitle(entry);
+  document.getElementById("image-position").textContent = `${currentIndex + 1} / ${currentPictures.length} · ${picture.width} × ${picture.height}`;
   document.getElementById("previous").disabled = currentIndex === 0;
   document.getElementById("next").disabled = currentIndex === currentPictures.length - 1;
-  stage.classList.remove("original"); stage.scrollTop = 0; stage.scrollLeft = 0;
-  document.getElementById("size-toggle").textContent = t("originalSize");
+  const sources = comparisonSources(entry), compare = document.getElementById("compare-toggle");
+  compare.disabled = !sources.length;
+  compare.setAttribute("aria-pressed", String(viewer.compare && sources.length > 0));
+  viewerMain.classList.toggle("compare", viewer.compare && sources.length > 0);
+  const pane = document.getElementById("lightbox-compare");
+  pane.replaceChildren(el("p", "section-label", t("sourceInput")), ...sources.map(source => thumbnail(source.src)));
+  viewerMain.classList.toggle("info", viewer.info);
+  document.getElementById("info-toggle").setAttribute("aria-expanded", String(viewer.info));
   info.replaceChildren(entry.detailFactory ? entry.detailFactory() : el("p", "note", t("inputOrReference")));
+  [...document.getElementById("lightbox-strip").children].forEach((node, index) => {
+    node.classList.toggle("active", index === currentIndex);
+    if (index === currentIndex) node.scrollIntoView({block: "nearest", inline: "nearest"});
+  });
+  for (const index of [currentIndex - 1, currentIndex + 1]) if (currentPictures[index]) new Image().src = currentPictures[index].picture.src;
 }
-function move(delta) {
-  const next = currentIndex + delta;
-  if (next >= 0 && next < currentPictures.length) { currentIndex = next; updateLightbox(); }
+function moveTo(index) {
+  if (index >= 0 && index < currentPictures.length && index !== currentIndex) { currentIndex = index; updateLightbox(); }
 }
-document.getElementById("previous").onclick = () => move(-1);
-document.getElementById("next").onclick = () => move(1);
+function stageSize() { return [stage.clientWidth, stage.clientHeight]; }
+function isZoomed() { return viewer.scale > viewer.fit * 1.001; }
+function applyZoom(animate = false) {
+  stage.classList.toggle("animate", animate);
+  largeImage.style.width = `${largeImage.naturalWidth}px`; largeImage.style.height = `${largeImage.naturalHeight}px`;
+  largeImage.style.transform = `translate(${viewer.x}px, ${viewer.y}px) scale(${viewer.scale})`;
+  stage.classList.toggle("zoomed", isZoomed());
+  document.getElementById("size-toggle").textContent = isZoomed()
+    ? `${Math.round(viewer.scale * 100)}%` : `${t("fit")} ${Math.round(viewer.fit * 100)}%`;
+}
+function clampPan() {
+  const [width, height] = stageSize();
+  const imageWidth = largeImage.naturalWidth * viewer.scale, imageHeight = largeImage.naturalHeight * viewer.scale;
+  viewer.x = imageWidth <= width ? (width - imageWidth) / 2 : Math.min(0, Math.max(width - imageWidth, viewer.x));
+  viewer.y = imageHeight <= height ? (height - imageHeight) / 2 : Math.min(0, Math.max(height - imageHeight, viewer.y));
+}
+function fitImage(animate = false) {
+  if (!largeImage.naturalWidth) return;
+  const [width, height] = stageSize();
+  const margin = width < 600 ? 16 : 64;
+  viewer.fit = Math.max(0.01, Math.min((width - margin) / largeImage.naturalWidth, (height - margin) / largeImage.naturalHeight, 2));
+  viewer.scale = viewer.fit; clampPan(); applyZoom(animate);
+}
+function zoomTo(scale, x, y, animate = false) {
+  if (!largeImage.naturalWidth) return;
+  const [width, height] = stageSize();
+  x ??= width / 2; y ??= height / 2;
+  scale = Math.min(Math.max(scale, viewer.fit), 8);
+  viewer.x = x - (x - viewer.x) * scale / viewer.scale; viewer.y = y - (y - viewer.y) * scale / viewer.scale;
+  viewer.scale = scale; clampPan(); applyZoom(animate);
+}
+function toggleZoom(x, y) {
+  if (isZoomed()) fitImage(true);
+  else zoomTo(viewer.fit >= 1 ? viewer.fit * 2 : 1, x, y, true);
+}
+function stagePoint(event) { const rect = stage.getBoundingClientRect(); return [event.clientX - rect.left, event.clientY - rect.top]; }
+stage.addEventListener("wheel", event => {
+  event.preventDefault();
+  zoomTo(viewer.scale * Math.exp(-event.deltaY * (event.ctrlKey ? 0.01 : 0.0015)), ...stagePoint(event));
+}, {passive: false});
+stage.addEventListener("pointerdown", event => {
+  if (event.button !== 0 || event.target.closest(".lb-arrow")) return;
+  viewer.drag = {x: event.clientX, y: event.clientY, panX: viewer.x, panY: viewer.y, moved: false, onImage: event.target === largeImage};
+  stage.setPointerCapture(event.pointerId);
+});
+stage.addEventListener("pointermove", event => {
+  const drag = viewer.drag;
+  if (!drag) return;
+  const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+  if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; stage.classList.add("dragging"); }
+  if (drag.moved && isZoomed()) { viewer.x = drag.panX + dx; viewer.y = drag.panY + dy; clampPan(); applyZoom(); }
+});
+stage.addEventListener("pointerup", event => {
+  const drag = viewer.drag;
+  if (!drag) return;
+  viewer.drag = null; stage.classList.remove("dragging");
+  if (drag.moved) return;
+  if (drag.onImage) toggleZoom(...stagePoint(event));
+  else if (!isZoomed()) dialog.close();
+});
+stage.addEventListener("pointercancel", () => { viewer.drag = null; stage.classList.remove("dragging"); });
+window.addEventListener("resize", () => {
+  if (!dialog.open) return;
+  if (isZoomed()) { clampPan(); applyZoom(); } else fitImage();
+});
+document.getElementById("previous").onclick = () => moveTo(currentIndex - 1);
+document.getElementById("next").onclick = () => moveTo(currentIndex + 1);
 document.getElementById("close-lightbox").onclick = () => dialog.close();
-document.getElementById("size-toggle").onclick = event => {
-  stage.classList.toggle("original");
-  event.currentTarget.textContent = stage.classList.contains("original") ? t("fitWindow") : t("originalSize");
-};
-document.getElementById("info-toggle").onclick = event => {
-  info.hidden = !info.hidden; event.currentTarget.setAttribute("aria-expanded", String(!info.hidden));
-};
-dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
+document.getElementById("zoom-in").onclick = () => zoomTo(viewer.scale * 1.4, undefined, undefined, true);
+document.getElementById("zoom-out").onclick = () => zoomTo(viewer.scale / 1.4, undefined, undefined, true);
+document.getElementById("size-toggle").onclick = () => toggleZoom();
+document.getElementById("compare-toggle").onclick = () => { viewer.compare = !viewer.compare; updateLightbox(); };
+document.getElementById("info-toggle").onclick = () => { viewer.info = !viewer.info; updateLightbox(); };
 dialog.addEventListener("close", () => { document.body.style.overflow = ""; opener?.focus(); });
 dialog.addEventListener("keydown", event => {
-  if (event.target.tagName === "TEXTAREA") return;
-  if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); move(event.key === "ArrowLeft" ? -1 : 1); }
+  if (event.target.tagName === "TEXTAREA" || event.metaKey || event.ctrlKey || event.altKey) return;
+  const actions = {
+    ArrowLeft: () => moveTo(currentIndex - 1), ArrowRight: () => moveTo(currentIndex + 1),
+    Home: () => moveTo(0), End: () => moveTo(currentPictures.length - 1),
+    "+": () => zoomTo(viewer.scale * 1.4, undefined, undefined, true), "=": () => zoomTo(viewer.scale * 1.4, undefined, undefined, true),
+    "-": () => zoomTo(viewer.scale / 1.4, undefined, undefined, true),
+    "0": () => fitImage(true), "1": () => zoomTo(1, undefined, undefined, true), z: () => toggleZoom(),
+    s: () => document.getElementById("compare-toggle").disabled || document.getElementById("compare-toggle").click(),
+    i: () => document.getElementById("info-toggle").click(),
+  };
+  const action = actions[event.key];
+  if (action) { event.preventDefault(); action(); }
 });

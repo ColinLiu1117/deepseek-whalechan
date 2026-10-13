@@ -14,9 +14,9 @@ A single run defaults to `<run>/gallery/index.html`. A batch requires `--output`
 
 One independent source group or creative theme is one run and one tab. Consecutive screenshots share that run's `input.content` list and proposal set. Preserve the user-specified grouping and order; do not split consecutive screenshots into separate runs just for display. For a batch, export all finalized runs in the requested tab order in one call. A single gallery contains only one skill's runs.
 
-Source/theme tabs wrap into three columns on desktop and two columns at widths up to 700px. Labels wrap in full rather than truncating or requiring horizontal scrolling.
+Source/theme groups appear in a sticky sidebar index. Each entry shows a thumbnail of the group's input image (or its first final), its number, the full title and pass/call counts; titles wrap rather than truncate. `[` and `]` switch groups from anywhere on the page, arrow keys move within the index, and previous/next buttons close each group. At widths up to 900px the index becomes a horizontally scrolling row above the content. A single-group gallery hides the index.
 
-The warm ivory page shows original requests, source images and separately labelled visual references, then all proposals. Selected proposals group all their final images together. Unselected proposals retain collapsed summaries. Grid is the default; list view retains the same groups. Original images, references, finals and attempts open in a lightbox with keyboard navigation, native-size viewing, details and focus restoration. Navigation stays within the current source collection, proposal's finals or image's attempts.
+The warm ivory page shows original requests, source images and separately labelled visual references, then all proposals. Selected proposals group all their final images together. Unselected proposals retain collapsed summaries. Grid is the default; list view retains the same groups. Original images, references, finals and attempts open in the same full-screen viewer (zoom, pan, thumbnail strip, details panel, input-image comparison for generated pictures) with keyboard navigation and focus restoration. Navigation stays within the current source collection, proposal's finals or image's attempts.
 
 ## Evidence and counts
 

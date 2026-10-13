@@ -351,7 +351,7 @@ export ARK_API_KEY="..."
 
 ## 🛠️ 本地命令行工具链
 
-生成结束并完成 `finalize` 后，两个 skill 都会交付米白色离线预览画廊：按素材组／主题切换 Tab，按方案集中展示成品，支持列表、网格、灯箱放大，以及提示词、候选过程和产图次数。未选方案保留折叠摘要。
+生成结束并完成 `finalize` 后，两个 skill 都会交付米白色离线预览画廊：用侧栏索引切换素材组／主题，按方案集中展示成品，支持列表、网格、全屏查看器（缩放、拖动、对照原图），以及提示词、候选过程和产图次数。未选方案保留折叠摘要。
 
 ```bash
 python3 skills/whalechan-image-character/scripts/export-gallery.py --run-dir <已完成的角色任务目录>

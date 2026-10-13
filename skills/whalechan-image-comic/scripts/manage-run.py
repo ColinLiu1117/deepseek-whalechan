@@ -30,11 +30,11 @@ FORMS = set(FORM_ORDER)
 ASSET_CATALOG_SCHEMA_VERSION = 3
 EXPRESSION_PRESETS_SCHEMA_VERSION = 2
 EXAGGERATION_TIERS_SCHEMA_VERSION = 1
-ASSIGNMENT_SCHEMA_VERSION = 18
+ASSIGNMENT_SCHEMA_VERSION = 19
 # Frozen runs from these versions may still be generated and finalized, never newly initialized.
-RESUMABLE_SCHEMA_VERSIONS = {11, 13, 14, 15, 16, 17, ASSIGNMENT_SCHEMA_VERSION}
+RESUMABLE_SCHEMA_VERSIONS = {11, 13, 14, 15, 16, 17, 18, ASSIGNMENT_SCHEMA_VERSION}
 # Tournament contracts: v13 predates exaggeration tiers, v14 adds them.
-TOURNAMENT_SCHEMA_VERSIONS = {13, 14, 15, 16, 17, ASSIGNMENT_SCHEMA_VERSION}
+TOURNAMENT_SCHEMA_VERSIONS = {13, 14, 15, 16, 17, 18}
 QA_CONTRACT_VERSION = 11
 # Frozen v13 runs keep reviewing under QA contract 9, which has no E1 exaggeration gate.
 QA_CONTRACT_VERSIONS = {9, 10, QA_CONTRACT_VERSION}
@@ -263,11 +263,11 @@ def uses_tournament(value: dict[str, Any]) -> bool:
 
 
 def is_tiered(value: dict[str, Any]) -> bool:
-    return value.get("schema_version") in {14, 15, 16, 17, 18}
+    return value.get("schema_version") in {14, 15, 16, 17, 18, 19}
 
 
 def selection_summary(value: dict[str, Any]) -> dict[str, Any]:
-    if uses_tournament(value):
+    if uses_tournament(value) or value.get("schema_version") == 19:
         return plan_summary(value)
     proposal = value.get("proposal")
     options = proposal_options(proposal)
@@ -306,7 +306,7 @@ def selection_summary(value: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_approval(value: dict[str, Any]) -> dict[str, Any]:
-    if uses_tournament(value):
+    if uses_tournament(value) or value.get("schema_version") == 19:
         summary = plan_summary(value)
         confirmation = value.get("confirmation")
         if not isinstance(confirmation, dict) or confirmation.get("status") != "confirmed":
@@ -318,7 +318,7 @@ def validate_approval(value: dict[str, Any]) -> dict[str, Any]:
         expected = {item["idea_id"] for item in summary["choices"]}
         if (not isinstance(images, list) or any(not isinstance(item, dict) for item in images)
                 or Counter(item.get("idea_id") for item in images) != Counter(expected)):
-            raise RunError("images must contain five selected ideas exactly once each")
+            raise RunError("images must contain the selected ideas exactly once each")
         options = {item["idea_id"]: item for item in value["proposal"]["options"]}
         for image in images:
             option = options[image["idea_id"]]
@@ -357,12 +357,13 @@ def markdown_cell(value: str) -> str:
 
 
 def selection_markdown(summary: dict[str, Any], language: str = "zh") -> str:
-    return plan_markdown({"proposal": {"options": summary["options"]},
+    return plan_markdown({**({"schema_version": 19, "target_images": summary["image_count"]} if summary.get("execution", {}).get("planning_mode") else {}),
+                          "proposal": {"options": summary["options"]},
                           "panel_policy": summary["panel_policy"]}, summary, language)
 
 
 def planning_draft(value: dict[str, Any], label: str = "Planning draft") -> dict[str, Any]:
-    if value.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+    if value.get("schema_version") not in {18, ASSIGNMENT_SCHEMA_VERSION}:
         raise RunError(f"{label} must use schema_version {ASSIGNMENT_SCHEMA_VERSION}")
     return value
 
@@ -379,8 +380,8 @@ def cmd_summarize_selection(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_rank_ideas(args: argparse.Namespace) -> dict[str, Any]:
     value = planning_draft(read_json(Path(args.draft).resolve()))
-    standings = tournament_results(value)
-    return {"standings": standings, "ranked_ideas": [row["idea_id"] for row in standings[:5]]}
+    standings = priority_results(value) if value.get("schema_version") == 19 else tournament_results(value)
+    return {"standings": standings, "ranked_ideas": [row["idea_id"] for row in standings[:target_images(value)]]}
 
 
 def tournament_results(value: dict[str, Any]) -> list[dict[str, Any]]:
@@ -443,13 +444,31 @@ def tournament_results(value: dict[str, Any]) -> list[dict[str, Any]]:
     return ranking
 
 
+def target_images(value):
+    if value.get("schema_version") == 19:
+        try:
+            return extension_module("selection_contract").count(value.get("target_images"))
+        except ValueError as exc:
+            raise RunError(str(exc)) from exc
+    return 5
+
+
+def priority_results(value):
+    try:
+        from types import SimpleNamespace
+        return extension_module("selection_contract").ranking(SimpleNamespace(**globals()), value)
+    except ValueError as exc:
+        raise RunError(str(exc)) from exc
+
+
 def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
-    ranking = tournament_results(value)
-    selected = [item["idea_id"] for item in ranking[:5]]
+    ranking = priority_results(value) if value.get("schema_version") == 19 else tournament_results(value)
+    n = target_images(value)
+    selected = [item["idea_id"] for item in ranking[:n]]
     if value.get("ranked_ideas") != selected:
-        raise RunError("ranked_ideas must be the five tournament winners in ranking order")
+        raise RunError("ranked_ideas must follow the selected ranking order")
     if "selection" in value:
-        raise RunError("The tournament contract has one confirmation, not a user selection record")
+        raise RunError("The ranked plan has one confirmation, not a user selection record")
     text(value.get("selection_reason"), "selection_reason")
     source = value.get("input", {})
     anchor = text(source.get("fact_anchor"), "input.fact_anchor")
@@ -476,7 +495,7 @@ def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
     options = proposal.get("options")
     if (not isinstance(options, list) or any(not isinstance(i, dict) for i in options)
             or [i.get("idea_id") for i in options] != selected):
-        raise RunError("proposal.options must contain the five ranked ideas in order")
+        raise RunError("proposal.options must contain the selected ranked ideas in order")
     for option in options:
         idea = ideas[option["idea_id"]]
         for field in ("title", "premise", "scene", "twist", "staging", "selection_reason"):
@@ -489,6 +508,8 @@ def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
         if type(option.get("is_native")) is not bool or option["is_native"] != (idea["direction"] == native["direction"]):
             raise RunError("proposal.is_native must accurately match the source direction")
         string_list(option.get("key_lines"), "proposal.key_lines")
+        if value.get("schema_version") == 19 and option["key_lines"] != idea["key_lines"]:
+            raise RunError("Selected candidate key lines are frozen")
         if type(option.get("panel_count")) is not int or option["panel_count"] not in {1, 2, 4}:
             raise RunError("proposal.panel_count must be 1, 2, or 4")
     policy = value.get("panel_policy", {"mode": "narrative"})
@@ -496,14 +517,22 @@ def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
         raise RunError("panel_policy.mode must be narrative or user-override")
     if policy["mode"] == "user-override":
         text(policy.get("user_instruction"), "panel_policy.user_instruction")
-    elif {option["panel_count"] for option in options} != {1, 2, 4}:
-        raise RunError("Five comics must cover three panel counts: 1, 2 and 4")
+    elif n >= 3 and {option["panel_count"] for option in options} != {1, 2, 4}:
+        raise RunError("The selected comics must cover three panel counts: 1, 2 and 4")
     tier_policy = exaggeration_policy(value, options) if is_tiered(value) else None
     if "images" in value:
         images = value["images"]
         if (not isinstance(images, list) or any(not isinstance(i, dict) for i in images)
                 or Counter(i.get("idea_id") for i in images) != Counter(selected)):
-            raise RunError("images must contain five selected ideas exactly once each")
+            raise RunError("images must contain the selected ideas exactly once each")
+    if value.get("schema_version") == 19 and "images" in value:
+        if [i["idea_id"] for i in value["images"]] != selected:
+            raise RunError("images must follow the selected priority order")
+        for image, option in zip(value["images"], options, strict=True):
+            if image.get("execution") != 1 or any(image.get(a) != option.get(b) for a, b in (
+                ("premise", "premise"), ("core_text", "key_lines"),
+                ("panel_count", "panel_count"), ("exaggeration", "exaggeration"))):
+                raise RunError("Detailed images must preserve selected premise, exact key lines, panels and tier")
     proportions = []
     if any("proportion" in option for option in options):
         form_profiles = read_json(CATALOG_PATH)["character_forms"]
@@ -543,8 +572,8 @@ def exaggeration_policy(value: dict[str, Any], options: list[dict[str, Any]]) ->
         text(policy.get("user_instruction"), "exaggeration_policy.user_instruction")
     elif set(policy) != {"mode"}:
         raise RunError("narrative exaggeration_policy only accepts mode")
-    elif {option["exaggeration"] for option in options} != set(TIER_ORDER):
-        raise RunError("Five comics must cover exaggeration tiers A, B and C")
+    elif target_images(value) >= 3 and {option["exaggeration"] for option in options} != set(TIER_ORDER):
+        raise RunError("The selected comics must cover exaggeration tiers A, B and C")
     return policy
 
 
@@ -553,9 +582,9 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
     plan = value.get("worker_plan")
     if not isinstance(plan, dict) or plan.get("coordinator") != "main":
         raise RunError("worker_plan requires coordinator=main")
-    if value.get("schema_version") in {17, 18}:
+    if value.get("schema_version") in {17, 18, 19}:
         execution = role_execution(value.get("execution"))
-        if value["schema_version"] == 18:
+        if value["schema_version"] in {18, 19}:
             extension_module("provider_policy").validate(execution.get("tool"))
         if plan != {"coordinator": "main", "allocation": "dynamic"}:
             raise RunError("v17 worker_plan requires dynamic allocation")
@@ -584,21 +613,27 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
     proposal = value["proposal"]
     rows = [{"choice": str(n), "title": item["title"], "idea_id": item["idea_id"], "count": 1}
             for n, item in enumerate(proposal["options"], 1)]
-    payload = {key: value[key] for key in ("proposal", "creative_pool", "duels", "ranked_ideas",
-                                          "selection_reason", "worker_plan")}
-    payload.update(tie_breaks=value.get("tie_breaks", []), panel_policy=policy,
-                   execution=execution, input=value["input"])
+    if value.get("schema_version") == 19:
+        keys = ("proposal", "creative_pool", "ranked_ideas", "selection_reason", "worker_plan",
+                "target_images", "source_id", "author_agent_ids", "concept_task_id", "pool_sha256", "selection_review")
+        payload = {key: value[key] for key in keys}
+        payload.update(panel_policy=policy, execution=execution, input=value["input"])
+    else:
+        payload = {key: value[key] for key in ("proposal", "creative_pool", "duels", "ranked_ideas",
+                                              "selection_reason", "worker_plan")}
+        payload.update(tie_breaks=value.get("tie_breaks", []), panel_policy=policy,
+                       execution=execution, input=value["input"])
     if tier_policy is not None:
         # Only v14 binds the tier policy, so historical v13 confirmation hashes stay unchanged.
         payload["exaggeration_policy"] = tier_policy
-    if value.get("schema_version") in {15, 16, 17, 18}:
+    if value.get("schema_version") in {15, 16, 17, 18, 19}:
         payload["review_workflow"] = {"version": 1, "candidate_reviews": 1,
                                       "minor_tolerance": True, "collection_repair_rounds": 1,
                                       "regeneration_sources": ["single_image_qa", "collection_review"]}
-    if value.get("schema_version") in {16, 17, 18}:
+    if value.get("schema_version") in {16, 17, 18, 19}:
         payload["visual_plan"] = visual_prompt().contract(value)
-    return {"proposal_count": 5, "image_count": 5, "choices": rows, "adjustments": [],
-            "worker_plan": plan, "maximum_total": 15, "standings": ranking,
+    return {"proposal_count": len(selected), "image_count": len(selected), "choices": rows, "adjustments": [],
+            "worker_plan": plan, "maximum_total": len(selected) * MAX_CANDIDATES, "standings": ranking,
             "execution": execution,
             "options": proposal["options"], "panel_policy": policy,
             "exaggeration_policy": tier_policy,
@@ -647,7 +682,11 @@ def proportion_line(proportions: list[dict[str, Any]], language: str) -> str:
 
 def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, language: str = "zh") -> str:
     summary = summary or plan_summary(value)
-    words = PLAN_TEXT[language]
+    words = dict(PLAN_TEXT[language])
+    if value.get("schema_version") == 19:
+        n = target_images(value)
+        words["totals"] = f"总计 {n} 张；最多 {3*n} 次出图。" if language == "zh" else f"{n} images; at most {3*n} image-producing calls."
+        words["route"] = "从冻结的2N候选中独立排序选N个；筛选不是生图授权。" if language == "zh" else "Independent priority selection from 2N candidates; selection is not generation consent."
     directions = DIRECTION_LABELS[language]
     options = value["proposal"]["options"]
     tier_policy = summary.get("exaggeration_policy")
@@ -679,6 +718,8 @@ def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, 
         limits = summary["execution"]["role_limits"]
         detail = (f"分类 sub-agent 上限：策划 {limits['planning']}；生图 {limits['generation']} / Codex {limits['codex_generation']}；集合 {limits['collection']}；交付 {limits['delivery']}。主代理只编排；实际启动受运行时槽位和整批上限约束。" if language == "zh" else
                   f"Independent sub-agent limits: {limits}. Main coordinates only; runtime slots and batch cap constrain actual dispatch.")
+        if "selection" in limits:
+            detail += f" 创意筛选上限：{limits['selection']}。" if language == "zh" else f" Selection limit: {limits['selection']}."
         lines.extend(["", words["totals"], "", words["route"], "", detail])
     else:
         lines.extend(["", words["totals"], "", words["route"], "",
@@ -694,16 +735,20 @@ def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, 
         lines.extend(["", words["panel_override"] + markdown_cell(value["panel_policy"]["user_instruction"])])
     if (tier_policy or {}).get("mode") == "user-override":
         lines.extend(["", words["tier_override"] + markdown_cell(tier_policy["user_instruction"])])
-    if value.get("schema_version") in {15, 16, 17, 18}:
+    if value.get("schema_version") in {15, 16, 17, 18, 19}:
         review_note = ("审阅：每个候选看图一次；轻微瑕疵可接受；每组五图拼图审阅一次。"
                        "集合最多返工一轮并复验一次，与单图 QA 共用每张三次产图预算。"
                        "主代理不重复看图复核，技术检查失败不触发生图。" if language == "zh" else
                        "Review: inspect each candidate once; accept minor issues; review one five-image contact sheet. "
                        "At most one collection repair round and focused recheck share each image's three-call budget. "
                        "No coordinator visual rereview; technical checks never trigger regeneration.")
+        if value.get("schema_version") == 19:
+            review_note = review_note.replace("每组五图", f"每组{target_images(value)}图").replace("five-image", f"{target_images(value)}-image")
+            if target_images(value) < 3:
+                lines.append("少量方案按内容选择格数和档位，不强制三类覆盖。" if language == "zh" else "Small sets choose panels and tiers by content; full coverage is not required.")
         lines.extend(["", review_note])
     lines.extend(["", words["question"]])
-    if value.get("schema_version") == 18:
+    if value.get("schema_version") in {18, 19}:
         tool = summary["execution"]["tool"]
         label = "本批工具：" if language == "zh" else "Batch tool: "
         policy = "；服务错误即暂停，不自动重试或切换。" if language == "zh" else "; service errors pause; no automatic retry or switch."
@@ -1644,7 +1689,7 @@ def validate_assignment(path: Path, require_approval: bool = True) -> dict[str, 
     assets, form_profiles, catalog_hash = catalog()
     presets, performance_levels = expression_presets()
     tiers = exaggeration_tiers()
-    if assignment.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+    if assignment.get("schema_version") not in {18, ASSIGNMENT_SCHEMA_VERSION}:
         raise RunError(f"schema_version must be {ASSIGNMENT_SCHEMA_VERSION}")
     run_name = text(assignment.get("run_name"), "run_name")
     if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", run_name):
@@ -1862,7 +1907,6 @@ def validate_assignment(path: Path, require_approval: bool = True) -> dict[str, 
         raise RunError("budget.per_image_candidates must be 3")
     assignment["budget"] = {"per_image_candidates": MAX_CANDIDATES, "maximum_total": len(images) * MAX_CANDIDATES}
     assignment["asset_catalog_sha256"] = catalog_hash
-    assignment["schema_version"] = ASSIGNMENT_SCHEMA_VERSION
     return assignment
 
 
@@ -1880,7 +1924,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     manifest = read_json(run_dir / "manifest.json")
     if assignment.get("schema_version") not in RESUMABLE_SCHEMA_VERSIONS:
         raise RunError(f"Run assignment schema_version must be one of {sorted(RESUMABLE_SCHEMA_VERSIONS)}")
-    if assignment["schema_version"] in {15, 16, 17, 18} and (
+    if assignment["schema_version"] in {15, 16, 17, 18, 19} and (
         manifest.get("review_workflow_version") != 1 or not isinstance(manifest.get("collection"), dict)
     ):
         raise RunError("v15/v16 requires its collection review workflow")
@@ -1909,7 +1953,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     for image in images:
         if not isinstance(image, dict) or set(image) - IMAGE_FIELDS:
             raise RunError("Frozen image specification has unsupported fields")
-        expected_qa = {11} if assignment["schema_version"] in {15, 16, 17, 18} else {10} if is_tiered(assignment) else {9}
+        expected_qa = {11} if assignment["schema_version"] in {15, 16, 17, 18, 19} else {10} if is_tiered(assignment) else {9}
         if image.get("qa_contract_version") not in expected_qa:
             raise RunError(f"Frozen image qa_contract_version must be one of {sorted(expected_qa)}")
         references = image.get("references")
@@ -1928,7 +1972,7 @@ def save_manifest(run_dir: Path, manifest: dict[str, Any]) -> None:
 
 
 def provider_allowed(state: dict[str, Any], provider: str, assignment=None) -> None:
-    if assignment and assignment["schema_version"] == 18:
+    if assignment and assignment["schema_version"] in {18, 19}:
         tool = extension_module("provider_policy").validate(assignment["execution"].get("tool"))
         if provider != tool["provider"]:
             raise RunError("Batch tool is locked; provider switching is forbidden")
@@ -2344,9 +2388,9 @@ def resolve_transport(args: argparse.Namespace, audit_path: Path | None) -> str 
 
 def record_image(args: argparse.Namespace, component: bool) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] in {17, 18}:
+    if assignment["schema_version"] in {17, 18, 19}:
         raise RunError("Use image-task review for v17")
-    if assignment["schema_version"] in {15, 16, 17, 18}:
+    if assignment["schema_version"] in {15, 16, 17, 18, 19}:
         if component:
             raise RunError("QA 11 accepts complete candidates only")
         return review_workflow().record_candidate(args, run_dir, assignment, manifest)
@@ -2431,10 +2475,14 @@ def record_image(args: argparse.Namespace, component: bool) -> dict[str, Any]:
 def creative_markdown(assignment: dict[str, Any]) -> str:
     lines = [f"# {assignment['run_name']}", "", f"Fact anchor: {assignment['input']['fact_anchor']}", ""]
     lines.extend(["## Confirmed plan", "", plan_markdown(assignment), "```json",
-                  json.dumps(assignment["confirmation"], ensure_ascii=False, indent=2), "```", "",
-                  "## Tournament standings", "", "```json",
-                  json.dumps(tournament_results(assignment), ensure_ascii=False, indent=2), "```", "",
-                  "Tie decisions: " + json.dumps(assignment.get("tie_breaks", []), ensure_ascii=False), ""])
+                  json.dumps(assignment["confirmation"], ensure_ascii=False, indent=2), "```", ""])
+    if assignment["schema_version"] == 19:
+        lines.extend(["## Independent priority selection", "", "```json",
+                      json.dumps(assignment["selection_review"], ensure_ascii=False, indent=2), "```", ""])
+    else:
+        lines.extend(["## Tournament standings", "", "```json",
+                      json.dumps(tournament_results(assignment), ensure_ascii=False, indent=2), "```", "",
+                      "Tie decisions: " + json.dumps(assignment.get("tie_breaks", []), ensure_ascii=False), ""])
     native = assignment["input"]["source_analysis"]["native_direction"]
     lines.extend([
         f"Native direction: {native['direction'] or 'none'} — {native['reason']}", "",
@@ -2453,8 +2501,9 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
         lines.append(f"- Mechanism: {idea['mechanism']}")
         lines.append("- Key lines: " + json.dumps(idea["key_lines"], ensure_ascii=False))
         lines.append("")
-    lines.extend(["## Pairwise duels", ""])
-    for duel in assignment["duels"]:
+    if assignment["schema_version"] != 19:
+        lines.extend(["## Pairwise duels", ""])
+    for duel in assignment.get("duels", []):
         lines.append(f"- {duel['a']} vs {duel['b']}: {duel['winner'] or 'draw'} — {duel['reason']}")
     summary = design_summary([assignment])
     lines.extend([
@@ -2474,7 +2523,7 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
         "", f"Final ranking: {' > '.join(assignment['ranked_ideas'])}",
         "", "## Execution", "",
         f"- Mode: {assignment['execution'].get('mode', 'role-queues')}",
-        (f"- Execution: {assignment['execution']}" if assignment["schema_version"] in {17, 18} else
+        (f"- Execution: {assignment['execution']}" if assignment["schema_version"] in {17, 18, 19} else
          f"- Requested parallelism: {assignment['execution']['requested_parallelism']}"),
         f"- Commit strategy: {assignment['execution']['commit_strategy']}",
         "", f"## {len(assignment['images'])} tasks", "",
@@ -2563,7 +2612,7 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
     root.mkdir(parents=True, exist_ok=True)
     run_dir = root / assignment["run_name"]
     checkpoint = None
-    if assignment["schema_version"] == 18 and getattr(args, "batch", None):
+    if assignment["schema_version"] in {18, 19} and getattr(args, "batch", None):
         identity = contract_hash({"assignment": assignment, "batch": str(Path(args.batch).resolve())})
         checkpoint_path = run_dir / "init-checkpoint.json"
         if run_dir.exists():
@@ -2645,11 +2694,11 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
         },
         "created_at": now(), "updated_at": now(), "images": states,
     }
-    if assignment["schema_version"] in {15, 16, 17, 18}:
+    if assignment["schema_version"] in {15, 16, 17, 18, 19}:
         manifest["review_workflow_version"] = 1
         manifest["collection"] = {"status": "pending", "reviews": [], "sheets": [], "repair_rounds": 0}
         manifest["events"] = []
-    if assignment["schema_version"] == 18:
+    if assignment["schema_version"] in {18, 19}:
         from types import SimpleNamespace
         extension_module("batch_workflow").BatchWorkflow(SimpleNamespace(**globals())).attach(args, run_dir, assignment, manifest)
     write_json(run_dir / "manifest.json", manifest)
@@ -2662,7 +2711,7 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_record_error(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, _assignment, manifest = load_run(args.run_dir)
-    if _assignment["schema_version"] in {17, 18}:
+    if _assignment["schema_version"] in {17, 18, 19}:
         raise RunError("Use image-task error for v17")
     if manifest.get("status") != "in_progress":
         raise RunError("Run is not open")
@@ -2686,7 +2735,7 @@ def cmd_record_composite(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
     state = state_for(manifest, args.image)
     image_spec = next(item for item in assignment["images"] if item["id"] == args.image)
-    if assignment["schema_version"] in {15, 16, 17, 18}:
+    if assignment["schema_version"] in {15, 16, 17, 18, 19}:
         raise RunError("QA 11 reviews complete candidates, not component composites")
     source_ids = args.source_attempt
     expected = image_spec["panel_count"]
@@ -2729,7 +2778,7 @@ def cmd_record_composite(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_promote(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] in {15, 16, 17, 18}:
+    if assignment["schema_version"] in {15, 16, 17, 18, 19}:
         return review_workflow().promote(args, run_dir, assignment, manifest)
     state = state_for(manifest, args.image)
     passing = [item for item in state["attempts"] + state["derived"] if item.get("verdict") == "PASS" and item.get("role") != "component"]
@@ -2756,7 +2805,7 @@ def cmd_promote(args: argparse.Namespace) -> dict[str, Any]:
 
 def cmd_finalize(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] in {15, 16, 17, 18}:
+    if assignment["schema_version"] in {15, 16, 17, 18, 19}:
         review_workflow().before_finalize(run_dir, assignment, manifest)
     expected = len(assignment["images"])
     passed = [key for key, value in manifest["images"].items() if value["status"] == "passed"]
@@ -2885,7 +2934,7 @@ def parser() -> argparse.ArgumentParser:
 
 def invoke(args):
     shared = {"build-review-sheet", "record-collection-review", "promote", "finalize"}
-    if args.command in shared and read_json(Path(args.run_dir) / "assignment.json").get("schema_version") in {17, 18}:
+    if args.command in shared and read_json(Path(args.run_dir) / "assignment.json").get("schema_version") in {17, 18, 19}:
         return image_tasks().shared(args, args.handler)
     return args.handler(args)
 

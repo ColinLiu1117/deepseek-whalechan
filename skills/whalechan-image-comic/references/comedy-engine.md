@@ -43,9 +43,9 @@ Rhythm is a delivery technique layered on a direction, never a direction itself:
 
 Default to no rhythm (`rhythm: null`). Most jokes do not need one. Declare it only when removing it would clearly weaken the punchline — for example, a source whose joke *is* the identical reply repeated. The `reason` must say why; "adds rhythm" or "funnier" is not a reason. Review every declared rhythm before freezing and delete those that do not pass this test. When more than half of a set's images declare rhythm, `validate-assignment` raises `rhythm_majority`; confirm each one in `warning_dispositions` or remove the unnecessary ones.
 
-## Generate one pool of ten
+## Generate one concise pool of 2N
 
-Author exactly ten distinct candidates before choosing winners or layouts. Give each a comparable description: premise, primary direction and its carrier fields, punchline/key dialogue, personality, fact anchor, scene, mechanism and visual payoff. Different situations, actions and consequences create different ideas; replacing a noun, pose or prop does not.
+For each source's target N (default 5), author exactly 2N concise distinct candidates before choosing winners or layouts. Give each a comparable description: premise, primary direction and its carrier fields, punchline/key dialogue, personality, fact anchor, scene, mechanism and visual payoff. Different situations, actions and consequences create different ideas; replacing a noun, pose or prop does not.
 
 Freeze this pool. Candidates carry no PASS/FAIL label; PASS/FAIL belongs to image QA. Weak ideas still enter the comparisons, and the pool is never extended or regenerated. Refine wording without replacing the core idea; preserve the actual candidates and judgments instead of reverse-engineering losers from finished image plans.
 
@@ -53,21 +53,21 @@ Compare source fidelity, clarity, surprise, joke strength, visual contribution, 
 
 Do not force every source into reversal or self-serving wordplay. Native recognition, escalation, blunt exposure and precise reactions can carry a stronger joke than generic food, laziness or technical spectacle.
 
-## Compare every pair, then stage five winners
+## Independently rank once, then stage N selected ideas
 
-Run all 45 unique pairwise duels among the ten candidates: each enters nine duels. Record the two candidates, winner or draw, and a content-specific reason. Wins earn two points, draws one each, losses zero. These are match results, not precise measurements of humor. Scripts verify coverage and recompute totals; the agent makes the creative judgments.
+A different real sub-agent reads the original source, constraints and frozen pool. Rank all 2N by comprehensive priority, weighing source fidelity, laugh strength, visual contribution, concise dialogue and set variety together. The first N form the selected set; candidate IDs and storage order never determine priority.
 
-After authoring the duels, run `python3 scripts/manage-run.py rank-ideas --draft <draft.json>` to verify the tournament and obtain standings and the top five. This read-only helper needs the pool, duels and any remaining tie decisions; it does not need the presentation table.
+Write one short reason per candidate and one paragraph explaining the selected set, including justified similarities. Submit ranking and selection_reason via planning-task selection-submit; the script binds identities and pool hash and derives selected IDs. Do not use numeric scoring, pairwise duels, multiple judges, another de-duplication ranking, or replacement candidates. Structural errors can be corrected in the same record; they do not call for another semantic review.
 
-Rank by points, then by points in direct matches among candidates tied on total points. Resolve any remaining tie with an authored comparison of concrete strengths and differences from other selected ideas; save that reason. Candidate numbering, input order and storage order must not decide a tie. Keep all ten candidates, 45 results and the final order, selecting the first five without further pools or automatic replacement rounds.
+Return the detail task to the original author. Make one image plan per selected idea, preserving its premise, key lines, scene and payoff. Compare replies and visual consequences within the selected set. Pose, font and background swaps alone do not establish different jokes. Only selected ideas need full panel/action/expression/typography fields.
 
-Make exactly one image for each selected idea, linked by `idea_id`. Explain its unique payoff in `execution_note`. A shared source question can recur, but compare answers, final lines and visible consequences across all five. Pose, font and background swaps alone do not establish independence. Fix expression within the frozen idea rather than hiding a replacement in a rewrite.
+For N>=3, cover panel counts 1/2/4 and tiers A/B/C independently unless the user explicitly overrides a policy. For N=1/2 choose by content without a fake override. Never add empty beats or map rank to panels or tiers. Review complete visual plans across sources before the one confirmation in proposal-selection.md.
 
-Choose framing, cast placement, text placement, lettering and exaggeration tier from each joke, assigning image numbers last. The set must cover 1, 2 and 4 panels and tiers A, B and C unless the user explicitly overrides either policy; do not add empty beats or map rank to panel count or tier. Review the complete five-image plan, then show the information table, image total and worker allocation for the single confirmation in `proposal-selection.md`.
+Frozen v13–v18 retain their original ten-candidate, 45-pair tournament and historical ranking/recovery. See the historical tournament section in run-schema.md; do not apply it to new runs.
 
 ## Perform each idea at a tier
 
-Direction says where the laugh lives; exaggeration says how hard it is performed. After selecting five ideas, give each image a tier — `A` manga impact, `B` comic outburst, `C` restrained deadpan — and cover all three across the run unless the user overrides it. The tier belongs to the execution, so never let it enter the duels or follow rank or panel count. See `exaggeration-tiers.md`.
+Direction says where the laugh lives; exaggeration says how hard it is performed. After selecting N ideas, give each image a tier — `A` manga impact, `B` comic outburst, `C` restrained deadpan — and for N>=3 cover all three across the run unless the user overrides it. The tier belongs to the execution, so do not preassign it as a candidate score or follow rank or panel count. See `exaggeration-tiers.md`.
 
 A quiet close-up may still be the strongest punchline, and a trivial event may deserve full impact. Never use vulnerable groups, private information, hate, discrimination, sexual humiliation or actual harm as a shortcut to a joke, at any tier. Random cruelty is not a punchline.
 

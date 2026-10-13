@@ -81,7 +81,7 @@ class RunReader:
         self.warnings = []
         self.assignment = read_json(run / "assignment.json")
         self.manifest = read_json(run / "manifest.json")
-        if self.assignment.get("schema_version") not in ({11, 13, 14, 15, 16, 17, 18} if COMIC else {5, 6}):
+        if self.assignment.get("schema_version") not in ({11, 13, 14, 15, 16, 17, 18, 19} if COMIC else {5, 6}):
             raise GalleryError(f"Unsupported assignment schema: {run.name}")
         if self.manifest.get("schema_version") != (1 if COMIC else 3):
             raise GalleryError(f"Unsupported manifest schema: {run.name}")
@@ -303,6 +303,8 @@ class RunReader:
                 "calls": sum(item["calls"] for item in images),
                 "errors": sum(len(item["errors"]) for item in images),
                 "warnings": list({json.dumps(item, sort_keys=True): item for item in self.warnings}.values())}
+        if COMIC and assignment.get("schema_version") == 19:
+            group["selection_review"] = assignment["selection_review"]
         if COMIC:
             group["gallery_images"] = self.gallery_images(proposals)
             group["collection_reviews"] = []

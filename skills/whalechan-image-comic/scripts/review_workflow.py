@@ -19,7 +19,7 @@ class ReviewWorkflow:
 
     def load(self, args):
         run, assignment, manifest = self.m.load_run(args.run_dir)
-        self.require(assignment["schema_version"] in {15, 16, 17, 18}, "This command requires assignment v15/v16")
+        self.require(assignment["schema_version"] in {15, 16, 17, 18, 19}, "This command requires assignment v15/v16")
         self.require(manifest["status"] == "in_progress", "Run is not open")
         return run, assignment, manifest
 
@@ -72,7 +72,7 @@ class ReviewWorkflow:
         return value
     def prepare(self, args):
         run, assignment, manifest = self.load(args)
-        self.require(assignment["schema_version"] not in {17, 18} or getattr(self.m, "task_local", False),
+        self.require(assignment["schema_version"] not in {17, 18, 19} or getattr(self.m, "task_local", False),
                      "Use image-task for v17 single-image mutations")
         state = self.m.state_for(manifest, args.image)
         self.require(state["status"] == "pending", "Image is not ready for generation")
@@ -199,7 +199,7 @@ class ReviewWorkflow:
         loader.loader.exec_module(module)
         sheet = folder / "sheet.png"
         pending = folder / "inputs.json"
-        if assignment["schema_version"] == 18:
+        if assignment["schema_version"] in {18, 19}:
             projection = {"assignment_sha256": manifest["assignment_sha256"], "round": number, "items": items}
             if pending.exists():
                 self.require(self.m.read_json(pending) == projection, "Interrupted sheet inputs changed")
@@ -209,11 +209,11 @@ class ReviewWorkflow:
         else:
             self.require(not sheet.exists(), "Review sheet already exists; retain it for recovery")
         if not sheet.exists():
-            module.compose(items, sheet)
+            module.compose(items, sheet, dynamic=assignment["schema_version"] == 19)
         index = {"assignment_sha256": manifest["assignment_sha256"], "round": number,
                  "sheet": str(sheet), "sheet_sha256": self.m.sha256(sheet), "items": items,
                  "focus": group.get("repair_targets", []), "created_at": self.m.now()}
-        if assignment["schema_version"] == 18 and (folder / "index.json").exists():
+        if assignment["schema_version"] in {18, 19} and (folder / "index.json").exists():
             stored = self.m.read_json(folder / "index.json")
             self.require(all(stored[k] == v for k, v in index.items() if k != "created_at"), "Interrupted sheet index changed")
             index = stored
@@ -263,7 +263,7 @@ class ReviewWorkflow:
         if round_number == 1:
             self.require(targets <= set(group["repair_targets"]), "Recheck only the original repair targets")
         review_path = Path(stored["index"]).with_name("visual.json")
-        self.require(not review_path.exists() or (assignment["schema_version"] in {17, 18} and self.m.read_json(review_path) == review),
+        self.require(not review_path.exists() or (assignment["schema_version"] in {17, 18, 19} and self.m.read_json(review_path) == review),
                      "Collection already has a different visual review")
         self.m.write_json(review_path, review)
         group["reviews"].append({"path": str(review_path), "sha256": self.m.sha256(review_path),
@@ -305,7 +305,7 @@ class ReviewWorkflow:
         automatic = self.m.validate_automatic(Path(selected["automatic_qa"]), selected["candidate_sha256"], spec["output"])
         self.require(visual["verdict"] == automatic["overall"] == "PASS", "Promotion requires recorded PASS")
         destination = run / "final" / f"{args.image}.png"
-        if assignment["schema_version"] == 18 and destination.exists():
+        if assignment["schema_version"] in {18, 19} and destination.exists():
             self.require(self.m.sha256(destination) == selected["candidate_sha256"], "Interrupted final differs")
         else:
             self.m.copy_once(source, destination)
@@ -315,7 +315,7 @@ class ReviewWorkflow:
         return {"final": str(destination), "sha256": selected["candidate_sha256"]}
 
     def before_finalize(self, run, assignment, manifest):
-        if assignment["schema_version"] == 18:
+        if assignment["schema_version"] in {18, 19}:
             self.m.extension_module("provider_policy").guard(self.m, manifest, assignment)
         self.require(manifest["collection"]["status"] == "complete", "Complete or skip empty collection before finalizing")
         terminal = {"passed", "technical_blocked", "exhausted", "collection_failed", "safety_blocked"}
@@ -325,7 +325,7 @@ class ReviewWorkflow:
 
     def block(self, args):
         run, assignment, manifest = self.load(args)
-        self.require(assignment["schema_version"] not in {17, 18} or getattr(self.m, "task_local", False),
+        self.require(assignment["schema_version"] not in {17, 18, 19} or getattr(self.m, "task_local", False),
                      "Use image-task for v17 single-image mutations")
         state = self.m.state_for(manifest, args.image)
         self.require(state["status"] not in {"passed", "technical_blocked", "exhausted", "collection_failed"},
@@ -338,7 +338,7 @@ class ReviewWorkflow:
 
     def mark(self, args):
         run, assignment, manifest = self.load(args)
-        self.require(assignment["schema_version"] not in {17, 18} or getattr(self.m, "task_local", False),
+        self.require(assignment["schema_version"] not in {17, 18, 19} or getattr(self.m, "task_local", False),
                      "Use image-task for v17 single-image mutations")
         state = self.m.state_for(manifest, args.image)
         expected = "pending" if args.event == "generation_started" else "awaiting_review"

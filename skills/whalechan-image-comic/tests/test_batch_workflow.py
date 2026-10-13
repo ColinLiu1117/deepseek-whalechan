@@ -26,7 +26,7 @@ class BatchWorkflowTests(unittest.TestCase):
         self.magick = __import__("shutil").which("magick")
         if not self.magick:
             self.skipTest("ImageMagick required")
-        spec = {"sources": [{"id": "source-a", "text": "input"}],
+        spec = {"schema_version": 18, "sources": [{"id": "source-a", "text": "input"}],
                 "execution": {"batch_id": "test-v18"}, "language": "zh",
                 "availability": self.native, "language_evidence": {"source": "synthetic user fixture"}}
         self.spec = self.save("spec.json", spec)

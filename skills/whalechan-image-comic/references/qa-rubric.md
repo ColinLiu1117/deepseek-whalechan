@@ -1,10 +1,12 @@
 # Frozen QA 9/10 rubric and measurement evidence
 
-For assignments v15/v16/v17 / QA 11 use `review-workflow.md`; the strict visual verdict rules below apply only to frozen v11/v13/v14 runs. The measured `form_evidence` example also supplies the measurement structure used by QA 11.
+For assignments v15/v16/v17/v18/v19 / QA 11 use `review-workflow.md`; the strict visual verdict rules below apply only to frozen v11/v13/v14 runs. The measured `form_evidence` example also supplies the measurement structure used by QA 11.
 
 Reject when any applicable legacy gate fails. Inspect the original-resolution candidate, including small text and panel edges.
 
-## Design review before generation
+## Historical design review before generation
+
+This section describes frozen tournament planning. For v19 use proposal-selection.md; loading this file for H1 measurements does not add PK or another final visual review.
 
 Before the single user confirmation, verify the fixed ten-candidate pool, all 45 comparisons, the recorded tie decisions and the five selected ideas. Review one planned image per idea, the 1/2/4-panel and A/B/C tier coverage or explicit user overrides, and worker allocation. Check that each tier fits its execution rather than rank or panel count, that setup panels build toward the landing, and that an `A` on a bittersweet source uses mock epic or a reasoned contrast. Compare key lines and final payoffs across the five: a shared source question is acceptable, while repeated answers and consequences need specific justification or revision within the idea. Show the completed plan, image total and allocation together. After confirmation, preserve its core scenes, comic turns and locked wording; material plan changes require confirmation of the revised plan, not a second routine gate.
 

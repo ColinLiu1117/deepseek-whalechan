@@ -89,7 +89,7 @@ class QAProtocolTests(unittest.TestCase):
         path.write_text(json.dumps(value))
         with self.assertRaisesRegex(manage.RunError, "schema_version"):
             manage.validate_assignment(path)
-        value["schema_version"] = manage.ASSIGNMENT_SCHEMA_VERSION
+        value["schema_version"] = 18  # This fixture exercises frozen tournament source validation
         value["input"].update(type="screenshot", content="A chat screenshot where the comma is missing")
         path.write_text(json.dumps(value))
         with self.assertRaisesRegex(manage.RunError, "existing source file paths"):

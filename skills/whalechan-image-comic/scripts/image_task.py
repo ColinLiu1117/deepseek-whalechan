@@ -20,7 +20,7 @@ class ImageTasks:
 
     def load(self, args):
         run, assignment, manifest = self.m.load_run(args.run_dir)
-        self.require(assignment["schema_version"] in {17, 18}, "Image tasks require v17")
+        self.require(assignment["schema_version"] in {17, 18, 19}, "Image tasks require v17")
         self.require(manifest["status"] == "in_progress", "Run is closed")
         self.m.state_for(manifest, args.image)
         return run, assignment, manifest
@@ -60,7 +60,7 @@ class ImageTasks:
         # Claim/recovery synchronize with collection operations; generation only locks its image.
         with ExitStack() as stack:
             policy = self.m.extension_module("provider_policy")
-            if assignment["schema_version"] == 18 and args.action in {"claim", "begin", "error", "uncertain"}:
+            if assignment["schema_version"] in {18, 19} and args.action in {"claim", "begin", "error", "uncertain"}:
                 batch_path = policy.batch_path(self.m, manifest, assignment)
                 stack.enter_context(self.locked(batch_path.with_suffix(".lock")))
                 policy.guard(self.m, manifest, assignment, allow_paused=args.action in {"error", "uncertain"})
@@ -101,9 +101,9 @@ class ImageTasks:
                     self.require(state["status"] == "pending" and not data["flight"], "Image has an unresolved call or is not pending")
                     self.require(len(state["attempts"]) < 3, "Candidate budget exhausted")
                     self.m.provider_allowed(state, args.provider, assignment)
-                    if assignment["schema_version"] == 18:
+                    if assignment["schema_version"] in {18, 19}:
                         policy.guard(self.m, manifest, assignment, args.provider, args.model)
-                    if state["provider_errors"] and assignment["schema_version"] != 18:
+                    if state["provider_errors"] and assignment["schema_version"] not in {18, 19}:
                         self.require(state["provider_errors"][-1]["provider"] != args.provider,
                                      "After a no-image failure, advance provider; do not retry indefinitely")
                     self.require(args.model, "Model is required")
@@ -113,7 +113,7 @@ class ImageTasks:
                 elif args.action == "prepare":
                     self.require(args.candidate and Path(args.candidate).is_file(), "Locate the returned image before preparation; call stays in flight")
                     flight = data["flight"]
-                    if assignment["schema_version"] == 18:
+                    if assignment["schema_version"] in {18, 19}:
                         expected_transport = assignment["execution"]["tool"]["transport"] if args.provider == "codex" else None
                         self.require(args.transport == expected_transport, "Locked transport mismatch")
                     self.require(flight and flight["provider"] == args.provider and flight["model"] == args.model,
@@ -135,7 +135,7 @@ class ImageTasks:
                     previous = next((i for i in range(len(data["events"]) - 1, -1, -1)
                                      if data["events"][i]["event"] == "image_returned"), -1)
                     already = any(e["event"] == "single_review_started" for e in data["events"][previous + 1:])
-                    if assignment["schema_version"] != 18 or not already:
+                    if assignment["schema_version"] not in {18, 19} or not already:
                         workflow.mark(SimpleNamespace(run_dir=str(run), image=args.image, event="single_review_started"))
                 elif args.action == "review":
                     self.require(not data["flight"], "Resolve preparation before QA")
@@ -145,7 +145,7 @@ class ImageTasks:
                     self.require(args.category in self.m.ADVANCE_ERRORS | {"safety_rejection"}, "Unsupported provider error")
                     flight = data["flight"]
                     self.require(flight["provider"] == args.provider and flight["model"] == args.model, "Error provider/model mismatch")
-                    if assignment["schema_version"] == 18:
+                    if assignment["schema_version"] in {18, 19}:
                         batch_path, batch = policy.guard(self.m, manifest, assignment, args.provider, args.model, True)
                         reason = self.m.text(args.evidence, "evidence")
                         pause = {"image": args.image, "reason": reason, "category": args.category}
@@ -163,7 +163,7 @@ class ImageTasks:
                         "created_at": self.m.now(), "consumes_candidate_budget": False})
                     if args.category == "safety_rejection":
                         state["status"] = "safety_blocked"
-                    elif args.provider == self.m.PROVIDERS[-1] and assignment["schema_version"] != 18:
+                    elif args.provider == self.m.PROVIDERS[-1] and assignment["schema_version"] not in {18, 19}:
                         state["status"] = "technical_blocked"
                     data["flight"] = None
                 elif args.action == "block":
@@ -233,7 +233,7 @@ class ImageTasks:
         run = Path(args.run_dir).resolve()
         with self.locked(run / ".manifest.lock"), ExitStack() as stack:
             run, assignment, manifest = self.m.load_run(str(run))
-            self.require(assignment["schema_version"] in {17, 18}, "Task merge requires v17")
+            self.require(assignment["schema_version"] in {17, 18, 19}, "Task merge requires v17")
             for image in sorted(manifest["images"]):
                 stack.enter_context(self.locked(self.path(run, image).with_suffix(".lock")))
             self.merge_locked(run, assignment, manifest)

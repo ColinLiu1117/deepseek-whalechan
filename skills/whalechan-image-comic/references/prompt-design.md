@@ -1,6 +1,6 @@
 # Drawing-only prompts — v16
 
-For v17/v18 a planning sub-agent authors one source’s complete five-image visual plan. Generation workers assemble frozen fields; main coordinates only. The v16 drawing contract is unchanged.
+For v17/v18/v19 a planning sub-agent authors the selected N-image visual plan after independent selection (frozen v17/v18 retain five). Generation workers assemble frozen fields; main coordinates only. The v16 drawing contract is unchanged.
 
 Write the visual plan during the existing planning pass, before the single confirmation. The builder assembles these fields directly; do not add another LLM rewrite, review agent or confirmation. Keep analysis, selection reasons, approval and QA records internal. Every sentence sent to the image model should guide a visible result.
 
@@ -35,4 +35,4 @@ For an authorized retry, save a separate prompt with the same drawing skeleton a
 
 No fixed character limit applies. Track length and first-pass performance separately. Frozen v11/v13/v14/v15 keep their original builders, approval hashes and QA contracts.
 
-For v18 image-task start assembles the already authored frozen request; do not rewrite an initial prompt at dispatch. Supply a targeted drawing-only retry file only after a recorded eligible core defect. Tool state, task IDs, budgets, timestamps and review codes remain outside API drawing text.
+For v18/v19 image-task start assembles the already authored frozen request; do not rewrite an initial prompt at dispatch. Supply a targeted drawing-only retry file only after a recorded eligible core defect. Tool state, task IDs, budgets, timestamps and review codes remain outside API drawing text.

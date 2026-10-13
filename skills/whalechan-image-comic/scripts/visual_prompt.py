@@ -10,8 +10,8 @@ class VisualPrompt:
 
     def contract(self, assignment):
         images = assignment.get("images")
-        if not isinstance(images, list) or len(images) != 5:
-            raise self.m.RunError("v16 requires all five visual image plans before confirmation")
+        if not isinstance(images, list) or len(images) != self.m.target_images(assignment):
+            raise self.m.RunError("All selected visual image plans are required before confirmation")
         return [self.spec(assignment, image) for image in images]
 
     def spec(self, assignment, original):

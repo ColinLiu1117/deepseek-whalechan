@@ -439,6 +439,14 @@ function renderGroup(group, panel) {
     group.warnings.forEach(warning => warnings.append(el("p", "", warningText(warning))));
     records.append(warnings);
   }
+  if (group.selection_review) {
+    const selection = details(language === "zh" ? "创意优先级与选择说明" : "Idea priority and selection");
+    selection.append(el("p", "", group.selection_review.selection_reason));
+    const ranking = el("ol");
+    group.selection_review.ranking.forEach(item => ranking.append(el("li", "", `${item.idea_id}: ${item.reason}`)));
+    selection.append(ranking);
+    records.append(selection);
+  }
   if (group.collection_reviews?.length) {
     const collection = details(t("collectionQA"));
     group.collection_reviews.forEach(item => {

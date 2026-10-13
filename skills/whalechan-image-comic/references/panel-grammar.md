@@ -12,7 +12,7 @@ Repeated panels with no new information fail. The exception is a declared rhythm
 
 The landing panel carries the image's exaggeration tier; setup panels may sit lower but never higher. Contrast between a calm setup and the landing is often the joke, so escalate toward the landing instead of holding every panel at full intensity. Measure proportion on a panel without `manga_burst` deformation; a single-panel image whose face reaches `manga_burst` uses visible-only review. See `exaggeration-tiers.md`.
 
-Plan one image for each of the five selected ideas. The five-image set must use at least three distinct panel counts: with the supported counts, this means covering 1, 2 and 4 panels. Record any explicit user override to this default policy and show it before confirmation. Choose which idea uses which count from narrative needs, never rank or image index; typography does not determine the count. Rework the distribution if an idea needs fewer panels, so the set still satisfies the policy without empty beats. Different panel counts alone do not prove different jokes.
+Plan one image for each of N selected ideas (default 5). For N>=3 the set covers 1, 2 and 4 panels. N=1/2 chooses by content without an explicit override. Frozen five-image plans retain their original coverage. Record any explicit user override to this default policy and show it before confirmation. Choose which idea uses which count from narrative needs, never rank or image index; typography does not determine the count. Rework the distribution if an idea needs fewer panels, so the set still satisfies the policy without empty beats. Different panel counts alone do not prove different jokes.
 
 ## Speakers and interaction
 

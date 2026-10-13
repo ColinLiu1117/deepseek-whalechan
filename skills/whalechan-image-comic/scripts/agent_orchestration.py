@@ -6,6 +6,12 @@ from contextlib import contextmanager
 from pathlib import Path
 
 ROLES = ("planning", "generation", "collection", "delivery")
+PRIORITY_MODE = "independent-priority-ranking"
+
+def roles(policy):
+    return ROLES + (("selection",) if policy.get("planning_mode") == PRIORITY_MODE else ())
+
+
 DEFAULT_LIMITS = {"planning": 5, "generation": 5, "codex_generation": 3, "collection": 2, "delivery": 1}
 
 
@@ -25,14 +31,17 @@ def execution(value=None):
     if value is not None and not isinstance(value, dict):
         raise ValueError("execution must be an object")
     value = copy.deepcopy(value or {})
-    allowed = {"batch_id", "role_limits", "batch_limit", "scheduling", "commit_strategy", "tool"}
+    allowed = {"batch_id", "role_limits", "batch_limit", "scheduling", "commit_strategy", "tool", "planning_mode"}
     if set(value) - allowed:
         raise ValueError("Role execution contains unsupported fields")
     if "tool" in value:
         from provider_policy import validate
         validate(value["tool"])
-    limits = value.get("role_limits", DEFAULT_LIMITS)
-    if not isinstance(limits, dict) or set(limits) != set(DEFAULT_LIMITS) or any(type(n) is not int or not 1 <= n <= 10 for n in limits.values()):
+    if value.get("planning_mode") not in {None, PRIORITY_MODE}:
+        raise ValueError("Unsupported planning_mode")
+    defaults = {**DEFAULT_LIMITS, **({"selection": 2} if value.get("planning_mode") else {})}
+    limits = value.get("role_limits", defaults)
+    if not isinstance(limits, dict) or set(limits) != set(defaults) or any(type(n) is not int or not 1 <= n <= 10 for n in limits.values()):
         raise ValueError("role_limits must name all five positive limits, at most 10")
     total = value.get("batch_limit", 10)
     if type(total) is not int or not 1 <= total <= 10:
@@ -67,15 +76,19 @@ def targets(policy, slots, ready, provider="codex", provider_limit=None):
         if type(provider_limit) is not int or provider_limit < 1:
             raise ValueError("provider_limit must be positive")
         gen = min(gen, provider_limit)
-    demand = {r: min(max(0, ready.get(r, 0)), gen if r == "generation" else limits[r]) for r in ROLES}
-    result = dict.fromkeys(ROLES, 0)
+    demand = {r: min(max(0, ready.get(r, 0)), gen if r == "generation" else limits[r]) for r in roles(policy)}
+    result = dict.fromkeys(roles(policy), 0)
     # A finished source gets a reviewer without reserving an idle reviewer.
     if demand["collection"]:
         result["collection"] = min(1, total)
     result["generation"] = min(demand["generation"], total - sum(result.values()))
     result["collection"] += min(demand["collection"] - result["collection"], total - sum(result.values()))
+    if "selection" in demand:
+        result["selection"] = min(1, demand["selection"], total - sum(result.values()))
     for role in ("planning", "delivery"):
         result[role] = min(demand[role], total - sum(result.values()))
+    if "selection" in demand:
+        result["selection"] += min(demand["selection"] - result["selection"], total - sum(result.values()))
     return result
 
 
@@ -84,7 +97,9 @@ class Orchestration:
         self.m = manager
 
     def ready(self, task, policy):
-        if task["role"] == "planning":
+        if task["role"] in {"planning", "selection"}:
+            if task["role"] == "selection":
+                self.m.extension_module("selection_contract").pool(self.m, self.m.read_json(Path(task["inputs"]["pool_file"])))
             return True
         inputs = task["inputs"]
         paths = inputs.get("run_dirs", []) if task["role"] == "delivery" else [inputs.get("run_dir")]
@@ -94,7 +109,7 @@ class Orchestration:
         if len(runs) != len(paths):
             raise self.m.RunError("Missing frozen run path")
         for run, assignment, manifest in runs:
-            if assignment["schema_version"] not in {17, 18} or assignment["execution"] != policy:
+            if assignment["schema_version"] not in {17, 18, 19} or assignment["execution"] != policy:
                 raise self.m.RunError("Task run must share the approved v17 batch execution")
             if task["role"] in {"collection", "delivery"} and task.get("recovery_evidence"):
                 return True  # Resume the existing sheet/receipt, never repeat its visual judgment.
@@ -132,6 +147,18 @@ class Orchestration:
         return True
 
 
+    def eligible(self, task, worker):
+        if task["inputs"].get("stage") and (worker in {"main", "/root"} or
+                task.get("owner") not in {None, worker}):
+            return False
+        if task["role"] == "selection":
+            frozen = self.m.read_json(Path(task["inputs"]["pool_file"]))
+            if worker in frozen["author_agent_ids"]:
+                return False
+        if task.get("preferred_owner") and task["preferred_owner"] != worker:
+            return False
+        return True
+
     def run(self, args):
         path = Path(args.batch).resolve()
         with locked(path.with_suffix(".lock")):
@@ -150,7 +177,7 @@ class Orchestration:
             if args.action == "enqueue":
                 item = self.m.read_json(Path(args.task_json))
                 required = {"id", "role", "source", "inputs", "depends_on"}
-                if set(item) != required or item["role"] not in ROLES or item["source"] not in state["sources"]:
+                if set(item) != required or item["role"] not in roles(state["execution"]) or item["source"] not in state["sources"]:
                     raise self.m.RunError("Task requires id/role/source/inputs/depends_on")
                 self.m.text(item["id"], "task.id")
                 if not isinstance(item["inputs"], dict) or not isinstance(item["depends_on"], list):
@@ -172,10 +199,12 @@ class Orchestration:
                     return (task["role"], task["source"])
                 occupied = {work_key(t) for t in active}
                 ready = [t for t in ready if work_key(t) not in occupied]
-                counts = {r: sum(t["role"] == r for t in active) for r in ROLES}
-                demand = {r: counts[r] + sum(t["role"] == r for t in ready) for r in ROLES}
+                counts = {r: sum(t["role"] == r for t in active) for r in roles(state["execution"])}
+                demand = {r: counts[r] + sum(t["role"] == r for t in ready) for r in roles(state["execution"])}
                 allocation = targets(state["execution"], slots, demand,
                                      state["execution"].get("tool", {}).get("provider", args.provider), args.provider_limit)
+                if args.worker:
+                    ready = [t for t in ready if self.eligible(t, args.worker)]
                 ordered = sorted(ready, key=lambda t: (state["sources"].index(t["source"]), t["queued_at"], t["id"]))
                 choice = next((t for t in ordered if counts[t["role"]] < allocation[t["role"]]
                                and (not args.task or t["id"] == args.task)), None)
@@ -195,12 +224,18 @@ class Orchestration:
                     if owner not in residents and len(residents) >= slots:
                         raise self.m.RunError("Idle agents still occupy slots; reuse or confirm release")
                     choice.update(status="running", owner=owner, started_at=self.m.now())
+                    if state["execution"].get("planning_mode") == PRIORITY_MODE:
+                        contributors = choice.setdefault("contributors", [])
+                        if owner not in contributors:
+                            contributors.append(owner)
                     residents[owner] = choice["id"]
                     result["next_task"] = copy.deepcopy(choice)
             elif args.action == "finish":
                 task = tasks.get(args.task)
                 if not task or task["status"] != "running" or task["owner"] != args.worker:
                     raise self.m.RunError("Only the running task owner can finish")
+                if state["execution"].get("planning_mode") == PRIORITY_MODE and task["inputs"].get("stage"):
+                    raise self.m.RunError("Use planning-task submit for v19 planning receipts")
                 output = Path(args.result).resolve()
                 record = self.m.read_json(output)
                 if record.get("task_id") != task["id"] or record.get("status") not in {"complete", "blocked"}:
@@ -216,10 +251,17 @@ class Orchestration:
                 del state["workers"][args.worker]
             elif args.action == "recover":
                 task = tasks.get(args.task)
-                if not task or task["status"] != "running" or not args.evidence:
+                pending_detail = task and task["status"] == "pending" and task["inputs"].get("stage") == "detail"
+                if not task or (task["status"] != "running" and not pending_detail) or not args.evidence:
                     raise self.m.RunError("Recovery requires a running task and reconciled runtime evidence")
                 # The image-task owner must also be reconciled before another image call.
-                state["workers"][task["owner"]] = None
+                if task["owner"] is not None:
+                    state["workers"][task["owner"]] = None
+                if task["inputs"].get("stage") == "detail":
+                    self.m.text(args.worker, "Replacement detail worker")
+                    task["preferred_owner"] = args.worker
+                if args.worker and not self.eligible({**task, "owner": args.worker}, args.worker):
+                    raise self.m.RunError("Replacement worker violates independent selection")
                 task.update(status="pending", owner=args.worker, recovery_evidence=args.evidence)
             if args.action != "next":
                 state["events"].append({"at": self.m.now(), "event": args.action,
@@ -236,13 +278,14 @@ class Orchestration:
         plan.add_argument("--external", type=int, default=0)
         plan.add_argument("--provider", choices=self.m.PROVIDERS, default="codex")
         plan.add_argument("--provider-limit", type=int)
-        for role in ROLES:
+        plan.add_argument("--schema-version", type=int, choices=(18, 19), default=19)
+        for role in ROLES + ("selection",):
             plan.add_argument("--" + role, type=int, default=0, help="Ready task count")
         def show(args):
-            policy = execution({"batch_id": args.batch_id})
+            policy = execution({"batch_id": args.batch_id, **({"planning_mode": PRIORITY_MODE} if args.schema_version == 19 else {})})
             slots = capacity(args.slots, args.scope, args.external)
             return {"execution": policy, "available_slots": slots, "targets": targets(
-                policy, slots, {r: getattr(args, r) for r in ROLES}, args.provider, args.provider_limit)}
+                policy, slots, {r: getattr(args, r) for r in roles(policy)}, args.provider, args.provider_limit)}
         plan.set_defaults(handler=show)
         batch = commands.add_parser("agent-batch", help="Maintain one batch queue; runtime delegation remains explicit")
         batch.add_argument("action", choices=("init", "enqueue", "next", "claim", "finish", "release", "recover"))

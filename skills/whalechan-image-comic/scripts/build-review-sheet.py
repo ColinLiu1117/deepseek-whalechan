@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Create a five-slot collection review sheet without cropping or changing originals."""
+"""Create a collection review sheet without cropping or changing originals."""
 import argparse
 import hashlib
 import importlib.util
 import os
+import math
 from pathlib import Path
 import shutil
 import subprocess
@@ -12,10 +13,12 @@ import tempfile
 # Small bitmap numerals avoid dependencies on installed fonts. Labels are outside the artwork.
 DIGITS = ("010110010010111", "111001111100111", "111001111001111",
           "101101111001001", "111100111001111")
+ALL_DIGITS = ("111101101101111", *DIGITS, "111100111101111",
+              "111001001001001", "111101111101111", "111101111001111")
 
 
-def compose(items, output):
-    if len(items) != 5:
+def compose(items, output, dynamic=False):
+    if not items or (not dynamic and len(items) != 5):
         raise ValueError("A collection sheet requires exactly five task slots")
     magick = shutil.which("magick")
     if not magick:
@@ -23,10 +26,12 @@ def compose(items, output):
     if output.exists():
         raise ValueError("Refusing to overwrite a review sheet")
     cell, gutter, label = 600, 16, 36
-    width, height = 3 * cell + 4 * gutter, 2 * (cell + label) + 3 * gutter
+    columns = math.ceil(math.sqrt(len(items))) if dynamic else 3
+    rows = math.ceil(len(items) / columns)
+    width, height = columns * cell + (columns + 1) * gutter, rows * (cell + label) + (rows + 1) * gutter
     command = [magick, "-size", f"{width}x{height}", "xc:white"]
     for n, item in enumerate(items):
-        x, y = gutter + (n % 3) * (cell + gutter), gutter + (n // 3) * (cell + label + gutter)
+        x, y = gutter + (n % columns) * (cell + gutter), gutter + (n // columns) * (cell + label + gutter)
         if item["candidate"]:
             source = Path(item["candidate"])
             if hashlib.sha256(source.read_bytes()).hexdigest() != item["sha256"]:
@@ -36,10 +41,11 @@ def compose(items, output):
                         "-gravity", "NorthWest", "-geometry", f"+{x}+{y+label}", "-composite"]
         else:
             command += ["-fill", "#e5e7eb", "-draw", f"rectangle {x},{y+label} {x+cell-1},{y+label+cell-1}"]
-        for k, bit in enumerate(DIGITS[n]):
-            if bit == "1":
-                dx, dy = x + (k % 3) * 5, y + (k // 3) * 5
-                command += ["-fill", "#111827", "-draw", f"rectangle {dx},{dy} {dx+4},{dy+4}"]
+        for digit, number in enumerate(str(n + 1)):
+            for k, bit in enumerate(ALL_DIGITS[int(number)]):
+                if bit == "1":
+                    dx, dy = x + digit * 20 + (k % 3) * 5, y + (k // 3) * 5
+                    command += ["-fill", "#111827", "-draw", f"rectangle {dx},{dy} {dx+4},{dy+4}"]
     output.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".sheet-", suffix=".png", dir=output.parent)
     os.close(fd)

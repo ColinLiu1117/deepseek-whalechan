@@ -1,4 +1,4 @@
-# Fixed batch commands — v18
+# Fixed batch commands — v19 (v18 recovery supported)
 
 Contents: [Boundary](#boundary) · [Prepare](#prepare) · [Plan](#plan) · [Start](#start) · [Image](#image) · [Collection](#collection) · [Delivery](#delivery) · [Recovery](#recovery) · [Timing](#timing)
 
@@ -8,7 +8,7 @@ Use these commands rather than authoring temporary bookkeeping/recovery/gallery/
 
 Main dispatches and communicates. Planning workers own prepare/proposal/start; generation workers own image commands and the actual tool call; collection workers own collection commands; delivery workers own export/verification. Main can read status/task packets. Reuse role guidance in existing workers; reload when context was lost.
 
-Use v18 for new assignments. Preserve frozen v11–v17 confirmation and recovery contracts. QA stays 11; drawing-only prompts and budgets are unchanged. Command success is not visual approval. Paths and runtime outputs belong under the batch artifact directory.
+Use v19 for new assignments. Preserve frozen v11–v18 confirmation and recovery contracts. QA stays 11; drawing-only prompts and budgets are unchanged. Command success is not visual approval. Paths and runtime outputs belong under the batch artifact directory.
 
 ## Prepare
 
@@ -17,8 +17,8 @@ Author spec.json from actual inputs and the observed tool list:
 ~~~json
 {
   "sources": [
-    {"id": "source-a", "paths": ["/absolute/source-a.png"]},
-    {"id": "source-b", "text": "Actual supplied text"}
+    {"id": "source-a", "target_images": 5, "paths": ["/absolute/source-a.png"]},
+    {"id": "source-b", "target_images": 2, "text": "Actual supplied text"}
   ],
   "execution": {"batch_id": "batch-01"},
   "language": "zh",
@@ -44,11 +44,41 @@ This creates source inventory, planning tasks and common execution policy. It pr
 
 ## Plan
 
-Claim/dispatch planning tasks via agent-batch. One worker authors each source's ten candidates, all 45 real comparisons and five visual plans. Use the returned common execution object in every draft and a unique run_name per source.
+batch-prepare defaults to schema_version=19; each source defaults target_images to 5. N must be a positive integer, independently per source. Frozen v18 recovery may explicitly retain schema_version=18. Use the common returned execution in every draft and a unique run_name per source.
 
-Reuse rank-ideas, render-proposal, validate-batch and existing schemas. Scripts check comparison completeness/ranking; the worker authors winners, reasons and content.
+Claim the concepts-<source> task as its real author. Read task-packet; write input plus exactly 2N concise creative_pool records, without proposal/images/winners. Submit:
 
-After the existing cross-source review, its worker submits:
+~~~bash
+python3 scripts/manage-run.py planning-task concepts-submit --batch <batch.json> \
+  --task-id concepts-<source> --owner <author> --input-json <concepts.json>
+~~~
+
+The script binds source/count/authors/task, hashes the pool and enqueues selection-<source>. A different agent reads the original input and frozen pool and writes one complete priority order:
+
+~~~json
+{
+  "ranking": [{"idea_id": "idea_01", "reason": "Actual short comparison reason"}],
+  "selection_reason": "Why the first N form the selected set."
+}
+~~~
+
+This is a shape example, not a complete ranking. Include all 2N unique candidates. Optional attention_points records detail-stage risks, not a regeneration request.
+
+~~~bash
+python3 scripts/manage-run.py planning-task selection-submit --batch <batch.json> \
+  --task-id selection-<source> --owner <independent-reviewer> --input-json <ranking.json>
+~~~
+
+The script supplies review_method, source/N/hash, reviewer/task identity and selected IDs. It freezes the decision and enqueues detail-<source> for the original author. Merge the returned frozen selection file unchanged into a schema v19 draft, author only selected N options/images, then submit:
+
+~~~bash
+python3 scripts/manage-run.py planning-task detail-submit --batch <batch.json> \
+  --task-id detail-<source> --owner <author> --input-json <complete-draft.json>
+~~~
+
+Use the returned output path for batch-proposal; arbitrary drafts cannot mark unfinished stages complete. Generic agent-batch finish cannot complete staged planning tasks. Replay identical saved content after a receipt interruption; no re-ranking. Structural errors may be corrected before successful freezing, never by regenerating the pool. See run-schema.md and agent-orchestration.md for identity and recovery.
+
+After all detail tasks complete, dispatch the existing cross-source comparison as a planning task with inputs.kind=cross-review and dependencies on all detail task IDs. Use generic agent-batch enqueue/claim/finish for this existing content-review task (not inputs.stage). Its worker records the task receipt and submits this observation to batch-proposal:
 
 ~~~json
 {
@@ -64,7 +94,7 @@ python3 scripts/manage-run.py batch-proposal --batch <batch.json> \
   --review-json <cross-source-review.json>
 ~~~
 
-Draft order must match sources. This checks source binding, normalizes/validates schemas and rankings, builds requests, checks the locked tool against every request, and writes proposal.md/proposal.json. Planning completion is recorded from those bound outputs.
+Draft order must match sources. This checks source binding, normalizes/validates schemas and rankings, builds requests, checks the locked tool against every request, and writes proposal.md/proposal.json. v19 requires completed detail receipts and matching output hashes; v18 retains its original planning receipt behavior.
 
 Inspect structural warnings and explain dispositions in the cross-source review before showing the plan. A warning-free matrix is not creative approval. Main relays the tables, total, budget, role caps, observed capacity and tool through the existing single user confirmation.
 
@@ -123,7 +153,7 @@ If a receipt was interrupted, resubmit identical observations. A different revie
 
 ## Collection
 
-After all five tasks resolve, claim the collection task:
+After all N tasks resolve, claim the collection task:
 
 ~~~bash
 python3 scripts/manage-run.py collection-task prepare --run-dir <run> \
@@ -183,3 +213,5 @@ python3 scripts/manage-run.py timing-summary --batch <batch.json> --sleep-json <
 Optional sleep input: {"intervals":[["ISO start with timezone","ISO end with timezone"]]}. Without it sleep_excluded is false. Do not infer sleep from long gaps.
 
 Separate role/task duration, request preparation, generation-to-ingest, archive, automatic checks, review setup and visual review/recording. Stage unions overlap; worker time is not user waiting. Generation-to-ingest includes tool/transport/agent latency, not GPU time. Pair session tool timestamps with events for precise provider waiting.
+
+For v19 timing-summary additionally reports concepts, selection, detail and their queue residence. Role totals and stage slices overlap; do not add them together. Record cross-source review as its existing planning task to retain that duration. Exclude provided sleep intervals; use real session timestamps for user waiting.

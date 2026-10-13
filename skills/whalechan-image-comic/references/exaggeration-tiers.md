@@ -1,6 +1,6 @@
 # Exaggeration tiers
 
-Exaggeration is how hard a joke is performed, not where its laugh lives. Any comedy direction can be played at any tier, so choose the tier for the execution after the five ideas are selected. `references/exaggeration-tiers.json` is the authority for each tier's ten-axis palette, landing markers, allowed performance levels, sound-effect limits and default background; `build-prompt.py` and QA read it directly.
+Exaggeration is how hard a joke is performed, not where its laugh lives. Any comedy direction can be played at any tier, so choose the tier for the execution after N ideas are selected. `references/exaggeration-tiers.json` is the authority for each tier's ten-axis palette, landing markers, allowed performance levels, sound-effect limits and default background; `build-prompt.py` and QA read it directly.
 
 | Tier | Register | In one line |
 |---|---|---|
@@ -27,7 +27,7 @@ For a bittersweet or tender source, prefer mock epic or a `contrast` for its `A`
 
 ## Cover all three tiers
 
-By default (`exaggeration_policy: {"mode": "narrative"}`) the five images of each run include at least one `A`, one `B` and one `C`. Two images remain free. Only a real user instruction such as "全部 C 档" permits `{"mode": "user-override", "user_instruction": "..."}`. Coverage binds the plan; when an image fails its budget, finalize reports the missing tier instead of reassigning another image.
+By default (`exaggeration_policy: {"mode": "narrative"}`) each run with N>=3 includes at least one `A`, one `B` and one `C`; the other N-3 are free. N=1/2 chooses tiers by content without a fabricated override. Frozen five-image plans keep their original policy. Only a real user instruction such as "全部 C 档" permits `{"mode": "user-override", "user_instruction": "..."}`. Coverage binds the plan; when an image fails its budget, finalize reports the missing tier instead of reassigning another image.
 
 ## Lower one axis on purpose
 

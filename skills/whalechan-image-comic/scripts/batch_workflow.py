@@ -43,6 +43,8 @@ class BatchWorkflow:
     def prepare(self, args):
         path = Path(args.batch).resolve()
         spec = self.m.read_json(Path(args.spec))
+        version = spec.get("schema_version", 19)
+        self.require(type(version) is int and version in {18, 19}, "Batch version must be 18 or 19")
         with self.locked(path.with_suffix(".lock")):
             self.require(not path.exists(), "Batch exists; use status/resume")
             sources = spec.get("sources", [])
@@ -58,23 +60,32 @@ class BatchWorkflow:
                     files.append({"path": str(file), "sha256": self.m.sha256(file), "type": file.suffix.lower()})
                 self.require(files or isinstance(source.get("text"), str) and source["text"].strip(),
                              "Each source needs paths or text")
-                inventory.append({"id": ident, "files": files, "text": source.get("text")})
+                item = {"id": ident, "files": files, "text": source.get("text")}
+                if version == 19:
+                    item["target_images"] = self.m.extension_module("selection_contract").count(source.get("target_images", 5))
+                inventory.append(item)
             self.require(len({s["id"] for s in inventory}) == len(inventory), "Duplicate source id")
             preflight = self.policy.preflight(self.m, spec.get("availability", {}), spec.get("requests", []))
             if preflight["status"] != "ready":
                 self.m.write_json(path.with_name(path.stem + "-preflight.json"), preflight)
                 return preflight
-            execution = self.roles.execution({**spec["execution"], "tool": preflight["tool"]})
+            execution = self.roles.execution({**spec["execution"], "tool": preflight["tool"],
+                **({"planning_mode": self.roles.PRIORITY_MODE} if version == 19 else {})})
             language = spec.get("language")
             self.require(language in {"zh", "en"}, "Set resolved communication language zh or en")
-            batch = {"execution": execution, "sources": [s["id"] for s in inventory],
+            batch = {"schema_version": version, "execution": execution, "sources": [s["id"] for s in inventory],
                      "inventory": inventory, "language": language, "preflight": preflight,
                      "status": "planning", "tasks": {}, "workers": {}, "events": [], "runs": {},
                      "language_evidence": spec.get("language_evidence") or
                          self.m.extension_module("detect-language").detect(24, Path.home(), 5)}
             for source in inventory:
-                self.enqueue(batch, "plan-" + source["id"], "planning", source["id"],
-                             {"source": source, "output": str(path.parent / (source["id"] + "-draft.json"))}, [])
+                if version == 19:
+                    self.enqueue(batch, "concepts-" + source["id"], "planning", source["id"],
+                        {"stage": "concepts", "source": source,
+                         "output": str(path.parent / (source["id"] + "-pool.json"))}, [])
+                else:
+                    self.enqueue(batch, "plan-" + source["id"], "planning", source["id"],
+                        {"source": source, "output": str(path.parent / (source["id"] + "-draft.json"))}, [])
             self.event(batch, "batch_prepared")
             self.m.write_json(path, batch)
             return {"status": "planning", "batch": str(path), "execution": execution,
@@ -100,6 +111,13 @@ class BatchWorkflow:
         builder = self.m.extension_module("build-prompt")
         for source, filename in zip(batch["sources"], args.draft):
             filename = Path(filename).resolve()
+            if batch.get("schema_version") == 19:
+                task = batch["tasks"].get("detail-" + source, {})
+                self.require(task.get("status") == "complete", "Complete independent selection and detail tasks first")
+                receipt = self.m.read_json(Path(task["result"]))
+                self.require(self.m.sha256(Path(task["result"])) == task["result_sha256"], "Detail receipt changed")
+                self.require(str(filename) == receipt["output"] and self.m.sha256(filename) == receipt["output_sha256"],
+                             "Draft must be the completed detail output")
             draft = self.m.validate_assignment(filename, require_approval=False)
             self.require(draft["execution"] == batch["execution"], "Draft must share batch policy")
             self.require(draft["run_name"] not in run_names, "Each source needs a unique run_name")
@@ -112,6 +130,9 @@ class BatchWorkflow:
             normalized = path.parent / (source + "-normalized.json")
             self.m.write_json(normalized, draft)
             origin = next(x for x in batch["inventory"] if x["id"] == source)
+            if batch.get("schema_version") == 19:
+                self.require(draft["schema_version"] == 19 and draft["source_id"] == source and
+                             draft["target_images"] == origin["target_images"], "Draft source/count differs")
             if origin["files"]:
                 planned = draft["input"]["content"]
                 planned = planned if isinstance(planned, list) else [planned]
@@ -138,12 +159,13 @@ class BatchWorkflow:
         question = self.m.PLAN_TEXT[batch["language"]]["question"]
         tables = [self.m.plan_markdown(self.m.read_json(Path(d["path"])), language=batch["language"]).replace(question, "")
                   for d in drafts]
-        total = (f"总计：{len(drafts) * 5}张；最多{len(drafts) * 15}次出图。各来源共用上述角色上限。" if batch["language"] == "zh"
-                 else f"Total: {len(drafts) * 5} images; maximum {len(drafts) * 15} calls. Role limits are shared across sources.")
+        count = sum(self.m.target_images(self.m.read_json(Path(d["path"]))) for d in drafts)
+        total = (f"总计：{count}张；最多{count * 3}次出图。各来源共用上述角色上限。" if batch["language"] == "zh"
+                 else f"Total: {count} images; maximum {count * 3} calls. Role limits are shared across sources.")
         rendered.write_text("\n\n".join(tables) + "\n\n" + total + "\n\n" + question + "\n")
         with self.locked(path.with_suffix(".lock")):
             batch = self.state(path)
-            for entry in drafts:
+            for entry in drafts if batch.get("schema_version") != 19 else []:
                 task = batch["tasks"]["plan-" + entry["source"]]
                 task.update(status="complete", finished_at=self.m.now(), result=entry["path"], result_sha256=entry["sha256"])
                 if task["owner"]:
@@ -185,8 +207,8 @@ class BatchWorkflow:
                 self.m.write_json(approved, draft)
                 if entry["source"] not in batch["runs"]:
                     result = self.m.cmd_init(NS(assignment=str(approved), root=args.root,
-                        effective_parallelism=min(args.slots or 1, draft["execution"]["role_limits"]["codex_generation" if draft["execution"]["tool"]["provider"] == "codex" else "generation"]),
-                        effective_subagents=min(args.slots, draft["execution"]["role_limits"]["codex_generation" if draft["execution"]["tool"]["provider"] == "codex" else "generation"]), batch=str(path)))
+                        effective_parallelism=min(len(draft["images"]), args.slots or 1, draft["execution"]["role_limits"]["codex_generation" if draft["execution"]["tool"]["provider"] == "codex" else "generation"]),
+                        effective_subagents=min(len(draft["images"]), args.slots, draft["execution"]["role_limits"]["codex_generation" if draft["execution"]["tool"]["provider"] == "codex" else "generation"]), batch=str(path)))
                     batch["runs"][entry["source"]] = result["run_dir"]
                     self.m.write_json(path, batch)
                 run = batch["runs"][entry["source"]]
@@ -239,14 +261,22 @@ class BatchWorkflow:
         role = task["role"]
         refs = {"planning": ["prompt-design", "proposal-selection", "comedy-engine", "run-schema"],
                 "generation": ["provider-routing", "review-workflow"],
+                "selection": ["proposal-selection"],
                 "collection": ["review-workflow"], "delivery": ["gallery"]}[role]
+        stage = task["inputs"].get("stage")
+        if stage:
+            refs = {"concepts": ["comedy-engine", "proposal-selection"],
+                    "selection": ["proposal-selection"], "detail": ["prompt-design", "run-schema"]}[stage]
         return {"task": task, "batch": str(Path(args.batch).resolve()), "tool": batch["execution"]["tool"],
                 "skill": str(self.m.SKILL_ROOT), "references": [str(self.m.SKILL_ROOT / "references" / (r + ".md")) for r in refs],
-                "next_action": "execute-" + role}
+                "next_action": "execute-" + (stage or role),
+                **({"submission_template": {"input": None, "creative_pool": []},
+                    "candidate_count": 2 * task["inputs"]["source"]["target_images"]} if stage == "concepts" else {}),
+                **({"submission_template": {"ranking": [], "selection_reason": None}} if stage == "selection" else {})}
 
     def image(self, args):
         run, assignment, manifest = self.m.load_run(args.run_dir)
-        self.require(assignment["schema_version"] == 18, "Combined image commands require v18")
+        self.require(assignment["schema_version"] in {18, 19}, "Combined image commands require v18")
         batch_path = self.policy.batch_path(self.m, manifest, assignment)
         tool = assignment["execution"]["tool"]
         task = self.owned(batch_path, args.task_id, args.owner, "generation", run)
@@ -352,7 +382,7 @@ class BatchWorkflow:
 
     def collection(self, args):
         run, assignment, manifest = self.m.load_run(args.run_dir)
-        self.require(assignment["schema_version"] == 18, "Combined collection commands require v18")
+        self.require(assignment["schema_version"] in {18, 19}, "Combined collection commands require v18")
         batch_path = self.policy.batch_path(self.m, manifest, assignment)
         self.owned(batch_path, args.task_id, args.owner, "collection", run)
         group = manifest["collection"]
@@ -581,9 +611,16 @@ class BatchWorkflow:
         def elapsed(a, b):
             return b - a - sum(max(0, min(b, d) - max(a, c)) for c, d in sleeps)
         spans = {}
-        for role in self.roles.ROLES:
+        for role in self.roles.roles(batch["execution"]):
             spans[role] = [(ts(t["started_at"]), ts(t["finished_at"])) for t in batch["tasks"].values()
                            if t["role"] == role and t.get("started_at") and t.get("finished_at")]
+        for task in batch["tasks"].values():
+            stage = task["inputs"].get("stage") or (
+                "cross-review" if task["inputs"].get("kind") == "cross-review" else None)
+            if stage and task.get("started_at"):
+                spans.setdefault(stage + "-queue", []).append((ts(task["queued_at"]), ts(task["started_at"])))
+                if task.get("finished_at") and stage != task["role"]:
+                    spans.setdefault(stage, []).append((ts(task["started_at"]), ts(task["finished_at"])))
         for filename in batch.get("runs", {}).values():
             run, _, manifest = self.m.load_run(filename)
             for image in manifest["images"]:
@@ -636,6 +673,11 @@ class BatchWorkflow:
                 "limitations": "Generation-to-ingest includes dispatch/archive; not provider GPU time. Stage unions overlap."}
 
     def register(self, commands):
+        p = commands.add_parser("planning-task")
+        p.add_argument("action", choices=("concepts-submit", "selection-submit", "detail-submit"))
+        for name in ("batch", "task-id", "owner", "input-json"):
+            p.add_argument("--" + name, required=True)
+        p.set_defaults(handler=self.m.extension_module("selection_contract").PlanningTasks(self).submit)
         handlers = {"batch-prepare": self.prepare, "batch-proposal": self.proposal, "batch-start": self.start,
                     "batch-status": self.status, "batch-resume": self.resume, "batch-deliver": self.deliver,
                     "task-packet": self.packet, "timing-summary": self.timing}

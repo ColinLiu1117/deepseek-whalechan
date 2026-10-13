@@ -203,7 +203,7 @@ def confirm_fixture_plan(value: dict) -> dict:
 
 def assignment() -> dict:
     value = legacy_assignment()
-    value["schema_version"] = manage.ASSIGNMENT_SCHEMA_VERSION
+    value["schema_version"] = 18  # Frozen v18 fixtures retain the tournament contract
     value.pop("selection")
     value.pop("confirmation")
     pool = value["creative_pool"]

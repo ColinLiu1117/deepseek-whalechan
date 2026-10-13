@@ -1,12 +1,12 @@
-# Role-specific sub-agent orchestration — v17/v18
+# Role-specific sub-agent orchestration — v17/v18/v19
 
 Contents: [Limits](#limits) · [Ownership](#ownership) · [Planning](#planning) · [Queue](#queue) · [Image task](#image-task) · [Collection and delivery](#collection-and-delivery) · [Recovery](#recovery)
 
-For new v18 batches use `batch-commands.md` for fixed prepare/proposal/start, image, collection and delivery operations. The low-level commands below remain the ownership/recovery protocol and frozen v17 path. v18 adds a preflight-locked tool and batch pause; service errors never auto-switch or retry.
+For new v19 batches use `batch-commands.md` for fixed prepare/proposal/start, image, collection and delivery operations. The low-level commands below remain the ownership/recovery protocol and frozen v17 path. v18 adds a preflight-locked tool and batch pause; service errors never auto-switch or retry.
 
 ## Limits
 
-Keep independent maximums: planning 5; generation 5 for general providers and 3 for Codex ImageGen; collection 2; delivery 1. Apply the existing batch-wide ceiling of 10 and any lower user/runtime/provider limit. These are role limits, not one shared pool of three and not reserved resident agents.
+Keep independent maximums: planning 5; selection 2; generation 5 for general providers and 3 for Codex ImageGen; collection 2; delivery 1. Apply the existing batch-wide ceiling of 10 and any lower user/runtime/provider limit. These are role limits, not one shared pool of three and not reserved resident agents.
 
 Observe whether the runtime limit includes the main agent. Subtract external occupied slots. Count idle resident sub-agents as occupied unless the runtime actually releases them. Reuse an idle agent through follow-up work before creating another. Never invent a release tool or spawn nested agent CLIs to bypass capacity.
 
@@ -28,7 +28,8 @@ If delegation is entirely unavailable, disclose serial main-agent fallback. Temp
 Main handles requirements, consent, queue state, capacity, dependency readiness, budgets/status summaries and final links. Delegate source analysis, prompt authorship, visual judgments, image/file processing, manifest reconciliation and HTML to sub-agents. Main checks task receipts mechanically; it never reopens images or rewrites content.
 
 Assign one role at a time to each resident:
-- planning: one source's ten candidates, 45 duels, five plans and complete drawing fields. Also use a planning task for the existing cross-source batch comparison and post-confirmation freezing.
+- planning: one source's 2N concise concepts, then a separate detail task for N selected visual plans. Also use a planning task for the existing cross-source batch comparison and post-confirmation freezing.
+- selection: another real agent ranks all 2N candidates and submits brief reasons; exclude all authors of that source.
 - generation: one image through its entire single-image lifecycle, including the sole visual QA and permitted targeted retries.
 - collection: merge completed image records, make the local contact sheet, inspect it once, and record the result. One task per source; at most two different sources concurrently.
 - delivery: reconcile records, promote accepted images, finalize and export the aggregate HTML. Check counts/files/links without another visual inspection.
@@ -39,11 +40,11 @@ Every dispatch packet includes task ID, role, batch file/ID, source, frozen run/
 
 ## Planning
 
-Start planning sub-agents before generation consent; planning never calls an image API. Parallelize by original source, with one worker authoring its full five-image visual plan. Pass the same batch execution policy to every source. The main agent assembles worker-rendered plan fragments and communicates user corrections without doing semantic rewrites.
+Start planning sub-agents before generation consent; planning never calls an image API. Parallelize by original source, with an author for each source's concepts and selected N-image detail plan. Pass the same batch execution policy to every source. The main agent assembles worker-rendered plan fragments and communicates user corrections without doing semantic rewrites.
 
 Assign the existing cross-source comparison to a planning worker after all drafts are available. Resolve its findings in the drafts before the single consent. Bind one actual user reply to all approved source plans. Delegate validation and initialization after consent. No production run or image call precedes consent.
 
-Use v18 execution (including the locked tool) and dynamic worker_plan from run-schema.md. Bind approved role limits and batch strategy, not transient worker identities. Disclose current runtime capacity separately. Lower dispatch or recovery within approved role/batch limits does not alter the visual plan. Raising approved limits or materially changing content requires updated consent.
+Use v19 execution (including the locked tool) and dynamic worker_plan from run-schema.md. Bind approved role limits and batch strategy, not transient worker identities. Disclose current runtime capacity separately. Lower dispatch or recovery within approved role/batch limits does not alter the visual plan. Raising approved limits or materially changing content requires updated consent.
 
 ## Queue
 
@@ -64,7 +65,7 @@ Task input:
  "depends_on":["freeze-a"]}
 ```
 
-For planning, inputs contains source paths/output draft paths; for collection use run_dir; for delivery use run_dirs. Dependencies must already exist. Enqueue initial generation tasks in source/image order, collection after the source's five generation task IDs, and delivery after all terminal collection tasks. For repair, enqueue new generation task IDs only for recorded repair_images, then one new collection task depending on those repairs. The delivery dependency must point to the final collection task; enqueue delivery only once all collection lifecycles resolve.
+For planning, inputs contains source paths/output draft paths; for collection use run_dir; for delivery use run_dirs. Dependencies must already exist. Enqueue initial generation tasks in source/image order, collection after the source's N generation task IDs, and delivery after all terminal collection tasks. For repair, enqueue new generation task IDs only for recorded repair_images, then one new collection task depending on those repairs. The delivery dependency must point to the final collection task; enqueue delivery only once all collection lifecycles resolve.
 
 The helper picks ready tasks in source order, subject to role targets and active tasks. A source's already-running images do not block dispatch for later sources. Frozen execution tasks must match the batch policy and valid confirmation. A collection is ready only after every image is terminal at the single-image stage and no unresolved owner/call remains.
 
@@ -105,14 +106,14 @@ python3 scripts/manage-run.py image-task review --run-dir <run> --image <image> 
   --provider codex --model <actual-model> --visual-json <review.json>
 ```
 
-A core FAIL with remaining budget returns pending. Build a targeted drawing-only retry and repeat begin/call/prepare/review without waiting for main-agent judgment. Preserve frozen premise/text locks. v18 stays on the locked tool; frozen v17 follows its original provider order. PASS, exhaustion or technical/safety blockage ends the image task:
+A core FAIL with remaining budget returns pending. Build a targeted drawing-only retry and repeat begin/call/prepare/review without waiting for main-agent judgment. Preserve frozen premise/text locks. v18/v19 stays on the locked tool; frozen v17 follows its original provider order. PASS, exhaustion or technical/safety blockage ends the image task:
 ```bash
 python3 scripts/manage-run.py image-task finish --run-dir <run> --image <image> --owner <worker> --task-id <task>
 ```
 
 Return the journal path and complete receipt. Single-image journals are the authoritative attempt ledger. Same-image retries stay serial; all returned images consume the original maximum of three, including technical failures. Candidate/QA hashes bind evidence; malformed records permit mechanical repair, not another image or visual inspection.
 
-For a proven no-image provider failure use image-task error with provider/model/category/evidence. Preserve uncertainty as an in-flight call. For v18 pause new dispatch and wait for explicit user resume. Only frozen v17 advances providers through its original order. A safety rejection stops new batch dispatch and is reported immediately. Setup-only failure may leave the run open for later authorized recovery; do not silently finalize it.
+For a proven no-image provider failure use image-task error with provider/model/category/evidence. Preserve uncertainty as an in-flight call. For v18/v19 pause new dispatch and wait for explicit user resume. Only frozen v17 advances providers through its original order. A safety rejection stops new batch dispatch and is reported immediately. Setup-only failure may leave the run open for later authorized recovery; do not silently finalize it.
 
 ## Collection and delivery
 
@@ -131,3 +132,15 @@ Use image-task status to inspect the journal without acquiring new ownership. Be
 If an image journal already finished, recover only its missing completion receipt. For interrupted collection/delivery tasks, resume the existing sheet, recorded review or exported files; do not create another visual judgment merely to recover a receipt. If the image already returned, prepare/review the same bytes and existing observations. An interrupted archive may be replayed only with identical bytes. A proven no-image result is recorded with error; an unknown result remains unresolved. Never turn a timeout into assumed free budget.
 
 Record queue events, actual actor IDs, local generation/review events and provider/session timestamps. Distinguish queue residence, setup, actual tool execution, QA, collection and delivery. Exclude sleep; report wall-clock and cumulative worker time separately. Scripts verify structure and transitions, not whether an LLM really inspected pixels or whether a runtime observation is truthful.
+
+## v19 planning dependencies and independent identity
+
+Each source flows concepts (planning) -> selection (selection) -> detail (planning); completion of one source need not wait for other sources. With three slots and ready selection, target 2 planning + 1 selection; without ready selection use up to 3 planning. Limits are ceilings, not permanently reserved agents.
+
+Use task-packet for each stage and agent-batch next/claim --worker <actual-agent-id>. The queue filters author-ineligible selections before choosing a task, allowing cross-source review. Never assign main or an alias of the author as the independent reviewer. Scripts enforce recorded IDs and ownership; runtime evidence must establish they are real distinct agents.
+
+Detail prefers the original author. If unavailable, agent-batch recover --task detail-<source> --worker <replacement> --evidence <actual-runtime-evidence> permits transfer. Concept recovery retains all contributors, excluding each from selection. Use planning-task submissions, not generic finish, for staged tasks.
+
+One available slot works only if the runtime can truly release the author and create another independent agent sequentially. Record real release evidence; changing a role label does not create independence. If this cannot be done, retain planning state and report the capability limit. Temporary occupied slots call for eligible resident reuse or waiting, never nested CLI agents or self-review.
+
+If pool/selection/detail files already exist after an interrupted receipt, replay the same submission to repair bookkeeping. Keep the saved pool, ranking and original reviewer; do not repeat the semantic review. Frozen v17/v18 retain their original four-role policy without selection.

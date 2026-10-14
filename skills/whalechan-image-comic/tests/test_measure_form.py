@@ -28,29 +28,28 @@ class ProportionMeasurementTests(unittest.TestCase):
         result = measure.build_result(candidate, "semi-chibi", overlay, *points)
         self.assertEqual(result["form_evidence"]["calculated_head_ratio"], 2.8)
         self.assertTrue(result["within_range"])
-        qa["evidence"]["form_evidence"] = result["form_evidence"]
+        qa["form_evidence"] = result["form_evidence"]
         manage.write_json(path, qa)
         digest = manage.sha256(candidate)
         self.assertEqual(manage.validate_qa(path, digest, image_spec=self.image_spec)["verdict"], "PASS")
-        qa["evidence"]["form_evidence"]["calculated_head_ratio"] = 9.0
+        qa["form_evidence"]["calculated_head_ratio"] = 9.0
         manage.write_json(path, qa)
         with self.assertRaises(manage.RunError):
             manage.validate_qa(path, digest, image_spec=self.image_spec)
-        qa["gates"]["H1"] = "NA"
-        qa["evidence"]["form_evidence"] = {
+        qa["form_evidence"] = {
             "mode": "visible-only", "candidate_sha256": digest,
             "reason": "The planned close-up excludes lower-body landmarks",
             "observed_cues": ["Rounded head and compact shoulders"],
         }
         manage.write_json(path, qa)
-        with self.assertRaisesRegex(manage.RunError, "proportion_check"):
+        with self.assertRaises(manage.RunError):
             manage.validate_qa(path, digest, image_spec=self.image_spec)
         closeup = copy.deepcopy(self.image_spec)
         closeup["proportion_check"] = "visible-only"
         self.assertEqual(manage.validate_qa(path, digest, image_spec=closeup)["verdict"], "PASS")
-        qa["evidence"]["form_evidence"]["calculated_head_ratio"] = 2.8
+        qa["form_evidence"]["calculated_head_ratio"] = 2.8
         manage.write_json(path, qa)
-        with self.assertRaisesRegex(manage.RunError, "must not claim"):
+        with self.assertRaisesRegex(manage.RunError, "cannot claim"):
             manage.validate_qa(path, digest, image_spec=closeup)
 
 

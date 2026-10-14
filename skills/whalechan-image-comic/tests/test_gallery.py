@@ -21,7 +21,7 @@ def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
 
 
-def make_run(root, name="example", composite=False):
+def make_run(root, name="example"):
     """Small complete/partial records for export tests and explicitly labelled demos."""
     run = root / name
     for folder in ("source", "candidates", "prompts", "qa", "final"):
@@ -39,7 +39,7 @@ def make_run(root, name="example", composite=False):
                   "provider": "codex", "model": "synthetic-test-only", "verdict": "PASS",
                   "created_at": "2026-01-01T00:00:00Z", "consumes_candidate_budget": True}
         if gallery.COMIC:
-            record.update(attempt_id=f"attempt-{index:02d}", role="component" if composite else "candidate",
+            record.update(attempt_id=f"attempt-{index:02d}", role="candidate",
                           candidate=str(run / "candidates" / filename), prompt=str(run / f"prompts/{index}.txt"),
                           automatic_qa=str(run / f"qa/{index}.json"), visual_qa=str(run / f"qa/{index}.json"))
         else:
@@ -47,21 +47,21 @@ def make_run(root, name="example", composite=False):
                           automatic_qa={"overall": "PASS"}, visual_qa={"verdict": "PASS", "defects": []})
         records.append(record)
     shutil.copyfile(run / "candidates/one.png", run / "final/01_same.png")
-    state = {"status": "passed", "attempts": records, "derived": [],
+    state = {"status": "passed", "attempts": records,
              "final_path": str(run / "final/01_same.png"), "final_sha256": records[0]["candidate_sha256"],
              "provider_errors": [{"provider": "codex", "model": "synthetic", "category": "quota", "details": "Synthetic error; no image"}]}
-    if composite:
-        state["derived"] = [{"derived_id": "composite-01", "role": "composite", "verdict": "PASS",
-                             "candidate": str(run / "final/01_same.png"), "candidate_sha256": state["final_sha256"],
-                             "source_attempts": [item["attempt_id"] for item in records],
-                             "automatic_qa": str(run / "qa/1.json"), "visual_qa": str(run / "qa/1.json"),
-                             "consumes_candidate_budget": False}]
-    assignment = {"schema_version": 11 if gallery.COMIC else 5, "run_name": name, "run_dir": str(run),
+    assignment = {"schema_version": 19 if gallery.COMIC else 6, "run_name": name, "run_dir": str(run),
                   "input": {"type": "screenshot", "content": ["lost-1.png", "lost-2.png"]},
                   "proposal": {"options": [{"choice": key, "idea_id": f"idea_{key}", "title": f"方案 {key}",
                                             "scene": "Synthetic demonstration, not an actual generation."} for key in "AB"]},
                   "selection": {"choices": [{"choice": "A", "count": 1}]},
                   "images": [{"id": "01_same", "name": "same", "idea_id": "idea_A", "proposal_choice": "A", "references": []}]}
+    if gallery.COMIC:
+        assignment.pop("selection")
+        assignment["ranked_ideas"] = ["idea_A"]
+        assignment["proposal"]["options"] = assignment["proposal"]["options"][:1]
+        assignment["creative_pool"] = [{"id":"idea_B", "premise":"方案 B", "scene":"Synthetic scene", "punchline":"Synthetic payoff"}]
+        assignment["selection_review"] = {"ranking":[{"idea_id":"idea_A","reason":"Synthetic first"},{"idea_id":"idea_B","reason":"Synthetic second"}],"selection_reason":"Synthetic set"}
     write_json(run / "assignment.json", assignment)
     manifest = {"schema_version": 1 if gallery.COMIC else 3, "status": "complete",
                 "assignment_sha256": gallery.digest(run / "assignment.json"), "images": {"01_same": state}}
@@ -118,7 +118,8 @@ class GalleryTests(unittest.TestCase):
     @unittest.skipUnless(gallery.COMIC, "Flat browsing is the comic layout")
     def test_flat_order_crosses_proposals_and_normalizes_timezones(self):
         assignment = gallery.read_json(self.run / "assignment.json")
-        assignment["selection"]["choices"].append({"choice": "B", "count": 1})
+        assignment["ranked_ideas"].append("idea_B")
+        assignment["proposal"]["options"].append({"idea_id":"idea_B","title":"方案 B","scene":"Synthetic second scene"})
         assignment["images"].append({"id": "02_other", "idea_id": "idea_B", "proposal_choice": "B", "references": []})
         write_json(self.run / "assignment.json", assignment)
         manifest = gallery.read_json(self.run / "manifest.json")
@@ -234,18 +235,6 @@ class GalleryTests(unittest.TestCase):
         self.assertEqual(group["passed"], 0)
         self.assertIsNone(group["proposals"][0]["images"][0]["final"])
 
-    @unittest.skipUnless(gallery.COMIC, "Only comics have local composites")
-    def test_composite_has_component_prompts_and_no_extra_call(self):
-        run = make_run(self.root, "composite", composite=True)
-        _, data = self.export(run)
-        image = data["groups"][0]["proposals"][0]["images"][0]
-        self.assertEqual(image["calls"], 2)
-        self.assertEqual(image["origin"]["role"], "composite")
-        self.assertEqual(image["origin"]["prompt"], "")
-        self.assertEqual(image["origin"]["sources"], ["attempt-01", "attempt-02"])
-        cards = data["groups"][0]["gallery_images"]
-        self.assertEqual(len(cards), 3)
-        self.assertEqual(sum(c["is_final"] for c in cards), 1)
 
     def test_installed_skill_is_self_contained(self):
         installed = self.root / "installation" / ROOT.name

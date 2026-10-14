@@ -16,8 +16,12 @@ class GalleryLifecycleTests(unittest.TestCase):
         for number, image in enumerate(frozen['images'], 1):
             self.image_spec, self.image = image, image['id']
             args = self.files(number, 'PASS')
-            fixtures.manage.record_image(args, component=False)
-            fixtures.manage.cmd_promote(argparse.Namespace(run_dir=str(self.run_dir), image=args.image))
+            self.workflow.prepare(args)
+            self.workflow.record_candidate(args, *fixtures.manage.load_run(str(self.run_dir)))
+        from test_review_workflow import ReviewWorkflowTests
+        ReviewWorkflowTests.collection(self)
+        for image in frozen['images']:
+            fixtures.manage.cmd_promote(argparse.Namespace(run_dir=str(self.run_dir), image=image['id']))
         fixtures.manage.cmd_finalize(argparse.Namespace(run_dir=str(self.run_dir), allow_partial=False))
         before = {name: (self.run_dir / name).read_bytes() for name in ('manifest.json', 'assignment.json')}
         result = gallery.export_gallery([self.run_dir])

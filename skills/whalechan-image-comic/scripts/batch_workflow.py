@@ -1,4 +1,4 @@
-"""Reusable v18/v19 batch and image operations. Provider calls and visual judgments stay with workers."""
+"""Reusable current batch and image operations. Provider calls and visual judgments stay with workers."""
 from __future__ import annotations
 import json
 import re
@@ -23,6 +23,7 @@ class BatchWorkflow:
 
     def state(self, path):
         value = self.m.read_json(Path(path))
+        self.require(value.get("schema_version") == 19, "Batch schema_version must be 19")
         self.policy.validate(value["execution"].get("tool"))
         return value
 
@@ -33,7 +34,7 @@ class BatchWorkflow:
                 batch = self.state(path)
                 self.require(batch["execution"] == assignment["execution"], "Batch execution mismatch")
             else:
-                batch = {"execution": assignment["execution"], "sources": [assignment["run_name"]],
+                batch = {"schema_version": 19, "execution": assignment["execution"], "sources": [assignment["run_name"]],
                          "tasks": {}, "workers": {}, "events": [], "runs": {},
                          "status": "preflight_required"}
                 batch["runs"][assignment["run_name"]] = str(run)
@@ -44,7 +45,7 @@ class BatchWorkflow:
         path = Path(args.batch).resolve()
         spec = self.m.read_json(Path(args.spec))
         version = spec.get("schema_version", 19)
-        self.require(type(version) is int and version in {18, 19}, "Batch version must be 18 or 19")
+        self.require((type(version) is int), "Batch version must be 19")
         with self.locked(path.with_suffix(".lock")):
             self.require(not path.exists(), "Batch exists; use status/resume")
             sources = spec.get("sources", [])
@@ -61,12 +62,9 @@ class BatchWorkflow:
                 self.require(files or isinstance(source.get("text"), str) and source["text"].strip(),
                              "Each source needs paths or text")
                 item = {"id": ident, "files": files, "text": source.get("text")}
-                if version == 19:
-                    item["target_images"] = self.m.extension_module("selection_contract").count(source.get("target_images", 5))
-                    item["exaggeration_policy"] = self.m.normalize_tier_policy(
-                        source.get("exaggeration_policy", self.m.DEFAULT_TIER_POLICY))
-                    self.require(item["exaggeration_policy"]["mode"] != "narrative",
-                                 "New sources use target-ratio or an explicit user-override")
+                item["target_images"] = self.m.extension_module("selection_contract").count(source.get("target_images", 5))
+                item["exaggeration_policy"] = self.m.normalize_tier_policy(
+                    source.get("exaggeration_policy", self.m.DEFAULT_TIER_POLICY))
                 inventory.append(item)
             self.require(len({s["id"] for s in inventory}) == len(inventory), "Duplicate source id")
             preflight = self.policy.preflight(self.m, spec.get("availability", {}), spec.get("requests", []))
@@ -74,7 +72,7 @@ class BatchWorkflow:
                 self.m.write_json(path.with_name(path.stem + "-preflight.json"), preflight)
                 return preflight
             execution = self.roles.execution({**spec["execution"], "tool": preflight["tool"],
-                **({"planning_mode": self.roles.PRIORITY_MODE} if version == 19 else {})})
+                "planning_mode": self.roles.PRIORITY_MODE})
             language = spec.get("language")
             self.require(language in {"zh", "en"}, "Set resolved communication language zh or en")
             batch = {"schema_version": version, "execution": execution, "sources": [s["id"] for s in inventory],
@@ -83,13 +81,9 @@ class BatchWorkflow:
                      "language_evidence": spec.get("language_evidence") or
                          self.m.extension_module("detect-language").detect(24, Path.home(), 5)}
             for source in inventory:
-                if version == 19:
-                    self.enqueue(batch, "concepts-" + source["id"], "planning", source["id"],
-                        {"stage": "concepts", "source": source,
-                         "output": str(path.parent / (source["id"] + "-pool.json"))}, [])
-                else:
-                    self.enqueue(batch, "plan-" + source["id"], "planning", source["id"],
-                        {"source": source, "output": str(path.parent / (source["id"] + "-draft.json"))}, [])
+                self.enqueue(batch, "concepts-" + source["id"], "planning", source["id"],
+                    {"stage": "concepts", "source": source,
+                     "output": str(path.parent / (source["id"] + "-pool.json"))}, [])
             self.event(batch, "batch_prepared")
             self.m.write_json(path, batch)
             return {"status": "planning", "batch": str(path), "execution": execution,
@@ -115,13 +109,12 @@ class BatchWorkflow:
         builder = self.m.extension_module("build-prompt")
         for source, filename in zip(batch["sources"], args.draft):
             filename = Path(filename).resolve()
-            if batch.get("schema_version") == 19:
-                task = batch["tasks"].get("detail-" + source, {})
-                self.require(task.get("status") == "complete", "Complete independent selection and detail tasks first")
-                receipt = self.m.read_json(Path(task["result"]))
-                self.require(self.m.sha256(Path(task["result"])) == task["result_sha256"], "Detail receipt changed")
-                self.require(str(filename) == receipt["output"] and self.m.sha256(filename) == receipt["output_sha256"],
-                             "Draft must be the completed detail output")
+            task = batch["tasks"].get("detail-" + source, {})
+            self.require(task.get("status") == "complete", "Complete independent selection and detail tasks first")
+            receipt = self.m.read_json(Path(task["result"]))
+            self.require(self.m.sha256(Path(task["result"])) == task["result_sha256"], "Detail receipt changed")
+            self.require(str(filename) == receipt["output"] and self.m.sha256(filename) == receipt["output_sha256"],
+                         "Draft must be the completed detail output")
             draft = self.m.validate_assignment(filename, require_approval=False)
             self.require(draft["execution"] == batch["execution"], "Draft must share batch policy")
             self.require(draft["run_name"] not in run_names, "Each source needs a unique run_name")
@@ -134,12 +127,10 @@ class BatchWorkflow:
             normalized = path.parent / (source + "-normalized.json")
             self.m.write_json(normalized, draft)
             origin = next(x for x in batch["inventory"] if x["id"] == source)
-            if batch.get("schema_version") == 19:
-                self.require(draft["schema_version"] == 19 and draft["source_id"] == source and
-                             draft["target_images"] == origin["target_images"], "Draft source/count differs")
-                if "exaggeration_policy" in origin:
-                    self.require(draft.get("exaggeration_policy") == origin["exaggeration_policy"],
-                                 "Draft must preserve the source tier policy")
+            self.require(draft["schema_version"] == 19 and draft["source_id"] == source and
+                         draft["target_images"] == origin["target_images"], "Draft source/count differs")
+            self.require(draft.get("exaggeration_policy") == origin.get("exaggeration_policy"),
+                         "Draft must preserve the source tier policy")
             if origin["files"]:
                 planned = draft["input"]["content"]
                 planned = planned if isinstance(planned, list) else [planned]
@@ -172,11 +163,6 @@ class BatchWorkflow:
         rendered.write_text("\n\n".join(tables) + "\n\n" + total + "\n\n" + question + "\n")
         with self.locked(path.with_suffix(".lock")):
             batch = self.state(path)
-            for entry in drafts if batch.get("schema_version") != 19 else []:
-                task = batch["tasks"]["plan-" + entry["source"]]
-                task.update(status="complete", finished_at=self.m.now(), result=entry["path"], result_sha256=entry["sha256"])
-                if task["owner"]:
-                    batch["workers"][task["owner"]] = None
             batch.update(proposal=str(target), proposal_sha256=self.m.sha256(target), preflight=preflight)
             self.event(batch, "proposal_rendered")
             self.m.write_json(path, batch)
@@ -283,7 +269,7 @@ class BatchWorkflow:
 
     def image(self, args):
         run, assignment, manifest = self.m.load_run(args.run_dir)
-        self.require(assignment["schema_version"] in {18, 19}, "Combined image commands require v18/v19")
+
         batch_path = self.policy.batch_path(self.m, manifest, assignment)
         tool = assignment["execution"]["tool"]
         task = self.owned(batch_path, args.task_id, args.owner, "generation", run)
@@ -389,7 +375,7 @@ class BatchWorkflow:
 
     def collection(self, args):
         run, assignment, manifest = self.m.load_run(args.run_dir)
-        self.require(assignment["schema_version"] in {18, 19}, "Combined collection commands require v18/v19")
+
         batch_path = self.policy.batch_path(self.m, manifest, assignment)
         self.owned(batch_path, args.task_id, args.owner, "collection", run)
         group = manifest["collection"]

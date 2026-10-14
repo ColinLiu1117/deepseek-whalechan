@@ -38,8 +38,6 @@ Concept authors and independent selectors receive the target before creating/sel
 
 The five-image count is a hard structural check; other N show actual percentages and deviations for review during existing planning/cross-source review. No extra review stage is needed. Confirm the actual allocation with the full plan. Changed tiers or policy invalidate confirmation.
 
-Frozen narrative policies, including old v19 batches, retain their original coverage and hashes. They are not retrofitted. New batches explicitly bind the target policy from inventory through detail and proposal; a real user override is recorded before planning.
-
 Report actual delivered counts and missing tiers when images fail within their budgets. Collection repairs retain their existing limits; a shortfall never changes another image’s declared tier.
 
 ## Lower one axis on purpose
@@ -66,4 +64,4 @@ Drawn sound effects are text: put each one in `core_text` and attribute it in `d
 
 ## Repair a missed tier
 
-When QA finds the landing panel below its tier or outside its palette, keep the joke and the frozen plan and retry once naming only the missing markers or the violating axis. Do not change the tier to match a weak render; that is a plan revision and needs a new confirmation.
+When QA records a material tier defect, keep the joke and the frozen plan and describe the specific visual correction. Use the remaining per-image budget and the collection repair limit in `review-workflow.md`; minor palette variations follow its tolerance rules. Do not change the tier to match a weak render; that is a plan revision and needs a new confirmation.

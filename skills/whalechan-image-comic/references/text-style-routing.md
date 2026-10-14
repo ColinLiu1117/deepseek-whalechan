@@ -37,4 +37,4 @@ Letter in `input.language`: the session language, or the language the user speci
 
 Quote every required semantic string verbatim in the prompt. There is no separate flavor-text field: nonverbal marks (anger veins, sweat drops, motion lines) are drawn symbols, and any written word, including a sound effect or prop writing, belongs in `core_text` with exact wording. Do not use local fonts or programmatic typesetting.
 
-For QA11 text-only core failures, use the complete-canvas targeted retry or edit in [review-workflow.md](review-workflow.md#failure), retaining the exact frozen text. Historical intermediate text-free bases are documented in [historical-recovery.md](historical-recovery.md#lettering-recovery--v11v13v14-only).
+For QA11 text-only core failures, use the complete-canvas targeted retry or edit in [review-workflow.md](review-workflow.md#failure), retaining the exact frozen text.

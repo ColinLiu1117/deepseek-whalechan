@@ -42,10 +42,10 @@ def digest(path):
 
 
 def tier_info(spec):
-    """Describe a comic's exaggeration tier (v14) or historical intensity (v13 and earlier) for the page to render."""
+    """Describe the planned exaggeration tier and contrast."""
     tier = spec.get("exaggeration")
     if not tier:
-        return {"intensity": spec["intensity"]} if spec.get("intensity") else None
+        return None
     contrast = spec.get("contrast")
     if not contrast:
         return {"tier": tier}
@@ -81,7 +81,7 @@ class RunReader:
         self.warnings = []
         self.assignment = read_json(run / "assignment.json")
         self.manifest = read_json(run / "manifest.json")
-        if self.assignment.get("schema_version") not in ({11, 13, 14, 15, 16, 17, 18, 19} if COMIC else {5, 6}):
+        if self.assignment.get("schema_version") != (19 if COMIC else 6):
             raise GalleryError(f"Unsupported assignment schema: {run.name}")
         if self.manifest.get("schema_version") != (1 if COMIC else 3):
             raise GalleryError(f"Unsupported manifest schema: {run.name}")
@@ -155,11 +155,11 @@ class RunReader:
         return read_json(path) if json_file else path.read_text(encoding="utf-8")
 
     def attempt(self, record):
-        key = record.get("attempt_id") or record.get("derived_id") or str(record.get("candidate_attempt", ""))
+        key = record["attempt_id"] if COMIC else str(record["candidate_attempt"])
         role = record.get("role", "candidate")
         qa = self.sidecar(record.get("visual_qa"), key, "visual_qa", True) if record.get("visual_qa") else {}
         auto = self.sidecar(record.get("automatic_qa"), key, "automatic_qa", True) if record.get("automatic_qa") else {}
-        prompt = "" if role == "composite" else (
+        prompt = (
             self.sidecar(record.get("prompt"), key, "prompt") if COMIC else record.get("prompt", ""))
         try:
             picture = self.picture(self.locate(record.get("candidate", record.get("candidate_path"))),
@@ -175,18 +175,17 @@ class RunReader:
                 "verdict": record.get("verdict"), "created_at": record.get("created_at"),
                 "defects": qa.get("defects", qa.get("core_defects", [])) or ([record["technical_error"]] if record.get("technical_error") else []),
                 "minor_issues": qa.get("minor_issues", []), "targeted_retry": qa.get("targeted_retry"),
-                "automatic": auto.get("overall"), "visual": qa.get("verdict"),
-                "sources": record.get("source_attempts", [])}
+                "automatic": auto.get("overall"), "visual": qa.get("verdict")}
 
     def image(self, spec):
         state = self.manifest["images"][spec["id"]]
-        records = state.get("attempts", []) + state.get("derived", [])
+        records = state.get("attempts", [])
         attempts = [self.attempt(record) for record in records]
         final = None
         if state.get("status") == "passed":
             final = self.picture(self.locate(state.get("final_path")), spec["id"], state.get("final_sha256"))
         matches = [item for item in attempts if item["sha256"] and item["sha256"] == state.get("final_sha256")
-                   and item["role"] != "component" and item["verdict"] == "PASS"]
+                   and item["verdict"] == "PASS"]
         origin = matches[0] if len(matches) == 1 else None
         if final and not origin:
             self.warnings.append({"code": "final_ambiguous" if matches else "final_unrecorded", "subject": spec["id"]})
@@ -210,7 +209,6 @@ class RunReader:
                         continue
                     matches_final = bool(image["final"] and attempt["sha256"]
                                          and attempt["sha256"] == image["final_sha256"]
-                                         and attempt["role"] != "component"
                                          and attempt["verdict"] == "PASS")
                     matched |= matches_final
                     pictures.append({"image_id": image["id"], "proposal_choice": proposal["choice"],
@@ -244,7 +242,7 @@ class RunReader:
             values = content if isinstance(content, list) else [content]
             for index, value in enumerate(values, 1):
                 archived = sorted((self.run / "source").glob(f"original-{index:02d}.*"))
-                path = archived[0] if archived else self.locate(value, external=True)
+                path = archived[0] if archived else None
                 originals.append(self.picture(path, str(index), kind="source"))
             # A source analysis is an interpretation, never the user's original words.
             request = ""
@@ -259,7 +257,7 @@ class RunReader:
         counts = {item["choice"]: item["count"] for item in assignment.get("selection", {}).get("choices", [])}
         proposals = []
         assigned = set()
-        ranked_comic = COMIC and "worker_plan" in assignment
+        ranked_comic = COMIC
         for index, option in enumerate(options, 1):
             choice = str(index) if ranked_comic else option["choice"]
             specs = [spec for spec in assignment["images"]
@@ -303,7 +301,7 @@ class RunReader:
                 "calls": sum(item["calls"] for item in images),
                 "errors": sum(len(item["errors"]) for item in images),
                 "warnings": list({json.dumps(item, sort_keys=True): item for item in self.warnings}.values())}
-        if COMIC and assignment.get("schema_version") == 19:
+        if COMIC:
             group["selection_review"] = assignment["selection_review"]
         if COMIC:
             group["gallery_images"] = self.gallery_images(proposals)

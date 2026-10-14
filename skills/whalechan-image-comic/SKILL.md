@@ -29,8 +29,7 @@ Role references:
 - `references/asset-index.md` to select bundled references, `references/form-authority.json` for form targets, and `references/asset-catalog.json` for paths and hashes.
 - `references/provider-routing.md` before any provider call.
 - `references/review-workflow.md` for new-run single-image QA, tolerances, contact sheets, collection repair and timing.
-- `references/form-evidence.md` for shared H1 measurement evidence.
-- `references/historical-recovery.md` when continuing a frozen run; `references/qa-rubric.md` for frozen QA 9/10 verdicts.
+- `references/review-workflow.md#proportion-evidence--h1` for H1 measurement evidence.
 - `references/gallery.md` before exporting the completed task's preview gallery.
 
 ## Choose the language
@@ -50,7 +49,7 @@ Infer the session language from what the user typed in this session and in local
 - Freeze the 2N candidate pool before independent selection. Record one brief reason per ranked candidate and one set-selection explanation; never prewrite winners. Do not expand or regenerate the pool.
 - Make candidate scenes, actions and payoffs distinct. Preserve each selected core idea and user-locked wording in its one image. Shared source lines do not justify identical final replies or consequences.
 - For N>=3, cover 1, 2 and 4 panels across the images, allocating them by narrative need rather than index. Record an explicit user override; never add empty panels to meet the default.
-- Target A:B:C=3:1:1 per source: N=5 requires exactly 3 A, 1 B and 1 C; other N are allocated by the planning agent according to content, as close as practical to 60%/20%/20%. For N>=3 retain at least one of each tier. Choose which ideas carry each tier independently of rank, index and panel count. Record explicit user overrides; frozen historical policies remain valid.
+- Target A:B:C=3:1:1 per source: N=5 requires exactly 3 A, 1 B and 1 C; other N are allocated by the planning agent according to content, as close as practical to 60%/20%/20%. For N>=3 retain at least one of each tier. Choose which ideas carry each tier independently of rank, index and panel count. Record explicit user overrides.
 - N=1 or 2 relaxes panel/tier coverage; allocate tiers close to the target ratio using content to resolve ties. Do not invent a user override.
 - Select typography, framing, cast staging and text placement independently for each joke. Repetition is allowed when justified by the source; random rotation is not creative diversity. A consistent character identity does not require consistent layouts.
 - For dialogue-driven material, default to bodily present abstract indigo partners. Record a narrative reason for an offscreen, avatar-only, or omitted role; preserve who speaks and who reacts.
@@ -91,24 +90,22 @@ For multiple inputs, the planning worker compares source-specific mechanisms, na
 
 In the confirmation table and distribution line, use fixed descriptive labels: `A-日漫冲击`, `B-漫画爆发`, `C-克制冷幽默` (English: `A-Manga impact`, `B-Comic outburst`, `C-Restrained deadpan`). Keep contrast suffixes, such as `A-日漫冲击（脸→C）`. Immediately below the distribution line, show the current target head-to-body ratio, shared across all N images or grouped by table row numbers when different. Label custom ratios explicitly. Keep this outside the eight-column table and distinguish planned targets from measurements of finished images.
 
-Use schema v19 in `references/run-schema.md` for new runs. Preserve frozen v11, v13, v14, v15, v16, v17 and v18 runs (v13 keeps QA 9; v14 keeps QA 10; v15 keeps its QA 11 and original prompt builder) under their original recovery contracts; never rewrite their approval history. The initialized run belongs under `artifacts/whalechan-image-comic/<run-name>/` unless the user gives another destination. External references are frozen into the run with hashes.
+Use schema v19 in `references/run-schema.md` for new runs. The initialized run belongs under `artifacts/whalechan-image-comic/<run-name>/` unless the user gives another destination. External references are frozen into the run with hashes.
 
 ## Generate and review
 
-Use the v18/v19 combination commands in `references/batch-commands.md`. The generation worker owns one whole image: build the drawing-only request, begin the attempt, call the provider, preserve/prepare locally, inspect once and record QA. It may make permitted targeted retries within the original three-call budget without a coordinator content handoff. Technical failures never authorize regeneration. Frozen v15/v16 retain their original preparation/recording path.
+Use the v19 combination commands in `references/batch-commands.md`. The generation worker owns one whole image: build the drawing-only request, begin the attempt, call the provider, preserve/prepare locally, inspect once and record QA. It may make permitted targeted retries within the original three-call budget without a coordinator content handoff. Technical failures never authorize regeneration.
 Have the same generation worker inspect the whole candidate once. Record concise actual observations, exact text, core defects and tolerated minor issues. Do not have the main agent repeat a worker's visual inspection at handoff. Only core single-image defects authorize a retry within the three-call budget. A passed candidate waits for collection review.
 
 After the N tasks resolve, assign a collection worker to build one numbered contact sheet per source with `build-review-sheet.py`. Review distinctness, consistency and overall performance once. Only named failed images may enter one collection repair round, sharing their original three-call budgets. Inspect each new candidate once, then do at most one focused collection recheck on the updated sheet. Recheck failure means a shortfall, never another collection round. Promote only collection-accepted candidates.
 
 Keep safety halts, source fidelity, exact semantic text and explicit user locks strict. Allow minor facial/decoration variations that preserve emotion, identity, tier and readability. Do not let exact mouth curvature or sweat counts alone cause a retry unless the user explicitly locked them.
 
-For frozen v11/v13/v14 runs, retain their original candidate recording, promotion, component rescue and QA contracts; see `qa-rubric.md`. Never rewrite old approvals or records.
-
 ## Lock one tool per batch
 
-For v18/v19 preflight in priority order: Codex ImageGen, OpenAI Images API, Nano Banana, Seedream. Check actual tool presence, configuration and required capabilities without producing a test image. Lock the first compatible configured tool before the single confirmation. After consent start parallel generation immediately; do not wait for first-image verification. Preflight cannot guarantee live service or quota.
+For v19 preflight in priority order: Codex ImageGen, OpenAI Images API, Nano Banana, Seedream. Check actual tool presence, configuration and required capabilities without producing a test image. Lock the first compatible configured tool before the single confirmation. After consent start parallel generation immediately; do not wait for first-image verification. Preflight cannot guarantee live service or quota.
 
-Keep this provider and transport throughout the batch, including visual-QA retries. Any service error pauses new generation dispatch with no automatic retry or switch; reconcile outputs already in flight. Resume only after an actual user request and successful recheck of the same tool. Unknown output status keeps the call unresolved. Safety rejection remains a hard stop. See provider-routing.md and batch-commands.md. Frozen v11–v17 keep their original ordered-routing contracts.
+Keep this provider and transport throughout the batch, including visual-QA retries. Any service error pauses new generation dispatch with no automatic retry or switch; reconcile outputs already in flight. Resume only after an actual user request and successful recheck of the same tool. Unknown output status keeps the call unresolved. Safety rejection remains a hard stop. See provider-routing.md and batch-commands.md.
 
 ## Coordinate parallel work safely
 
@@ -123,17 +120,15 @@ python3 scripts/manage-run.py batch-deliver --batch <batch.json> \
   --task-id delivery-all --owner <actual-worker-id> --output <gallery-directory>
 ```
 
-This promotes accepted candidates, finalizes complete or resolved partial sources and exports/verifies the gallery. Report planned and delivered A/B/C counts and missing tiers alongside missing tasks against the confirmed total; never fill gaps with failures. Paused service work remains open. Frozen v11–v17 retain their original promote/finalize/export commands and partial-run rules.
+This promotes accepted candidates, finalizes complete or resolved partial sources and exports/verifies the gallery. Report planned and delivered A/B/C counts and missing tiers alongside missing tasks against the confirmed total; never fill gaps with failures. Paused service work remains open.
 
-For frozen v11–v17, if every provider failed only for setup reasons (`unavailable`, `authentication` or `quota`) while tasks still have unused slots, leave the run open instead: a finalized run cannot accept more images. Report what to configure (install and log in to Codex CLI, or set a provider key) so the same run can resume within its confirmed scope. Use `--allow-partial` in that case only when the user asks to close the run.
-
-Keep every image-producing candidate, prompt, QA record, asset hash, selection record (historical duels), error log, and final path. Report final paths, provider/model, attempt count, any shortfall, and the actual typography/cast distribution. Separate pre-generation design review from post-generation visual QA; neither substitutes for the other.
+Keep every image-producing candidate, prompt, QA record, asset hash, selection record, error log, and final path. Report final paths, provider/model, attempt count, any shortfall, and the actual typography/cast distribution. Separate pre-generation design review from post-generation visual QA; neither substitutes for the other.
 
 Inspect the actual candidate and record candidate-bound observations before comparing with the plan. An unreviewed draft is `review_status: pending`, not PASS, and cannot be recorded as an accepted candidate or promoted. The manager checks evidence structure, not whether the reviewer truly looked or whether a joke is funny. The coordinator must not reopen the image for a routine second visual review. Never copy planned text into a purported transcription or fabricate landmarks to satisfy a ratio. Report `H1: NA` only for a planned `visible-only` shot, with visible-proportion observations and the limitation explicitly recorded.
 
 ## Preview gallery
 
-For v18/v19 use batch-deliver to promote, finalize, export and mechanically verify the whole batch; retain paused work open. For frozen runs have the delivery worker export with `python3 scripts/export-gallery.py --run-dir <run> --language <zh|en>` and link the returned `gallery` HTML path. For multiple sources, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Default each source to Passed finals, with Attempts and All filters and visible picture counts. Keep all available attempt images, including failures and composites, in the chronological All view without proposal sections. Final cards link to that idea’s generation history; lightbox navigation follows the active filter. Preserve filter state across source, language and layout switches, and keep ambiguous or missing final provenance explicit. Mark the matching PASS as the final rather than duplicating its image; retain distinct generation records even when their bytes match. Keep proposal summaries, prompts and QA in collapsed details. Local composites show their component prompts and consume no extra generation call. Open runs awaiting setup recovery are exported only after completion. Export errors do not require regeneration. See `references/gallery.md`.
+For v19 use batch-deliver to promote, finalize, export and mechanically verify the whole batch; retain paused work open. The delivery worker can export finalized current runs with `python3 scripts/export-gallery.py --run-dir <run> --language <zh|en>` and link the returned `gallery` HTML path. For multiple sources, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Default each source to Passed finals, with Attempts and All filters and visible picture counts. Keep all available attempt images, including failures, in the chronological All view without proposal sections. Final cards link to that idea’s generation history; lightbox navigation follows the active filter. Preserve filter state across source, language and layout switches, and keep ambiguous or missing final provenance explicit. Mark the matching PASS as the final rather than duplicating its image; retain distinct generation records even when their bytes match. Keep proposal summaries, prompts and QA in collapsed details. Open runs awaiting setup recovery are exported only after completion. Export errors do not require regeneration. See `references/gallery.md`.
 
 ## Hard stops
 
@@ -141,7 +136,7 @@ For v18/v19 use batch-deliver to promote, finalize, export and mechanically veri
 - Do not exceed three image-producing calls for any task.
 - Do not transfer budget between tasks.
 - Do not accept a comic that is merely cute, accurate, or polished but not funny.
-- For QA 11 reject material loss of tier, identity, emotional intent or readability; treat minor decorative variations as warnings. Preserve explicit user locks. Frozen QA 10 keeps its original marker and count rules.
+- For QA 11 reject material loss of tier, identity, emotional intent or readability; treat minor decorative variations as warnings. Preserve explicit user locks.
 - Do not relabel a converted joke as the source's native direction, or change a direction label just to silence a warning.
 - Do not accept missing, additional, unreadable, misspelled, incorrectly ordered, or wrong-language core text.
 - Do not accept a required physical partner replaced by an avatar, an offscreen balloon, or Whale-chan speaking their lines. Record visible lettering treatment, speaker connectors, and cast representation as QA evidence.

@@ -178,9 +178,9 @@ class PlanningTasks:
                     (*POOL_FIELDS, "pool_sha256", "execution", "selection_review", "ranked_ideas", "selection_reason")),
                     "Detailed plans must preserve frozen candidates and selection")
                 w.require(supplied.get("schema_version") == 19, "Detail requires schema v19")
-                if "exaggeration_policy" in source:
-                    w.require(supplied.get("exaggeration_policy") == source["exaggeration_policy"],
-                              "Detail must preserve the source tier policy from its task packet")
+                source_policy = m.normalize_tier_policy(source.get("exaggeration_policy"))
+                w.require(supplied.get("exaggeration_policy") == source_policy,
+                          "Detail must preserve the source tier policy from its task packet")
                 value = m.validate_assignment(Path(args.input_json), require_approval=False)
                 if output.exists():
                     w.require(m.read_json(output) == value, "Frozen detail changed")

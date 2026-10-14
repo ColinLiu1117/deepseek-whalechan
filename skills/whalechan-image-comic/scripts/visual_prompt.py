@@ -1,4 +1,4 @@
-"""Drawing-only prompt and stable pre-confirmation visual contract for v16–v19."""
+"""Drawing-only prompt and stable pre-confirmation visual contract for current assignments."""
 import copy
 import json
 from pathlib import Path

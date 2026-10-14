@@ -1,8 +1,8 @@
-# Role-specific sub-agent orchestration — v17/v18/v19
+# Role-specific sub-agent orchestration — v19
 
 Contents: [Limits](#limits) · [Ownership](#ownership) · [Planning](#planning) · [Queue](#queue) · [Image task](#image-task) · [Collection and delivery](#collection-and-delivery) · [Recovery](#recovery)
 
-For new v19 batches use `batch-commands.md` for fixed prepare/proposal/start, image, collection and delivery operations. The low-level commands below remain the ownership/recovery protocol and frozen v17 path. v18 adds a preflight-locked tool and batch pause; service errors never auto-switch or retry.
+For new v19 batches use `batch-commands.md` for fixed prepare/proposal/start, image, collection and delivery operations. The low-level commands below implement ownership and interrupted-task recovery. The tool is preflight-locked and the batch pauses on errors; service errors never auto-switch or retry.
 
 ## Limits
 
@@ -21,7 +21,7 @@ This produces independent policy and current targets (2 generation + 1 collectio
 
 Use defaults when provider capacity is unknown; label them as policy, not measured service capacity. Apply an observed lower provider limit through --provider-limit and reduce dispatch after explicit capacity/rate-limit failures. A single agent's concurrent ImageGen submissions may be serialized; assign separate agents for actual concurrency.
 
-If delegation is entirely unavailable, disclose serial main-agent fallback. For v19 this applies to execution after independently selected plans already exist; concepts/selection/detail planning requires the author and a different real selector. If that independence is unavailable, retain the planning state and report the limitation. Frozen v17/v18 retain their original planning fallback. Temporarily occupied slots are not unavailable delegation: queue work and reuse residents. Respect explicit user serial execution.
+If delegation is entirely unavailable, disclose serial main-agent fallback. For v19 this applies to execution after independently selected plans already exist; concepts/selection/detail planning requires the author and a different real selector. If that independence is unavailable, retain the planning state and report the limitation.  Temporarily occupied slots are not unavailable delegation: queue work and reuse residents. Respect explicit user serial execution.
 
 ## Ownership
 
@@ -82,7 +82,7 @@ An idle actor stays in the resident registry and may receive another role. Use r
 
 ## Image task
 
-The generation worker owns its image journal, not the shared manifest. v17 single-image commands require owner and task-id. Use the actual runtime identity; workers cannot share an image.
+The generation worker owns its image journal, not the shared manifest. Single-image commands require owner and task-id. Use the actual runtime identity; workers cannot share an image.
 
 ```bash
 python3 scripts/manage-run.py image-task claim --run-dir <run> --image <image> --owner <worker> --task-id <task>
@@ -106,24 +106,24 @@ python3 scripts/manage-run.py image-task review --run-dir <run> --image <image> 
   --provider codex --model <actual-model> --visual-json <review.json>
 ```
 
-A core FAIL with remaining budget returns pending. Build a targeted drawing-only retry and repeat begin/call/prepare/review without waiting for main-agent judgment. Preserve frozen premise/text locks. v18/v19 stays on the locked tool; frozen v17 follows its original provider order. PASS, exhaustion or technical/safety blockage ends the image task:
+A core FAIL with remaining budget returns pending. Build a targeted drawing-only retry and repeat begin/call/prepare/review without waiting for main-agent judgment. Preserve frozen premise/text locks. v19 stays on the locked tool. PASS, exhaustion or technical/safety blockage ends the image task:
 ```bash
 python3 scripts/manage-run.py image-task finish --run-dir <run> --image <image> --owner <worker> --task-id <task>
 ```
 
 Return the journal path and complete receipt. Single-image journals are the authoritative attempt ledger. Same-image retries stay serial; all returned images consume the original maximum of three, including technical failures. Candidate/QA hashes bind evidence; malformed records permit mechanical repair, not another image or visual inspection.
 
-For a proven no-image provider failure use image-task error with provider/model/category/evidence. Preserve uncertainty as an in-flight call. For v18/v19 pause new dispatch and wait for explicit user resume. Only frozen v17 advances providers through its original order. A safety rejection stops new batch dispatch and is reported immediately. Setup-only failure may leave the run open for later authorized recovery; do not silently finalize it.
+For a proven no-image provider failure use image-task error with provider/model/category/evidence. Preserve uncertainty as an in-flight call. For v19 pause new dispatch and wait for explicit user resume. A safety rejection stops new batch dispatch and is reported immediately. Setup-only failure may leave the run open for later authorized recovery; do not silently finalize it.
 
 ## Collection and delivery
 
 The collection worker uses merge-tasks or the shared CLI operations, which lock the whole manifest read/modify/write and reconcile completed image journals. Local journals never write the manifest directly. No extra permanent bookkeeping agent is needed.
 
-Use build-review-sheet.py and manage-run.py record-collection-review. These v17 entry points merge under the same run lock. Review only distinctness, consistency and overall performance. Technical merge/hash errors never authorize regeneration. Main dispatches recorded repair targets through generation tasks, carrying the original remaining budget.
+Use build-review-sheet.py and manage-run.py record-collection-review. These entry points merge under the same run lock. Review only distinctness, consistency and overall performance. Technical merge/hash errors never authorize regeneration. Main dispatches recorded repair targets through generation tasks, carrying the original remaining budget.
 
 After the one repair round, a collection worker rebuilds the sheet and performs at most one focused recheck. Do not add a final sweep. A recheck failure terminates affected images rather than spawning another round.
 
-The delivery worker runs promote/finalize and export-gallery.py after collections complete. v17 shared CLI mutations merge idempotently; previously accepted collection states are not overwritten by re-reading an unchanged local journal. Keep missing tasks explicit and follow existing partial/open-run rules.
+The delivery worker runs promote/finalize and export-gallery.py after collections complete. Shared CLI mutations merge idempotently; previously accepted collection states are not overwritten by re-reading an unchanged local journal. Keep missing tasks explicit and follow existing partial/open-run rules.
 
 ## Recovery
 
@@ -143,4 +143,4 @@ Detail prefers the original author. If unavailable, agent-batch recover --task d
 
 One available slot works only if the runtime can truly release the author and create another independent agent sequentially. Record real release evidence; changing a role label does not create independence. If this cannot be done, retain planning state and report the capability limit. Temporary occupied slots call for eligible resident reuse or waiting, never nested CLI agents or self-review.
 
-If pool/selection/detail files already exist after an interrupted receipt, replay the same submission to repair bookkeeping. Keep the saved pool, ranking and original reviewer; do not repeat the semantic review. Frozen v17/v18 retain their original four-role policy without selection.
+If pool/selection/detail files already exist after an interrupted receipt, replay the same submission to repair bookkeeping. Keep the saved pool, ranking and original reviewer; do not repeat the semantic review.

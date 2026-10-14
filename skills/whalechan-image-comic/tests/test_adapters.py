@@ -104,15 +104,7 @@ class AdapterTests(unittest.TestCase):
             text=True,
         )
 
-    def test_provider_order_and_explicit_size_capability(self) -> None:
-        state = {"attempts": [], "provider_errors": []}
-        fixtures.manage.provider_allowed(state, "codex")
-        with self.assertRaisesRegex(fixtures.manage.RunError, "first provider"):
-            fixtures.manage.provider_allowed(state, "openai")
-        state["provider_errors"].append({"provider": "codex", "category": "capability"})
-        fixtures.manage.provider_allowed(state, "openai")
-        with self.assertRaisesRegex(fixtures.manage.RunError, "skip"):
-            fixtures.manage.provider_allowed(state, "nano-banana")
+    def test_explicit_size_capability(self) -> None:
         explicit = {
             "format": "png",
             "aspect_ratio": "1:1",

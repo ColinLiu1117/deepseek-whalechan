@@ -45,11 +45,11 @@ class DirectionTests(unittest.TestCase):
         with self.assertRaisesRegex(manage.RunError, "at least 3"):
             self.validate(short)
 
-    def test_native_and_character_preferences_do_not_override_tournament(self):
+    def test_native_and_character_preferences_do_not_override_priority_ranking(self):
         value = fixtures.assignment()
         set_direction(value, 0, "character", {"trait": "rice", "trigger": "comma hunt"})
         set_direction(value, 1, "character", {"trait": "self interest", "trigger": "unpaid work"})
-        # Three character winners and no native winner remain legitimate tournament results.
+        # Three character winners and no native winner remain legitimate priority-ranking results.
         normalized = self.validate(fixtures.confirm_fixture_plan(value))
         self.assertEqual(normalized["ranked_ideas"], value["ranked_ideas"])
         self.assertNotIn("gate", normalized["creative_pool"][0])

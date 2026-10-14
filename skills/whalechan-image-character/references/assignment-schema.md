@@ -1,12 +1,8 @@
 # Assignment schema v6
 
-Schema v6 stores the complete confirmed result of field-by-field resolution. `mode` records whether a value came from the canonical default or a custom request; consumers must not re-merge defaults or reinterpret references. Historical schemas older than v5 are rejected without migration or fabricated approval records.
+Schema v6 stores the complete confirmed result of field-by-field resolution. `mode` records whether a value came from the canonical default or a custom request; consumers must not re-merge defaults or reinterpret references. Only the current schema is accepted.
 
-New assignments use v6. Already frozen v5 runs remain readable with their original execution and confirmation; do not rewrite them or initialize new v5 runs.
-
-## Frozen v5 recovery
-
-Continue an existing v5 run through the normal run commands using its saved assignment and manifest. Its original two-gate confirmation and hashes remain authoritative. v5 execution has a ceiling of 5 and lacks `subagent_count` / `effective_subagent_count`; v6 uses a ceiling of 10 and records both confirmed and effective sub-agent counts. The loader validates the version-specific field set. Gallery export reads both versions; archived sources are used when present, otherwise the historical recorded source path must still resolve.
+Assignments use v6.
 
 ## Root object
 

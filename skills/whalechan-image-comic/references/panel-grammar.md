@@ -12,7 +12,7 @@ Repeated panels with no new information fail. The exception is a declared rhythm
 
 The landing panel carries the image's exaggeration tier; setup panels may sit lower but never higher. Contrast between a calm setup and the landing is often the joke, so escalate toward the landing instead of holding every panel at full intensity. Measure proportion on a panel without `manga_burst` deformation; a single-panel image whose face reaches `manga_burst` uses visible-only review. See `exaggeration-tiers.md`.
 
-Plan one image for each of N selected ideas (default 5). For N>=3 the set covers 1, 2 and 4 panels. N=1/2 chooses by content without an explicit override. Frozen five-image plans retain their original coverage. Record any explicit user override to this default policy and show it before confirmation. Choose which idea uses which count from narrative needs, never rank or image index; typography does not determine the count. Rework the distribution if an idea needs fewer panels, so the set still satisfies the policy without empty beats. Different panel counts alone do not prove different jokes.
+Plan one image for each of N selected ideas (default 5). For N>=3 the set covers 1, 2 and 4 panels. N=1/2 chooses by content without an explicit override. Record any explicit user override to this default policy and show it before confirmation. Choose which idea uses which count from narrative needs, never rank or image index; typography does not determine the count. Rework the distribution if an idea needs fewer panels, so the set still satisfies the policy without empty beats. Different panel counts alone do not prove different jokes.
 
 ## Speakers and interaction
 
@@ -44,8 +44,3 @@ Do not turn four panels into four paragraphs or four status snapshots. Keep each
 ## Prompt panel blocks
 
 Describe each panel with: shot and intentional crop, the frozen free-text action, visible fact anchor, exact text, transition purpose, and new information. State the reading direction and final visual proof. For whole-canvas generation, preserve permanent identity, frozen style, outfit, palette, proportion, torso length, and limb thickness across panels, with no accidental crop.
-
-## Historical composition
-
-For frozen QA9/10 component generation and local composition, use [historical-recovery.md](historical-recovery.md#panel-component-recovery--v11v13v14-only). QA11 generation and repairs operate on complete canvases through [review-workflow.md](review-workflow.md).
-Use `scripts/compose-panels.py` only for existing panel images. Pass the frozen `--resolution-mode`, `--aspect-ratio`, and explicit `--width`/`--height` when applicable. In automatic mode it derives the canvas width from the first existing panel and computes the frozen ratio. It normalizes each panel with cover cropping, places white gutters, and outputs an exact canvas without stretching the completed montage. It does not add text.

@@ -132,7 +132,7 @@ python3 scripts/manage-run.py plan-execution \
 
 Copy the returned `execution` into the Gate 2 draft. `subagent_count` is the minimum of ready images, available worker slots, provider limit, user limit and 10; it is 0 for explicit serial execution. `requested_parallelism` is `max(1, subagent_count)`. One image can use one worker but has no multi-image speedup. Show the exact worker count and any limiting reason alongside image totals; do not claim that 10 slots exist just because the Skill allows them. State that workers reuse the queue and do not increase image counts or candidate budgets. A changed plan requires a refreshed Gate 2 summary; an increase after confirmation requires renewed consent.
 
-After Gate 2, finish expansion, validation and freezing, including the existing [expansion consistency review](proposal-selection.md#expansion-consistency-review). Recheck capacity, tell the user if it fell, then initialize with `--effective-parallelism` and `--effective-subagents`. Actual workers may be fewer than confirmed, including 0 with parallelism 1 for main-agent fallback. Existing frozen runs retain their original authorization; do not turn an old serial run into a sub-agent run.
+After Gate 2, finish expansion, validation and freezing, including the existing [expansion consistency review](proposal-selection.md#expansion-consistency-review). Recheck capacity, tell the user if it fell, then initialize with `--effective-parallelism` and `--effective-subagents`. Actual workers may be fewer than confirmed, including 0 with parallelism 1 for main-agent fallback.
 
 
 For proportion counterpart pairs, the higher-ratio image must PASS before the lower-ratio image is ready. Exclude blocked counterparts when estimating Gate 2 capacity.

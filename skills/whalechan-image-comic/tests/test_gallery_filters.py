@@ -1,4 +1,4 @@
-"""Check browser filter collections against exported records, including legacy gaps."""
+"""Check browser filter collections against exported records, including missing files."""
 import json
 from pathlib import Path
 import shutil
@@ -71,12 +71,6 @@ process.stdout.write(JSON.stringify(vm.runInContext('comicCollections(group)', c
         self.assertTrue(sets['finals'][0]['picture']['src'])
         self.assertEqual(sets['finals'][0]['attempt']['id'], 'attempt-01')
 
-    def test_pass_components_are_not_full_comic_finals(self):
-        self.run = make_run(self.root, 'composite', composite=True)
-        sets = self.collections()
-        self.assertEqual([len(sets[key]) for key in ('finals', 'attempts', 'all')], [1, 2, 3])
-        self.assertEqual(sets['finals'][0]['attempt']['role'], 'composite')
-        self.assertTrue(all(item['attempt']['role'] == 'component' for item in sets['attempts']))
 
     def test_partial_run_keeps_empty_finals_and_all_failed_versions(self):
         def change(state):

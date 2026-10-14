@@ -82,7 +82,7 @@ Before final delivery, export the finalized run with `python3 scripts/export-gal
 
 ## Hard stops
 
-- Do not initialize a formal run, generate, or call a paid image API before both gates for the current scope are complete and the assignment validates. Do not exceed the confirmed budget or fabricate approval for historical assignments.
+- Do not initialize a formal run, generate, or call a paid image API before both gates for the current scope are complete and the assignment validates. Do not exceed the confirmed budget or fabricate approval.
 - Do not weaken permanent Whale-chan identity, anatomy/contact checks, or assignment-specific QA merely because another field is custom.
 - Do not accept missing, misspelled, illegible, additional, or wrong-language text. Source UI, signatures, watermarks, usernames, QR codes, and unconfirmed brand marks always fail.
 - Do not silently drop a reference, role, alpha requirement, or other confirmed field because a provider lacks the capability; route forward or seek renewed confirmation.

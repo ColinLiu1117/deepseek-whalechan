@@ -1,4 +1,4 @@
-# Fixed batch commands — v19 (v18 recovery supported)
+# Fixed batch commands — v19
 
 Contents: [Boundary](#boundary) · [Prepare](#prepare) · [Plan](#plan) · [Start](#start) · [Image](#image) · [Collection](#collection) · [Delivery](#delivery) · [Recovery](#recovery) · [Timing](#timing)
 
@@ -8,7 +8,7 @@ Use these commands rather than authoring temporary bookkeeping/recovery/gallery/
 
 Main dispatches and communicates. Planning workers own prepare/proposal/start; generation workers own image commands and the actual tool call; collection workers own collection commands; delivery workers own export/verification. Main can read status/task packets. Reuse role guidance in existing workers; reload when context was lost.
 
-Use v19 for new assignments. Preserve frozen v11–v18 confirmation and recovery contracts. QA stays 11; drawing-only prompts and budgets are unchanged. Command success is not visual approval. Paths and runtime outputs belong under the batch artifact directory.
+Use v19 for new assignments.  QA stays 11; drawing-only prompts and budgets are unchanged. Command success is not visual approval. Paths and runtime outputs belong under the batch artifact directory.
 
 ## Prepare
 
@@ -44,9 +44,9 @@ This creates source inventory, planning tasks and common execution policy. It pr
 
 ## Plan
 
-batch-prepare defaults to schema_version=19; each source defaults target_images to 5. N must be a positive integer, independently per source. Frozen v18 recovery may explicitly retain schema_version=18. Use the common returned execution in every draft and a unique run_name per source.
+batch-prepare defaults to schema_version=19; each source defaults target_images to 5. N must be a positive integer, independently per source. Use the common returned execution in every draft and a unique run_name per source.
 
-New v19 inventory explicitly records exaggeration_policy={"mode":"target-ratio","ratio":{"A":3,"B":1,"C":1}}. Source specs may instead supply a user-override with the actual user_instruction. All three planning task packets include this policy in inputs.source; authors/selectors read it before their content work. The detail draft must copy it unchanged. N=5 requires exact 3:1:1; other N use agent allocation close to 60%/20%/20%, with three-tier coverage for N>=3. Old batches without this inventory field retain their original policy.
+New v19 inventory explicitly records exaggeration_policy={"mode":"target-ratio","ratio":{"A":3,"B":1,"C":1}}. Source specs may instead supply a user-override with the actual user_instruction. All three planning task packets include this policy in inputs.source; authors/selectors read it before their content work. The detail draft must copy it unchanged. N=5 requires exact 3:1:1; other N use agent allocation close to 60%/20%/20%, with three-tier coverage for N>=3.
 
 Claim the concepts-<source> task as its real author. Read task-packet; write input plus exactly 2N concise creative_pool records, without proposal/images/winners. Submit:
 
@@ -98,7 +98,7 @@ python3 scripts/manage-run.py batch-proposal --batch <batch.json> \
   --review-json <cross-source-review.json>
 ~~~
 
-Draft order must match sources. This checks source binding, normalizes/validates schemas and rankings, builds requests, checks the locked tool against every request, and writes proposal.md/proposal.json. v19 requires completed detail receipts and matching output hashes; v18 retains its original planning receipt behavior.
+Draft order must match sources. This checks source binding, normalizes/validates schemas and rankings, builds requests, checks the locked tool against every request, and writes proposal.md/proposal.json. v19 requires completed detail receipts and matching output hashes.
 
 Inspect structural warnings and explain dispositions in the cross-source review before showing the plan. A warning-free matrix is not creative approval. Main relays the tables, total, budget, role caps, observed capacity and tool through the existing single user confirmation.
 

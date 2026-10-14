@@ -32,13 +32,7 @@ ASSET_CATALOG_SCHEMA_VERSION = 3
 EXPRESSION_PRESETS_SCHEMA_VERSION = 2
 EXAGGERATION_TIERS_SCHEMA_VERSION = 1
 ASSIGNMENT_SCHEMA_VERSION = 19
-# Frozen runs from these versions may still be generated and finalized, never newly initialized.
-RESUMABLE_SCHEMA_VERSIONS = {11, 13, 14, 15, 16, 17, 18, ASSIGNMENT_SCHEMA_VERSION}
-# Tournament contracts: v13 predates exaggeration tiers, v14 adds them.
-TOURNAMENT_SCHEMA_VERSIONS = {13, 14, 15, 16, 17, 18}
 QA_CONTRACT_VERSION = 11
-# Frozen v13 runs keep reviewing under QA contract 9, which has no E1 exaggeration gate.
-QA_CONTRACT_VERSIONS = {9, 10, QA_CONTRACT_VERSION}
 MANIFEST_SCHEMA_VERSION = 1
 INPUT_TYPES = ("text", "image", "screenshot", "chat-log", "dialogue", "other")
 TEXT_STYLES = {
@@ -49,7 +43,6 @@ TEXT_STYLES = {
 }
 FULL_GATES = {"J1", "K1", "I1", "C1", "P1", "T1", "A1", "V1"}
 CONFIGURABLE_GATES = FULL_GATES | {"S1", "O1", "B1", "X1", "H1", "E1"}
-COMPONENT_GATES = {"I1", "P1", "T1", "A1", "V1"}
 ADVANCE_ERRORS = {"unavailable", "authentication", "quota", "rate_limit", "timeout", "service", "capability"}
 MAX_CANDIDATES = 3
 # Each comedy direction names the fields that carry its laugh; only reversal needs expectation/reversal.
@@ -79,50 +72,23 @@ FORM_LABELS = {
 PLAN_TEXT = {
     "zh": {
         "tiered_header": "| 序号 | 创意 | 方向 | 格数 | 档位 | 场景／分镜 | 关键台词 | 入选理由 |",
-        "legacy_header": "| 序号 | 创意描述 | 核心场景 | 方向｜笑点 | 格数／分镜 | 关键台词 | 入选理由 |",
         "colon": "：", "list": "、", "override": "（用户指定）",
         "panels": "> 格数分布：", "panel_item": "{count} 格 ×{n}", "tiers": " ｜ 档位分布：",
-        "panel_staging": "{count} 格：{staging}",
         "legend": "档位：A-日漫冲击 · B-漫画爆发 · C-克制冷幽默；括号内为刻意压低的维度。",
-        "proportion": "> 本次目标头身比：", "proportion_legacy": "历史方案未记录。",
-        "totals": "共 **5 个创意，各 1 张，共 5 张图片**。每张最多 3 次产图调用，共最多 15 次。",
-        "route": "生图通道：Codex ImageGen → OpenAI → Nano Banana → Seedream。",
-        "workers": "**sub-agent 分配**（并发上限 {limit}）：",
-        "main": "- main：协调、验收、串行记录及交付。",
-        "worker": "- {worker}：{titles}；依次执行。",
-        "main_serial": "- main：串行生成全部五张漫画，并逐张检查、记录。",
+        "proportion": "> 本次目标头身比：",
         "panel_override": "格数按用户指定覆盖默认三种格数：",
         "tier_override": "档位按用户指定覆盖默认 A/B/C 覆盖：",
         "question": "**确认按以上创意、张数和 sub-agent 分配开始生成吗？**",
-        "legacy_execution": "历史执行配置：并行度 {parallelism}；未记录子代理数量，保留原授权。",
-        "serial_execution": "执行安排：不启动子代理，由主 Agent 串行生成与检查。",
-        "parallel_execution": ("执行安排：将启动 **{count} 个子代理**，每个同时处理 1 张图片，完成后继续领取剩余任务；"
-                               "主 Agent 统一核验并归档。并行不增加生成数量或候选预算。"
-                               "若可用容量下降，会告知并降低数量；超过本次确认数量须重新确认。"),
     },
     "en": {
         "tiered_header": "| # | Idea | Direction | Panels | Tier | Scene / staging | Key lines | Why selected |",
-        "legacy_header": "| # | Idea | Core scene | Direction / landing | Panels / staging | Key lines | Why selected |",
         "colon": ": ", "list": ", ", "override": "(user override)",
         "panels": "> Panels: ", "panel_item": "{count}-panel ×{n}", "tiers": " | Tiers: ",
-        "panel_staging": "{count} panel(s): {staging}",
         "legend": "Tiers: A-Manga impact · B-Comic outburst · C-Restrained deadpan; parentheses name deliberately lowered axes.",
-        "proportion": "> Target head-to-body ratio: ", "proportion_legacy": "Not recorded in this historical plan.",
-        "totals": "**5 ideas, 1 image each, 5 images in total.** At most 3 image-producing calls per image, 15 in total.",
-        "route": "Providers: Codex ImageGen → OpenAI → Nano Banana → Seedream.",
-        "workers": "**Sub-agent allocation** (concurrency limit {limit}):",
-        "main": "- main: coordination, QA, serial recording and delivery.",
-        "worker": "- {worker}: {titles}; in sequence.",
-        "main_serial": "- main: generates all five comics serially, checking and recording each one.",
+        "proportion": "> Target head-to-body ratio: ",
         "panel_override": "Panel counts follow the user's override of the default 1/2/4 coverage: ",
         "tier_override": "Tiers follow the user's override of the default A/B/C coverage: ",
         "question": "**Start generating with the ideas, image count and sub-agent allocation above?**",
-        "legacy_execution": "Historical execution: parallelism {parallelism}; sub-agent count not recorded, original approval kept.",
-        "serial_execution": "Execution: no sub-agents; the main agent generates and checks serially.",
-        "parallel_execution": ("Execution: start **{count} sub-agents**, each handling one image at a time and taking the "
-                               "next task when done; the main agent verifies and archives everything. Parallelism does "
-                               "not add images or candidate budget. If capacity drops, you will be told and the count "
-                               "lowered; exceeding the confirmed count needs a new confirmation."),
     },
 }
 RHYTHM_TYPES = {"triple", "pause", "callback", "deadpan"}
@@ -131,20 +97,17 @@ TIER_ORDER = ("C", "B", "A")
 DEFAULT_TIER_POLICY = {"mode": "target-ratio", "ratio": {"A": 3, "B": 1, "C": 1}}
 PERFORMANCE_LEVELS = ("grounded", "heightened", "punchline_peak", "manga_burst")
 DELIVERIES = {"speech", "thought", "caption", "label", "sfx"}
-SAME_DIRECTION_LIMIT = 4
-MAX_PARALLELISM = 10
 IMAGE_FIELDS = {
     "name", "id", "idea_id", "source_rank", "execution", "execution_note",
     "composition", "proportion_check", "qa_contract_version",
     "fact_anchor", "premise", "punchline", "why_funny", "personality",
-    "panel_count", "layout", "intensity", "exaggeration", "landing_panel",
+    "panel_count", "layout", "exaggeration", "landing_panel",
     "contrast", "effects_plan", "output", "expression_plan",
     "action_plan", "style", "costume", "background", "core_text",
     "text_style", "text_style_reason", "dialogue_plan", "cast_plan",
     "proportion", "proportion_sha256", "identity_anchor_form", "references",
     "rhythm", "lettering_description",
 }
-EXECUTION_MODES = {"sequential", "parallel"}
 REFERENCE_ROLES = {
     "identity", "style", "pose_action", "composition", "costume",
     "background", "typography", "proportion",
@@ -209,148 +172,35 @@ def resolve_warnings(found: list[dict[str, Any]], dispositions: Any, label: str)
                            f"{{\"code\": \"{warning['code']}\", \"reason\": <source-grounded reason>}}")
 
 
-def proposal_options(proposal: Any) -> dict[str, dict[str, Any]]:
-    if not isinstance(proposal, dict):
-        raise RunError("proposal must be an object")
-    if type(proposal.get("revision")) is not int or proposal["revision"] < 1:
-        raise RunError("proposal.revision must be a positive integer")
-    text(proposal.get("fact_anchor"), "proposal.fact_anchor")
-    options = proposal.get("options")
-    if (not isinstance(options, list) or len(options) != 5
-            or any(not isinstance(item, dict) for item in options)
-            or [item.get("choice") for item in options] != list("ABCDE")):
-        raise RunError("proposal.options must contain exactly five ordered choices A–E")
-    ideas = set()
-    for item in options:
-        for field in ("title", "idea_id", "premise", "scene", "twist", "staging", "recommendation_reason"):
-            text(item.get(field), f"proposal.{item['choice']}.{field}")
-        if not re.fullmatch(r"idea_[0-9]{2}", item["idea_id"]) or item["idea_id"] in ideas:
-            raise RunError("proposal options must reference five unique idea_NN ids")
-        ideas.add(item["idea_id"])
-        string_list(item.get("key_lines"), "proposal.key_lines")
-        if type(item.get("rating")) is not int or item["rating"] not in {1, 2, 3}:
-            raise RunError("proposal.rating must be 1, 2, or 3")
-    recommended = string_list(proposal.get("recommended_choices"), "proposal.recommended_choices")
-    if len(set(recommended)) != len(recommended) or any(item not in "ABCDE" or len(item) != 1 for item in recommended):
-        raise RunError("proposal.recommended_choices must name unique choices A–E")
-    text(proposal.get("recommendation_reason"), "proposal.recommendation_reason")
-    validate_proposal_directions(proposal, options)
-    return {item["choice"]: item for item in options}
-
-
-def validate_proposal_directions(proposal: dict[str, Any], options: list[dict[str, Any]]) -> None:
-    native = native_direction(proposal.get("native_direction"), "proposal.native_direction")["direction"]
-    for item in options:
-        if item.get("direction") not in DIRECTION_CARRIERS:
-            raise RunError(f"proposal.{item['choice']}.direction must be one of {', '.join(DIRECTION_CARRIERS)}")
-        if type(item.get("is_native")) is not bool:
-            raise RunError(f"proposal.{item['choice']}.is_native must be true or false")
-        if item["is_native"] and item["direction"] != native:
-            raise RunError(f"proposal.{item['choice']} is marked native but does not use the source's native direction")
-    if native is not None and not any(item["is_native"] for item in options):
-        raise RunError("At least one proposal must keep the source's native direction (is_native: true)")
-    if sum(item["direction"] == "character" for item in options) > 1:
-        raise RunError("At most one proposal may be a pure character gag (direction: character)")
-    counts = Counter(item["direction"] for item in options)
-    warnings = [
-        {"code": "same_direction",
-         "message": f"{count} of 5 proposals use direction {direction}"}
-        for direction, count in counts.items() if count >= SAME_DIRECTION_LIMIT
-    ]
-    resolve_warnings(warnings, proposal.get("warning_dispositions"), "proposal.warning_dispositions")
-
-
-def uses_tournament(value: dict[str, Any]) -> bool:
-    return value.get("schema_version") in TOURNAMENT_SCHEMA_VERSIONS
-
-
-def is_tiered(value: dict[str, Any]) -> bool:
-    return value.get("schema_version") in {14, 15, 16, 17, 18, 19}
-
-
-def selection_summary(value: dict[str, Any]) -> dict[str, Any]:
-    if uses_tournament(value) or value.get("schema_version") == 19:
-        return plan_summary(value)
-    proposal = value.get("proposal")
-    options = proposal_options(proposal)
-    selection = value.get("selection")
-    if not isinstance(selection, dict):
-        raise RunError("Gate 1 selection must be an object")
-    text(selection.get("user_reply"), "selection.user_reply")
-    if selection.get("proposal_sha256") != contract_hash(proposal):
-        raise RunError("selection.proposal_sha256 is stale; repeat Gate 1 for the current proposal")
-    choices = selection.get("choices")
-    if not isinstance(choices, list) or not choices:
-        raise RunError("selection.choices must be non-empty")
-    rows = []
-    seen = set()
-    for item in choices:
-        if not isinstance(item, dict):
-            raise RunError("selection choice must be an object")
-        choice = item.get("choice")
-        if not isinstance(choice, str) or choice not in options or choice in seen:
-            raise RunError("selection must contain unique known choices")
-        seen.add(choice)
-        count = item.get("count", 5)
-        if type(count) is not int or count < 1:
-            raise RunError("selection count must be a positive integer")
-        rows.append({"choice": choice, "title": options[choice]["title"],
-                     "idea_id": options[choice]["idea_id"], "count": count})
-    adjustments = selection.get("adjustments")
-    if not isinstance(adjustments, list) or any(not isinstance(item, str) or not item.strip() for item in adjustments):
-        raise RunError("selection.adjustments must be a list of explicit user changes")
-    total = sum(item["count"] for item in rows)
-    contract = {"proposal": proposal, "selection": selection}
-    execution = normalize_execution(value.get("execution"), legacy=True)
-    return {"proposal_count": len(rows), "image_count": total, "choices": rows,
-            "adjustments": adjustments, "execution": execution,
-            "summary_sha256": contract_hash(contract)}
+def selection_summary(value):
+    return plan_summary(value)
 
 
 def validate_approval(value: dict[str, Any]) -> dict[str, Any]:
-    if uses_tournament(value) or value.get("schema_version") == 19:
-        summary = plan_summary(value)
-        confirmation = value.get("confirmation")
-        if not isinstance(confirmation, dict) or confirmation.get("status") != "confirmed":
-            raise RunError("Single gate confirmation is required before generation")
-        text(confirmation.get("user_reply"), "confirmation.user_reply")
-        if confirmation.get("summary_sha256") != summary["summary_sha256"]:
-            raise RunError("Single gate confirmation is stale; display the updated plan and wait again")
-        images = value.get("images")
-        expected = {item["idea_id"] for item in summary["choices"]}
-        if (not isinstance(images, list) or any(not isinstance(item, dict) for item in images)
-                or Counter(item.get("idea_id") for item in images) != Counter(expected)):
-            raise RunError("images must contain the selected ideas exactly once each")
-        options = {item["idea_id"]: item for item in value["proposal"]["options"]}
-        for image in images:
-            option = options[image["idea_id"]]
-            if (image.get("execution") != 1 or image.get("premise") != option["premise"]
-                    or image.get("panel_count") != option["panel_count"]
-                    or image.get("core_text") != option["key_lines"]):
-                raise RunError("Each image must preserve its confirmed premise, panel_count and key_lines, execution=1")
-            if is_tiered(value):
-                contrast = image.get("contrast")
-                planned = None if not isinstance(contrast, dict) else {
-                    "axes": contrast.get("axes"), "lowered_to": contrast.get("lowered_to")}
-                if image.get("exaggeration") != option["exaggeration"] or planned != option.get("contrast"):
-                    raise RunError("Each image must preserve its confirmed exaggeration tier and contrast")
-        return summary
-    summary = selection_summary(value)
+    summary = plan_summary(value)
     confirmation = value.get("confirmation")
     if not isinstance(confirmation, dict) or confirmation.get("status") != "confirmed":
-        raise RunError("Gate 2 confirmation is required before generation")
+        raise RunError("Single gate confirmation is required before generation")
     text(confirmation.get("user_reply"), "confirmation.user_reply")
     if confirmation.get("summary_sha256") != summary["summary_sha256"]:
-        raise RunError("Gate 2 confirmation is stale; show the updated summary and wait again")
-    if value.get("input", {}).get("fact_anchor") != value["proposal"]["fact_anchor"]:
-        raise RunError("proposal.fact_anchor must match the assignment")
-    expected = {item["idea_id"]: item["count"] for item in summary["choices"]}
-    if set(value.get("ranked_ideas", [])) != set(expected):
-        raise RunError("ranked_ideas must match the user-selected proposal ideas")
+        raise RunError("Single gate confirmation is stale; display the updated plan and wait again")
     images = value.get("images")
+    expected = {item["idea_id"] for item in summary["choices"]}
     if (not isinstance(images, list) or any(not isinstance(item, dict) for item in images)
-            or Counter(item.get("idea_id") for item in images) != expected):
-        raise RunError("images must match the confirmed counts for every selected proposal")
+            or Counter(item.get("idea_id") for item in images) != Counter(expected)):
+        raise RunError("images must contain the selected ideas exactly once each")
+    options = {item["idea_id"]: item for item in value["proposal"]["options"]}
+    for image in images:
+        option = options[image["idea_id"]]
+        if (image.get("execution") != 1 or image.get("premise") != option["premise"]
+                or image.get("panel_count") != option["panel_count"]
+                or image.get("core_text") != option["key_lines"]):
+            raise RunError("Each image must preserve its confirmed premise, panel_count and key_lines, execution=1")
+        contrast = image.get("contrast")
+        planned = None if not isinstance(contrast, dict) else {
+            "axes": contrast.get("axes"), "lowered_to": contrast.get("lowered_to")}
+        if image.get("exaggeration") != option["exaggeration"] or planned != option.get("contrast"):
+            raise RunError("Each image must preserve its confirmed exaggeration tier and contrast")
     return summary
 
 
@@ -359,14 +209,14 @@ def markdown_cell(value: str) -> str:
 
 
 def selection_markdown(summary: dict[str, Any], language: str = "zh") -> str:
-    return plan_markdown({**({"schema_version": 19, "target_images": summary["image_count"]} if summary.get("execution", {}).get("planning_mode") else {}),
+    return plan_markdown({**({"schema_version": 19, "target_images": summary["image_count"]}),
                           "proposal": {"options": summary["options"]},
                           "panel_policy": summary["panel_policy"]}, summary, language)
 
 
 def planning_draft(value: dict[str, Any], label: str = "Planning draft") -> dict[str, Any]:
-    if value.get("schema_version") not in {18, ASSIGNMENT_SCHEMA_VERSION}:
-        raise RunError(f"{label} must use schema_version {ASSIGNMENT_SCHEMA_VERSION} or 18")
+    if value.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+        raise RunError(f"{label} must use schema_version {ASSIGNMENT_SCHEMA_VERSION}")
     return value
 
 
@@ -380,79 +230,11 @@ def cmd_summarize_selection(args: argparse.Namespace) -> dict[str, Any]:
     return cmd_render_proposal(args)
 
 
-def cmd_rank_ideas(args: argparse.Namespace) -> dict[str, Any]:
-    value = planning_draft(read_json(Path(args.draft).resolve()))
-    standings = priority_results(value) if value.get("schema_version") == 19 else tournament_results(value)
-    return {"standings": standings, "ranked_ideas": [row["idea_id"] for row in standings[:target_images(value)]]}
-
-
-def tournament_results(value: dict[str, Any]) -> list[dict[str, Any]]:
-    """Count authored comparisons; never judge the creative merits ourselves."""
-    pool = value.get("creative_pool")
-    if not isinstance(pool, list) or len(pool) != 10 or any(not isinstance(i, dict) for i in pool):
-        raise RunError("creative_pool must contain exactly 10 ideas")
-    ids = [i.get("id") for i in pool]
-    if any(not isinstance(i, str) or not re.fullmatch(r"idea_[0-9]{2}", i) for i in ids) or len(set(ids)) != 10:
-        raise RunError("creative_pool must contain 10 unique idea_NN ids")
-    points = dict.fromkeys(ids, 0)
-    matches = value.get("duels")
-    if not isinstance(matches, list) or len(matches) != 45:
-        raise RunError("duels must contain exactly 45 unique pairs")
-    seen = set()
-    for match in matches:
-        if not isinstance(match, dict):
-            raise RunError("Each duel must be an object")
-        a, b, winner = match.get("a"), match.get("b"), match.get("winner")
-        if (not isinstance(a, str) or not isinstance(b, str) or a not in points or b not in points
-                or a == b or "winner" not in match or winner not in (a, b, None)):
-            raise RunError("duel requires two different known ideas and winner=a, b or null")
-        pair = frozenset((a, b))
-        if pair in seen:
-            raise RunError("duels must contain 45 unique pairs without repeats")
-        seen.add(pair)
-        text(match.get("reason"), "duel.reason")
-        points[a] += 1 if winner is None else 2 if winner == a else 0
-        points[b] += 1 if winner is None else 2 if winner == b else 0
-    head = dict.fromkeys(ids, 0)
-    for match in matches:
-        a, b, winner = match["a"], match["b"], match["winner"]
-        if points[a] == points[b]:
-            head[a] += 1 if winner is None else 2 if winner == a else 0
-            head[b] += 1 if winner is None else 2 if winner == b else 0
-    groups: dict[tuple[int, int], list[str]] = {}
-    for idea in ids:
-        groups.setdefault((points[idea], head[idea]), []).append(idea)
-    breaks = value.get("tie_breaks", [])
-    if not isinstance(breaks, list):
-        raise RunError("tie_breaks must be a list")
-    authored = {}
-    for item in breaks:
-        if not isinstance(item, dict):
-            raise RunError("tie_breaks entries must be objects")
-        order = string_list(item.get("ideas"), "tie_breaks.ideas", 2)
-        key = frozenset(order)
-        if len(key) != len(order) or key in authored:
-            raise RunError("tie_breaks must name each tied group once without duplicate ids")
-        text(item.get("reason"), "tie_breaks.reason")
-        authored[key] = order
-    expected = {frozenset(group) for group in groups.values() if len(group) > 1}
-    if set(authored) != expected:
-        raise RunError("tie_breaks must resolve exactly the remaining tied groups with an authored reason")
-    ranking = []
-    for key in sorted(groups, reverse=True):
-        group = groups[key]
-        order = authored[frozenset(group)] if len(group) > 1 else group
-        ranking.extend({"idea_id": i, "points": points[i], "head_to_head": head[i]} for i in order)
-    return ranking
-
-
 def target_images(value):
-    if value.get("schema_version") == 19:
-        try:
-            return extension_module("selection_contract").count(value.get("target_images"))
-        except ValueError as exc:
-            raise RunError(str(exc)) from exc
-    return 5
+    try:
+        return extension_module("selection_contract").count(value.get("target_images"))
+    except ValueError as exc:
+        raise RunError(str(exc)) from exc
 
 
 def priority_results(value):
@@ -464,7 +246,8 @@ def priority_results(value):
 
 
 def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
-    ranking = priority_results(value) if value.get("schema_version") == 19 else tournament_results(value)
+    planning_draft(value)
+    ranking = priority_results(value)
     n = target_images(value)
     selected = [item["idea_id"] for item in ranking[:n]]
     if value.get("ranked_ideas") != selected:
@@ -480,7 +263,7 @@ def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
         for field in ("premise", "punchline", "scene", "mechanism"):
             text(idea.get(field), f"{idea['id']}.{field}")
         if any(field in idea for field in ("gate", "gate_reason", "rejection_reason")):
-            raise RunError("Tournament ideas have no PASS/FAIL gate or rejection_reason")
+            raise RunError("Candidate ideas have no PASS/FAIL gate or rejection_reason")
         if idea.get("fact_anchor") != anchor:
             raise RunError("idea.fact_anchor must match input.fact_anchor")
         direction_carriers(idea, idea["id"])
@@ -493,7 +276,7 @@ def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
     if proposal.get("fact_anchor") != anchor or proposal.get("native_direction") != native:
         raise RunError("proposal fact_anchor/native_direction must match input.source_analysis")
     if any(k in proposal for k in ("recommended_choices", "recommendation_reason")):
-        raise RunError("The tournament proposal is informational; recommendations are not choices")
+        raise RunError("The ranked proposal is informational; recommendations are not choices")
     options = proposal.get("options")
     if (not isinstance(options, list) or any(not isinstance(i, dict) for i in options)
             or [i.get("idea_id") for i in options] != selected):
@@ -503,14 +286,14 @@ def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
         for field in ("title", "premise", "scene", "twist", "staging", "selection_reason"):
             text(option.get(field), f"proposal.{field}")
         if any(k in option for k in ("choice", "rating", "recommendation_reason")):
-            raise RunError("The tournament proposal has no user choice or rating")
+            raise RunError("The ranked proposal has no user choice or rating")
         if (option["premise"] != idea["premise"] or option["scene"] != idea["scene"]
                 or option["twist"] != idea["punchline"] or option.get("direction") != idea["direction"]):
             raise RunError("proposal premise, scene, twist/punchline and direction must match its idea")
         if type(option.get("is_native")) is not bool or option["is_native"] != (idea["direction"] == native["direction"]):
             raise RunError("proposal.is_native must accurately match the source direction")
         string_list(option.get("key_lines"), "proposal.key_lines")
-        if value.get("schema_version") == 19 and option["key_lines"] != idea["key_lines"]:
+        if (option["key_lines"] != idea["key_lines"]):
             raise RunError("Selected candidate key lines are frozen")
         if type(option.get("panel_count")) is not int or option["panel_count"] not in {1, 2, 4}:
             raise RunError("proposal.panel_count must be 1, 2, or 4")
@@ -521,13 +304,13 @@ def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
         text(policy.get("user_instruction"), "panel_policy.user_instruction")
     elif n >= 3 and {option["panel_count"] for option in options} != {1, 2, 4}:
         raise RunError("The selected comics must cover three panel counts: 1, 2 and 4")
-    tier_policy = exaggeration_policy(value, options) if is_tiered(value) else None
+    tier_policy = exaggeration_policy(value, options)
     if "images" in value:
         images = value["images"]
         if (not isinstance(images, list) or any(not isinstance(i, dict) for i in images)
                 or Counter(i.get("idea_id") for i in images) != Counter(selected)):
             raise RunError("images must contain the selected ideas exactly once each")
-    if value.get("schema_version") == 19 and "images" in value:
+    if ("images" in value):
         if [i["idea_id"] for i in value["images"]] != selected:
             raise RunError("images must follow the selected priority order")
         for image, option in zip(value["images"], options, strict=True):
@@ -536,26 +319,25 @@ def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
                 ("panel_count", "panel_count"), ("exaggeration", "exaggeration"))):
                 raise RunError("Detailed images must preserve selected premise, exact key lines, panels and tier")
     proportions = []
-    if any("proportion" in option for option in options):
-        form_profiles = read_json(CATALOG_PATH)["character_forms"]
-        for option in options:
-            if not isinstance(option.get("proportion"), dict):
-                raise RunError("Every proposal option must record proportion when the plan includes proportions")
-            proportion, _anchor = normalize_proportion(option, form_profiles, "proposal")
-            proportions.append(proportion)
-            for image in value.get("images", []):
-                if image["idea_id"] == option["idea_id"]:
-                    actual, _anchor = normalize_proportion(image, form_profiles, "image")
-                    if actual != proportion:
-                        raise RunError("Each image must preserve its confirmed proportion")
+    form_profiles = read_json(CATALOG_PATH)["character_forms"]
+    for option in options:
+        if not isinstance(option.get("proportion"), dict):
+            raise RunError("Every proposal option must record proportion")
+        proportion, _anchor = normalize_proportion(option, form_profiles, "proposal")
+        proportions.append(proportion)
+        for image in value.get("images", []):
+            if image["idea_id"] == option["idea_id"]:
+                actual, _anchor = normalize_proportion(image, form_profiles, "image")
+                if actual != proportion:
+                    raise RunError("Each image must preserve its confirmed proportion")
     summary = worker_summary(value, selected, ranking, policy, tier_policy)
     summary["proportions"] = proportions
     return summary
 
 
 def normalize_tier_policy(policy):
-    if not isinstance(policy, dict) or policy.get("mode") not in {"narrative", "target-ratio", "user-override"}:
-        raise RunError("exaggeration_policy.mode must be narrative, target-ratio or user-override")
+    if not isinstance(policy, dict) or policy.get("mode") not in {"target-ratio", "user-override"}:
+        raise RunError("exaggeration_policy.mode must be target-ratio or user-override")
     if policy["mode"] == "user-override":
         text(policy.get("user_instruction"), "exaggeration_policy.user_instruction")
     elif policy["mode"] == "target-ratio":
@@ -563,13 +345,11 @@ def normalize_tier_policy(policy):
         if (policy != DEFAULT_TIER_POLICY or not isinstance(ratio, dict)
                 or any(type(n) is not int for n in ratio.values())):
             raise RunError("target-ratio requires ratio A=3, B=1, C=1")
-    elif set(policy) != {"mode"}:
-        raise RunError("narrative exaggeration_policy only accepts mode")
     return copy.deepcopy(policy)
 
 
 def exaggeration_policy(value: dict[str, Any], options: list[dict[str, Any]]) -> dict[str, Any]:
-    """Validate the recorded policy; absent policies retain historical coverage."""
+    """Validate the current source tier policy."""
     tiers = exaggeration_tiers()
     for option in options:
         tier = option.get("exaggeration")
@@ -582,9 +362,7 @@ def exaggeration_policy(value: dict[str, Any], options: list[dict[str, Any]]) ->
             contrast_axes(contrast["axes"], tiers, "proposal.contrast.axes")
             if contrast["lowered_to"] not in TIER_ORDER or tier_rank(contrast["lowered_to"]) >= tier_rank(tier):
                 raise RunError("proposal.contrast.lowered_to must be below the option's tier")
-    policy = normalize_tier_policy(value.get("exaggeration_policy", {"mode": "narrative"}))
-    if policy["mode"] == "target-ratio" and value.get("schema_version") != 19:
-        raise RunError("target-ratio requires schema v19")
+    policy = normalize_tier_policy(value.get("exaggeration_policy"))
     if policy["mode"] == "user-override":
         return policy
     counts = Counter(option["exaggeration"] for option in options)
@@ -597,66 +375,32 @@ def exaggeration_policy(value: dict[str, Any], options: list[dict[str, Any]]) ->
 
 
 def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dict[str, Any]],
-                   policy: dict[str, Any], tier_policy: dict[str, Any] | None = None) -> dict[str, Any]:
+                   policy: dict[str, Any], tier_policy: dict[str, Any]) -> dict[str, Any]:
     plan = value.get("worker_plan")
     if not isinstance(plan, dict) or plan.get("coordinator") != "main":
         raise RunError("worker_plan requires coordinator=main")
-    if value.get("schema_version") in {17, 18, 19}:
-        execution = role_execution(value.get("execution"))
-        if value["schema_version"] in {18, 19}:
-            extension_module("provider_policy").validate(execution.get("tool"))
-        if plan != {"coordinator": "main", "allocation": "dynamic"}:
-            raise RunError("v17/v18/v19 worker_plan requires dynamic allocation")
-    else:
-        workers = plan.get("workers")
-        capacity = plan.get("max_parallelism")
-        execution = normalize_execution(value.get("execution"))
-        count = execution["subagent_count"]
-        if (type(capacity) is not int or not 1 <= capacity <= len(selected)
-                or not isinstance(workers, list) or len(workers) != count
-                or capacity != max(1, count)):
-            raise RunError("worker_plan must match the confirmed subagent_count and ready-image limit")
-        names, assigned = set(), []
-        for worker in workers:
-            if not isinstance(worker, dict):
-                raise RunError("worker_plan workers must be objects")
-            name = text(worker.get("id"), "worker.id")
-            if name == "main" or name in names:
-                raise RunError("worker ids must be unique and different from main")
-            names.add(name)
-            assigned.extend(string_list(worker.get("idea_ids"), "worker.idea_ids"))
-        if count and Counter(assigned) != Counter(selected):
-            raise RunError("worker_plan must assign each selected idea exactly once")
-        if execution["requested_parallelism"] != capacity:
-            raise RunError("execution.requested_parallelism must match worker_plan.max_parallelism")
+    execution = role_execution(value.get("execution"))
+    extension_module("provider_policy").validate(execution.get("tool"))
+    if plan != {"coordinator": "main", "allocation": "dynamic"}:
+        raise RunError("worker_plan requires dynamic allocation")
     proposal = value["proposal"]
     rows = [{"choice": str(n), "title": item["title"], "idea_id": item["idea_id"], "count": 1}
             for n, item in enumerate(proposal["options"], 1)]
-    if value.get("schema_version") == 19:
-        keys = ("proposal", "creative_pool", "ranked_ideas", "selection_reason", "worker_plan",
-                "target_images", "source_id", "author_agent_ids", "concept_task_id", "pool_sha256", "selection_review")
-        payload = {key: value[key] for key in keys}
-        payload.update(panel_policy=policy, execution=execution, input=value["input"])
-    else:
-        payload = {key: value[key] for key in ("proposal", "creative_pool", "duels", "ranked_ideas",
-                                              "selection_reason", "worker_plan")}
-        payload.update(tie_breaks=value.get("tie_breaks", []), panel_policy=policy,
-                       execution=execution, input=value["input"])
-    if tier_policy is not None:
-        # v14 and later bind the tier policy, so historical v13 confirmation hashes stay unchanged.
-        payload["exaggeration_policy"] = tier_policy
-    if value.get("schema_version") in {15, 16, 17, 18, 19}:
-        payload["review_workflow"] = {"version": 1, "candidate_reviews": 1,
-                                      "minor_tolerance": True, "collection_repair_rounds": 1,
-                                      "regeneration_sources": ["single_image_qa", "collection_review"]}
-    if value.get("schema_version") in {16, 17, 18, 19}:
-        payload["visual_plan"] = visual_prompt().contract(value)
+    keys = ("proposal", "creative_pool", "ranked_ideas", "selection_reason", "worker_plan",
+            "target_images", "source_id", "author_agent_ids", "concept_task_id", "pool_sha256", "selection_review")
+    payload = {key: value[key] for key in keys}
+    payload.update(panel_policy=policy, execution=execution, input=value["input"])
+    payload["exaggeration_policy"] = tier_policy
+    payload["review_workflow"] = {"version": 1, "candidate_reviews": 1,
+                                  "minor_tolerance": True, "collection_repair_rounds": 1,
+                                  "regeneration_sources": ["single_image_qa", "collection_review"]}
+    payload["visual_plan"] = visual_prompt().contract(value)
     return {"proposal_count": len(selected), "image_count": len(selected), "choices": rows, "adjustments": [],
             "worker_plan": plan, "maximum_total": len(selected) * MAX_CANDIDATES, "standings": ranking,
             "execution": execution,
             "options": proposal["options"], "panel_policy": policy,
             "exaggeration_policy": tier_policy,
-            **({"visual_plan": payload["visual_plan"]} if "visual_plan" in payload else {}),
+            "visual_plan": payload["visual_plan"],
             "summary_sha256": contract_hash(payload)}
 
 
@@ -684,8 +428,6 @@ def distribution_line(options: list[dict[str, Any]], panel_policy: dict[str, Any
 
 def proportion_line(proportions: list[dict[str, Any]], language: str) -> str:
     words = PLAN_TEXT[language]
-    if not proportions:
-        return words["proportion"] + words["proportion_legacy"]
     groups: dict[str, list[str]] = {}
     for index, proportion in enumerate(proportions, 1):
         ratio = str(proportion["target_head_ratio"])
@@ -710,76 +452,50 @@ def proportion_line(proportions: list[dict[str, Any]], language: str) -> str:
 def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, language: str = "zh") -> str:
     summary = summary or plan_summary(value)
     words = dict(PLAN_TEXT[language])
-    if value.get("schema_version") == 19:
-        n = target_images(value)
-        words["totals"] = f"总计 {n} 张；最多 {3*n} 次出图。" if language == "zh" else f"{n} images; at most {3*n} image-producing calls."
-        words["route"] = "从冻结的2N候选中独立排序选N个；筛选不是生图授权。" if language == "zh" else "Independent priority selection from 2N candidates; selection is not generation consent."
+    n = target_images(value)
+    words["totals"] = f"总计 {n} 张；最多 {3*n} 次出图。" if language == "zh" else f"{n} images; at most {3*n} image-producing calls."
+    words["route"] = "从冻结的2N候选中独立排序选N个；筛选不是生图授权。" if language == "zh" else "Independent priority selection from 2N candidates; selection is not generation consent."
     directions = DIRECTION_LABELS[language]
     options = value["proposal"]["options"]
     tier_policy = summary.get("exaggeration_policy")
-    if tier_policy is not None:
-        tiers = exaggeration_tiers()
-        lines = [words["tiered_header"], "|---|---|---|---|---|---|---|---|"]
-        for index, item in enumerate(options, 1):
-            staging = item["scene"] + "\n" + item["staging"]
-            if "visual_plan" in summary:
-                visual = next(v for v in summary["visual_plan"] if v["idea_id"] == item["idea_id"])
-                staging = "\n".join(f"{action['panel']}: {action['action']} {expression['visual_description']}"
-                                    for action, expression in zip(visual["actions"], visual["expressions"], strict=True))
-            cells = [str(index), item["title"] + words["colon"] + item["premise"],
-                     directions[item["direction"]] + words["colon"] + item["twist"], str(item["panel_count"]),
-                     tier_label(item, tiers, language), staging,
-                     "\n".join(item["key_lines"]), item["selection_reason"]]
-            lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
-        lines.extend(["", distribution_line(options, value.get("panel_policy", {"mode": "narrative"}), tier_policy, language),
-                      "", proportion_line(summary["proportions"], language), "", words["legend"]])
-    else:
-        lines = [words["legacy_header"], "|---|---|---|---|---|---|---|"]
-        for index, item in enumerate(options, 1):
-            cells = [str(index), item["title"] + words["colon"] + item["premise"], item["scene"],
-                     directions[item["direction"]] + words["colon"] + item["twist"],
-                     words["panel_staging"].format(count=item["panel_count"], staging=item["staging"]),
-                     "\n".join(item["key_lines"]), item["selection_reason"]]
-            lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
-    if "role_limits" in summary["execution"]:
-        limits = summary["execution"]["role_limits"]
-        detail = (f"分类 sub-agent 上限：策划 {limits['planning']}；生图 {limits['generation']} / Codex {limits['codex_generation']}；集合 {limits['collection']}；交付 {limits['delivery']}。主代理只编排；实际启动受运行时槽位和整批上限约束。" if language == "zh" else
-                  f"Independent sub-agent limits: {limits}. Main coordinates only; runtime slots and batch cap constrain actual dispatch.")
-        if "selection" in limits:
-            detail += f" 创意筛选上限：{limits['selection']}。" if language == "zh" else f" Selection limit: {limits['selection']}."
-        lines.extend(["", words["totals"], "", words["route"], "", detail])
-    else:
-        lines.extend(["", words["totals"], "", words["route"], "",
-                      execution_markdown(summary["execution"], language), "",
-                      words["workers"].format(limit=summary["worker_plan"]["max_parallelism"]), "", words["main"]])
-        titles = {i["idea_id"]: i["title"] for i in summary["choices"]}
-        for worker in summary["worker_plan"]["workers"]:
-            lines.append(words["worker"].format(worker=markdown_cell(worker["id"]), titles=words["list"].join(
-                markdown_cell(titles[i]) for i in worker["idea_ids"])))
-        if not summary["worker_plan"]["workers"]:
-            lines.append(words["main_serial"])
+    tiers = exaggeration_tiers()
+    lines = [words["tiered_header"], "|---|---|---|---|---|---|---|---|"]
+    for index, item in enumerate(options, 1):
+        staging = item["scene"] + "\n" + item["staging"]
+        visual = next(v for v in summary["visual_plan"] if v["idea_id"] == item["idea_id"])
+        staging = "\n".join(f"{action['panel']}: {action['action']} {expression['visual_description']}"
+                            for action, expression in zip(visual["actions"], visual["expressions"], strict=True))
+        cells = [str(index), item["title"] + words["colon"] + item["premise"],
+                 directions[item["direction"]] + words["colon"] + item["twist"], str(item["panel_count"]),
+                 tier_label(item, tiers, language), staging,
+                 "\n".join(item["key_lines"]), item["selection_reason"]]
+        lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
+    lines.extend(["", distribution_line(options, value.get("panel_policy", {"mode": "narrative"}), tier_policy, language),
+                  "", proportion_line(summary["proportions"], language), "", words["legend"]])
+    limits = summary["execution"]["role_limits"]
+    detail = (f"分类 sub-agent 上限：策划 {limits['planning']}；生图 {limits['generation']} / Codex {limits['codex_generation']}；集合 {limits['collection']}；交付 {limits['delivery']}。主代理只编排；实际启动受运行时槽位和整批上限约束。" if language == "zh" else
+              f"Independent sub-agent limits: {limits}. Main coordinates only; runtime slots and batch cap constrain actual dispatch.")
+    detail += f" 创意筛选上限：{limits['selection']}。" if language == "zh" else f" Selection limit: {limits['selection']}."
+    lines.extend(["", words["totals"], "", words["route"], "", detail])
     if value.get("panel_policy", {}).get("mode") == "user-override":
         lines.extend(["", words["panel_override"] + markdown_cell(value["panel_policy"]["user_instruction"])])
     if (tier_policy or {}).get("mode") == "user-override":
         lines.extend(["", words["tier_override"] + markdown_cell(tier_policy["user_instruction"])])
-    if value.get("schema_version") in {15, 16, 17, 18, 19}:
-        review_note = ("审阅：每个候选看图一次；轻微瑕疵可接受；每组五图拼图审阅一次。"
-                       "集合最多返工一轮并复验一次，与单图 QA 共用每张三次产图预算。"
-                       "主代理不重复看图复核，技术检查失败不触发生图。" if language == "zh" else
-                       "Review: inspect each candidate once; accept minor issues; review one five-image contact sheet. "
-                       "At most one collection repair round and focused recheck share each image's three-call budget. "
-                       "No coordinator visual rereview; technical checks never trigger regeneration.")
-        if value.get("schema_version") == 19:
-            review_note = review_note.replace("每组五图", f"每组{target_images(value)}图").replace("five-image", f"{target_images(value)}-image")
-            if target_images(value) < 3:
-                lines.append("少量方案按内容选择格数和档位，不强制三类覆盖。" if language == "zh" else "Small sets choose panels and tiers by content; full coverage is not required.")
-        lines.extend(["", review_note])
+    review_note = ("审阅：每个候选看图一次；轻微瑕疵可接受；每组五图拼图审阅一次。"
+                   "集合最多返工一轮并复验一次，与单图 QA 共用每张三次产图预算。"
+                   "主代理不重复看图复核，技术检查失败不触发生图。" if language == "zh" else
+                   "Review: inspect each candidate once; accept minor issues; review one five-image contact sheet. "
+                   "At most one collection repair round and focused recheck share each image's three-call budget. "
+                   "No coordinator visual rereview; technical checks never trigger regeneration.")
+    review_note = review_note.replace("每组五图", f"每组{target_images(value)}图").replace("five-image", f"{target_images(value)}-image")
+    if target_images(value) < 3:
+        lines.append("少量方案按内容选择格数和档位，不强制三类覆盖。" if language == "zh" else "Small sets choose panels and tiers by content; full coverage is not required.")
+    lines.extend(["", review_note])
     lines.extend(["", words["question"]])
-    if value.get("schema_version") in {18, 19}:
-        tool = summary["execution"]["tool"]
-        label = "本批工具：" if language == "zh" else "Batch tool: "
-        policy = "；服务错误即暂停，不自动重试或切换。" if language == "zh" else "; service errors pause; no automatic retry or switch."
-        lines.append("\n" + label + tool["provider"] + " / " + tool["transport"] + " / " + tool["model"] + policy)
+    tool = summary["execution"]["tool"]
+    label = "本批工具：" if language == "zh" else "Batch tool: "
+    policy = "；服务错误即暂停，不自动重试或切换。" if language == "zh" else "; service errors pause; no automatic retry or switch."
+    lines.append("\n" + label + tool["provider"] + " / " + tool["transport"] + " / " + tool["model"] + policy)
     return "\n".join(lines) + "\n"
 
 
@@ -1021,7 +737,7 @@ def normalize_background(value: Any, label: str, tier: str, tiers: dict[str, Any
 
 
 def effective_subagents(execution: dict[str, Any], parallelism: int, count: int) -> int:
-    approved = execution.get("subagent_count", execution.get("batch_limit", 0))
+    approved = execution["batch_limit"]
     if type(parallelism) is not int or parallelism < 1:
         raise RunError("effective parallelism must be a positive integer")
     if type(count) is not int or not 0 <= count <= approved:
@@ -1029,71 +745,6 @@ def effective_subagents(execution: dict[str, Any], parallelism: int, count: int)
     if parallelism != max(1, count):
         raise RunError("effective parallelism must equal max(1, effective subagent count)")
     return count
-
-
-def plan_execution(ready_images: int, worker_slots: int, provider_limit: int,
-                   user_limit: int = MAX_PARALLELISM, serial: bool = False) -> dict[str, Any]:
-    """Resolve observed capacity before the execution confirmation; this does not start workers."""
-    for name, value, minimum in (("ready_images", ready_images, 1), ("worker_slots", worker_slots, 0),
-                                 ("provider_limit", provider_limit, 1), ("user_limit", user_limit, 1)):
-        if type(value) is not int or value < minimum:
-            raise RunError(f"{name} must be an integer >= {minimum}")
-    count = 0 if serial else min(ready_images, worker_slots, provider_limit, user_limit, MAX_PARALLELISM)
-    return normalize_execution({
-        "mode": "parallel" if count > 1 else "sequential",
-        "requested_parallelism": max(1, count), "subagent_count": count,
-        "max_parallelism": MAX_PARALLELISM, "commit_strategy": "coordinator-serial",
-    })
-
-
-def execution_markdown(execution: dict[str, Any], language: str = "zh") -> str:
-    words = PLAN_TEXT[language]
-    count = execution.get("subagent_count")
-    if count is None:
-        return words["legacy_execution"].format(parallelism=execution["requested_parallelism"])
-    if count == 0:
-        return words["serial_execution"]
-    return words["parallel_execution"].format(count=count)
-
-
-def normalize_execution(value: Any, legacy: bool = False) -> dict[str, Any]:
-    if value is None:
-        value = {}
-    if not isinstance(value, dict):
-        raise RunError("execution must be an object")
-    limit = 5 if legacy else MAX_PARALLELISM
-    requested = value.get("requested_parallelism", 1)
-    if (
-        not isinstance(requested, int)
-        or isinstance(requested, bool)
-        or not 1 <= requested <= limit
-    ):
-        raise RunError(f"execution.requested_parallelism must be between 1 and {limit}")
-    mode = value.get("mode", "parallel" if requested > 1 else "sequential")
-    if mode not in EXECUTION_MODES:
-        raise RunError(f"execution.mode must be one of: {', '.join(sorted(EXECUTION_MODES))}")
-    if (mode == "sequential") != (requested == 1):
-        raise RunError("execution mode and requested_parallelism are inconsistent")
-    if value.get("max_parallelism", limit) != limit:
-        raise RunError(f"execution.max_parallelism must be {limit}")
-    strategy = value.get("commit_strategy", "coordinator-serial")
-    if strategy != "coordinator-serial":
-        raise RunError("execution.commit_strategy must be coordinator-serial")
-    result = {
-        "mode": mode,
-        "requested_parallelism": requested,
-        "max_parallelism": limit,
-        "commit_strategy": strategy,
-    }
-
-    if not legacy:
-        count = value.get("subagent_count")
-        if type(count) is not int or not 0 <= count <= limit:
-            raise RunError(f"execution.subagent_count must be between 0 and {limit}")
-        if requested != max(1, count):
-            raise RunError("requested_parallelism must equal max(1, subagent_count)")
-        result["subagent_count"] = count
-    return result
 
 
 def expression_presets() -> tuple[dict[str, dict[str, Any]], set[str]]:
@@ -1171,15 +822,6 @@ def tier_label(item: dict[str, Any], tiers: dict[str, Any], language: str = "zh"
     if language == "zh":
         return f"{label}（{axes}→{contrast['lowered_to']}）"
     return f"{label} ({axes}→{contrast['lowered_to']})"
-
-
-def required_markers(image: dict[str, Any], tiers: dict[str, Any]) -> list[dict[str, Any]]:
-    """Landing markers still owed after contrast and user-background waivers."""
-    lowered = set((image.get("contrast") or {}).get("axes", []))
-    user_background = image.get("background", {}).get("origin") == "user"
-    return [marker for marker in tiers["tiers"][image["exaggeration"]]["markers"]
-            if not set(marker["axes"]) <= lowered
-            and not (user_background and marker.get("waived_by_user_background"))]
 
 
 def axis_tier(image: dict[str, Any], panel: int, panel_tier: str, axis: str) -> str:
@@ -1716,8 +1358,8 @@ def validate_assignment(path: Path, require_approval: bool = True) -> dict[str, 
     assets, form_profiles, catalog_hash = catalog()
     presets, performance_levels = expression_presets()
     tiers = exaggeration_tiers()
-    if assignment.get("schema_version") not in {18, ASSIGNMENT_SCHEMA_VERSION}:
-        raise RunError(f"schema_version must be {ASSIGNMENT_SCHEMA_VERSION} or 18")
+    if assignment.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+        raise RunError(f"schema_version must be {ASSIGNMENT_SCHEMA_VERSION}")
     run_name = text(assignment.get("run_name"), "run_name")
     if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", run_name):
         raise RunError("run_name must be lowercase kebab-case")
@@ -1841,8 +1483,6 @@ def validate_assignment(path: Path, require_approval: bool = True) -> dict[str, 
         allowed_layouts = {1: {"single"}, 2: {"top-bottom", "left-right"}, 4: {"2x2"}}
         if layout not in allowed_layouts[panels]:
             raise RunError(f"{label}.layout is invalid for {panels} panels")
-        if "intensity" in image:
-            raise RunError(f"{label}.intensity belongs to schema v13; use exaggeration A, B or C")
         if image.get("exaggeration") not in TIER_ORDER:
             raise RunError(f"{label}.exaggeration must be A, B or C")
         image["output"] = normalize_output(image, label)
@@ -1949,12 +1589,10 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     run_dir = Path(value).resolve()
     assignment = read_json(run_dir / "assignment.json")
     manifest = read_json(run_dir / "manifest.json")
-    if assignment.get("schema_version") not in RESUMABLE_SCHEMA_VERSIONS:
-        raise RunError(f"Run assignment schema_version must be one of {sorted(RESUMABLE_SCHEMA_VERSIONS)}")
-    if assignment["schema_version"] in {15, 16, 17, 18, 19} and (
-        manifest.get("review_workflow_version") != 1 or not isinstance(manifest.get("collection"), dict)
-    ):
-        raise RunError("QA11 assignments v15–v19 require their collection review workflow")
+    if assignment.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+        raise RunError(f"Run assignment schema_version must be {ASSIGNMENT_SCHEMA_VERSION}")
+    if (manifest.get("review_workflow_version") != 1 or not isinstance(manifest.get("collection"), dict)):
+        raise RunError("QA11 requires its collection review workflow")
     if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         raise RunError(f"Manifest schema_version must be {MANIFEST_SCHEMA_VERSION}")
     _assets, _forms, current_hash = catalog()
@@ -1965,24 +1603,13 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
         raise RunError("Frozen assignment SHA-256 mismatch")
     images = assignment.get("images")
     validate_approval(assignment)
-    if uses_tournament(assignment):
-        execution = manifest.get("execution", {})
-        if any(execution.get(key) != item for key, item in assignment["execution"].items()):
-            raise RunError("manifest execution does not match the frozen assignment")
-        effective = execution.get("effective_parallelism")
-        if type(effective) is not int or not 1 <= effective <= len(images):
-            raise RunError("manifest effective parallelism exceeds the ready-image limit")
-        if "effective_subagent_count" not in execution:
-            raise RunError("manifest execution requires effective_subagent_count")
-        effective_subagents(assignment["execution"], effective, execution["effective_subagent_count"])
     if set(manifest.get("images", {})) != {item.get("id") for item in images}:
         raise RunError("Manifest images must match the frozen assignment")
     for image in images:
         if not isinstance(image, dict) or set(image) - IMAGE_FIELDS:
             raise RunError("Frozen image specification has unsupported fields")
-        expected_qa = {11} if assignment["schema_version"] in {15, 16, 17, 18, 19} else {10} if is_tiered(assignment) else {9}
-        if image.get("qa_contract_version") not in expected_qa:
-            raise RunError(f"Frozen image qa_contract_version must be one of {sorted(expected_qa)}")
+        if image.get("qa_contract_version") != QA_CONTRACT_VERSION:
+            raise RunError(f"Frozen image qa_contract_version must be {QA_CONTRACT_VERSION}")
         references = image.get("references")
         if not isinstance(references, list) or not references:
             raise RunError("Frozen image references must be a non-empty list")
@@ -1998,28 +1625,10 @@ def save_manifest(run_dir: Path, manifest: dict[str, Any]) -> None:
     write_json(run_dir / "manifest.json", manifest)
 
 
-def provider_allowed(state: dict[str, Any], provider: str, assignment=None) -> None:
-    if assignment and assignment["schema_version"] in {18, 19}:
-        tool = extension_module("provider_policy").validate(assignment["execution"].get("tool"))
-        if provider != tool["provider"]:
-            raise RunError("Batch tool is locked; provider switching is forbidden")
-        return
-    if provider not in PROVIDERS:
-        raise RunError(f"Unsupported provider: {provider}")
-    events = state.get("attempts", []) + state.get("provider_errors", [])
-    if not events:
-        if provider != "codex":
-            raise RunError("The first provider must be codex")
-        return
-    highest = max(PROVIDERS.index(item["provider"]) for item in events)
-    rank = PROVIDERS.index(provider)
-    if rank < highest or rank > highest + 1:
-        raise RunError("Provider order cannot move backward or skip an untouched provider")
-    if rank == highest + 1:
-        previous = PROVIDERS[highest]
-        prior = [item for item in events if item["provider"] == previous]
-        if not any(item.get("verdict") == "FAIL" or item.get("category") in ADVANCE_ERRORS for item in prior):
-            raise RunError(f"Cannot advance past provider {previous}")
+def provider_allowed(state, provider, assignment):
+    tool = extension_module("provider_policy").validate(assignment["execution"].get("tool"))
+    if provider != tool["provider"]:
+        raise RunError("Batch tool is locked; provider switching is forbidden")
 
 
 def require_point(value: Any, label: str) -> tuple[float, float]:
@@ -2098,54 +1707,6 @@ def validate_form_evidence(
         raise RunError("form_evidence measurement overlay SHA-256 mismatch")
 
 
-def validate_design_evidence(evidence: dict[str, Any], image: dict[str, Any]) -> None:
-    typography = evidence.get("text_style_match")
-    if not isinstance(typography, dict) or typography.get("template") != image["text_style"]:
-        raise RunError("evidence.text_style_match must name the selected template")
-    string_list(typography.get("observed_cues"), "text_style_match.observed_cues")
-    for key, plan, fields in (
-        ("dialogue_match", image["dialogue_plan"], ("text_index", "panel", "speaker", "delivery")),
-        ("cast_match", image["cast_plan"], ("participant", "representation", "panels")),
-    ):
-        observed = evidence.get(key)
-        if not isinstance(observed, list) or len(observed) != len(plan):
-            raise RunError(f"evidence.{key} must cover the complete frozen plan")
-        for actual, expected in zip(observed, plan, strict=True):
-            if not isinstance(actual, dict) or any(actual.get(field) != expected[field] for field in fields):
-                raise RunError(f"evidence.{key} does not match the assignment")
-            string_list(actual.get("observed_cues"), f"{key}.observed_cues")
-
-
-def validate_exaggeration_evidence(evidence: dict[str, Any], image: dict[str, Any]) -> None:
-    """E1 evidence: owed landing markers observed, nothing beyond the palette, identity kept through deformation."""
-    tiers = exaggeration_tiers()
-    check = evidence.get("exaggeration_check")
-    if not isinstance(check, dict):
-        raise RunError("PASS requires evidence.exaggeration_check")
-    if check.get("tier") != image["exaggeration"] or check.get("landing_panel") != image["landing_panel"]:
-        raise RunError("exaggeration_check must name the frozen tier and landing panel")
-    markers = check.get("markers")
-    owed = [marker["id"] for marker in required_markers(image, tiers)]
-    if not isinstance(markers, list) or [item.get("id") if isinstance(item, dict) else None for item in markers] != owed:
-        raise RunError("exaggeration_check.markers must cover the owed landing markers in order")
-    for item in markers:
-        text(item.get("observed"), f"exaggeration_check.{item['id']}.observed")
-    if check.get("palette_violations") != []:
-        raise RunError("exaggeration_check.palette_violations must be empty for PASS")
-    if check.get("style_spill") is not False:
-        raise RunError("exaggeration_check.style_spill must be false for PASS")
-    deformed = [entry["panel"] for entry in image["expression_plan"] if entry["performance"] == "manga_burst"]
-    anchors = check.get("identity_anchors")
-    known = {anchor["id"] for anchor in tiers["identity_anchors"]}
-    if not isinstance(anchors, list) or [item.get("panel") if isinstance(item, dict) else None for item in anchors] != deformed:
-        raise RunError("exaggeration_check.identity_anchors must cover every manga_burst panel")
-    for item in anchors:
-        seen = string_list(item.get("anchors"), "exaggeration_check.identity_anchors.anchors")
-        if not set(seen) <= known or len(set(seen)) < tiers["identity_anchor_minimum"]:
-            raise RunError(f"Deformed panel {item['panel']} needs at least "
-                           f"{tiers['identity_anchor_minimum']} visible identity anchors")
-
-
 def extension_module(name):
     import importlib.util
     scripts = str(Path(__file__).parent)
@@ -2179,7 +1740,6 @@ def visual_prompt():
 
 
 def review_workflow():
-    # Keep the new lifecycle separate from frozen QA 9/10 recovery contracts.
     import importlib.util
     from types import SimpleNamespace
     spec = importlib.util.spec_from_file_location("comic_review_workflow", Path(__file__).with_name("review_workflow.py"))
@@ -2196,150 +1756,10 @@ def register_review_commands(commands):
     review_workflow().register(commands)
 
 
-def validate_qa(
-    path: Path,
-    expected_hash: str,
-    component: bool = False,
-    image_spec: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    value = read_json(path)
-    if not isinstance(image_spec, dict):
-        raise RunError("Visual QA requires the frozen image specification")
-    if image_spec.get("qa_contract_version") not in QA_CONTRACT_VERSIONS:
-        raise RunError(f"Image qa_contract_version must be one of {sorted(QA_CONTRACT_VERSIONS)}")
-    if image_spec["qa_contract_version"] == 11:
-        if component:
-            raise RunError("QA 11 reviews whole candidates; component rescue is unavailable")
-        return validate_compact_qa(value, expected_hash, image_spec)
-    tiered = image_spec["qa_contract_version"] == 10
-    required = {"core_text", "dialogue_plan", "panel_count", "expression_plan",
-                "cast_plan", "text_style", "proportion_check", "proportion", "proportion_sha256"}
-    missing = required - set(image_spec)
-    if missing:
-        raise RunError("Frozen image specification is missing: " + ", ".join(sorted(missing)))
-    if image_spec["proportion_check"] not in {"measured", "visible-only"}:
-        raise RunError("Frozen image proportion_check must be measured or visible-only")
-    expressions = image_spec["expression_plan"]
-    if not isinstance(expressions, list) or len(expressions) != image_spec["panel_count"]:
-        raise RunError("Frozen image expression_plan must cover every panel")
-    if value.get("review_status") != "reviewed":
-        raise RunError("Visual QA review_status must be reviewed; pending drafts cannot be recorded or promoted")
-    observation = value.get("observation")
-    if not isinstance(observation, dict):
-        raise RunError("Visual QA requires observation independent of planned evidence")
-    if observation.get("candidate_sha256") != expected_hash:
-        raise RunError("observation.candidate_sha256 does not match")
-    text(observation.get("reviewer"), "observation.reviewer")
-    if observation.get("method") != "direct-image-inspection":
-        raise RunError("observation.method must be direct-image-inspection")
-    panels = observation.get("panels")
-    if not isinstance(panels, list) or not panels:
-        raise RunError("observation.panels must contain observed scenes")
-    panel_numbers = []
-    for panel in panels:
-        if (not isinstance(panel, dict) or type(panel.get("panel")) is not int
-                or panel["panel"] < 1):
-            raise RunError("observation.panels has an invalid panel")
-        panel_numbers.append(panel["panel"])
-        text(panel.get("observed_scene"), "observation.panels.observed_scene")
-    if panel_numbers != sorted(set(panel_numbers)):
-        raise RunError("observation.panels must cover reviewed panels once in reading order")
-    if value.get("verdict") == "PASS" and (
-        (component and max(panel_numbers) > image_spec["panel_count"])
-        or (not component and panel_numbers != list(range(1, image_spec["panel_count"] + 1)))
-    ):
-        raise RunError("PASS observation.panels must match the assignment")
-    transcript = observation.get("text_transcription")
-    if not isinstance(transcript, list) or any(not isinstance(line, str) for line in transcript):
-        raise RunError("observation.text_transcription must be a list of strings")
-    expected_text = image_spec["core_text"]
-    if component:
-        expected_text = [image_spec["core_text"][line["text_index"]]
-                         for line in image_spec["dialogue_plan"] if line["panel"] in panel_numbers]
-    if value.get("verdict") == "PASS" and transcript != expected_text:
-        raise RunError("observation.text_transcription does not match the assignment")
-    gates_required = COMPONENT_GATES if component else CONFIGURABLE_GATES if tiered else CONFIGURABLE_GATES - {"E1"}
-    verdict = value.get("verdict")
-    gates = value.get("gates")
-    if verdict not in {"PASS", "FAIL"} or not isinstance(gates, dict) or set(gates) != gates_required:
-        raise RunError("Visual QA has an invalid verdict or gate set")
-    na_proportion = not component and gates.get("H1") == "NA"
-    if any(gates[key] not in ({"PASS", "FAIL", "NA"} if key == "H1" else {"PASS", "FAIL"}) for key in gates_required):
-        raise RunError("Visual QA gates must be PASS or FAIL; only H1 permits NA")
-    if (not component and image_spec.get("proportion_check") == "visible-only"
-            and gates["H1"] == "PASS"):
-        raise RunError("visible-only proportion_check requires H1 NA or FAIL, not a measured PASS")
-    evidence = value.get("evidence")
-    form = evidence.get("form_evidence") if isinstance(evidence, dict) else None
-    if (isinstance(form, dict)
-            and (form.get("mode") == "visible-only" or image_spec.get("proportion_check") == "visible-only")
-            and any(field in form for field in ("calculated_head_ratio", "head_axis", "body_segments"))):
-        raise RunError("visible-only form_evidence must not claim calculated_head_ratio, head_axis, or body_segments")
-    if na_proportion:
-        if image_spec.get("proportion_check") != "visible-only":
-            raise RunError("H1 NA requires proportion_check=visible-only")
-        if not isinstance(form, dict) or form.get("mode") != "visible-only":
-            raise RunError("H1 NA requires visible-only form_evidence")
-        if form.get("candidate_sha256") != expected_hash:
-            raise RunError("form_evidence.candidate_sha256 does not match the candidate")
-        text(form.get("reason"), "form_evidence.reason")
-        string_list(form.get("observed_cues"), "form_evidence.observed_cues")
-    all_pass = all(gates[key] == "PASS" or (key == "H1" and na_proportion) for key in gates_required)
-    if (verdict == "PASS") != all_pass:
-        raise RunError("Visual QA verdict must agree with all gates")
-    if value.get("candidate_sha256") != expected_hash:
-        raise RunError("Visual QA candidate_sha256 does not match")
-    defects = value.get("defects")
-    if not isinstance(defects, list) or any(not isinstance(item, str) for item in defects):
-        raise RunError("Visual QA defects must be a list of strings")
-    if verdict == "PASS":
-        if defects or value.get("targeted_retry") is not None:
-            raise RunError("PASS requires no defects and targeted_retry=null")
-        if not component:
-            evidence = value.get("evidence")
-            if not isinstance(evidence, dict):
-                raise RunError("PASS requires evidence")
-            text(evidence.get("why_funny"), "evidence.why_funny")
-            text(evidence.get("fact_anchor_visible_as"), "evidence.fact_anchor_visible_as")
-            transcription = evidence.get("text_transcription")
-            if not isinstance(transcription, list) or any(not isinstance(item, str) for item in transcription):
-                raise RunError("evidence.text_transcription must be a list of strings")
-            expected_text = image_spec["core_text"]
-            if transcription != expected_text:
-                raise RunError("evidence.text_transcription does not match the assignment")
-            validate_design_evidence(evidence, image_spec)
-            for field in ("style_match", "costume_match", "background_match", "action_match"):
-                text(evidence.get(field), f"evidence.{field}")
-            if not na_proportion:
-                validate_form_evidence(
-                    evidence.get("form_evidence"), image_spec, expected_hash
-                )
-            text(evidence.get("form_consistency"), "evidence.form_consistency")
-            text(evidence.get("crop_status"), "evidence.crop_status")
-            expected_expressions = image_spec["expression_plan"]
-            expression_match = evidence.get("expression_match")
-            if not isinstance(expression_match, list) or len(expression_match) != len(expected_expressions):
-                raise RunError("evidence.expression_match must contain one entry per panel")
-            for expected, observed in zip(expected_expressions, expression_match, strict=True):
-                if not isinstance(observed, dict):
-                    raise RunError("evidence.expression_match entries must be objects")
-                if (
-                    observed.get("panel") != expected["panel"]
-                    or observed.get("preset") != expected["preset"]
-                    or observed.get("performance") != expected["performance"]
-                ):
-                    raise RunError("evidence.expression_match does not match the assignment")
-                string_list(observed.get("observed_cues"), "expression_match.observed_cues")
-                forbidden = observed.get("forbidden_cues_present")
-                if forbidden != []:
-                    raise RunError("expression_match.forbidden_cues_present must be empty for PASS")
-            if tiered:
-                validate_exaggeration_evidence(evidence, image_spec)
-    else:
-        if not any(item.strip() for item in defects):
-            raise RunError("FAIL requires concrete defects")
-        text(value.get("targeted_retry"), "targeted_retry")
-    return value
+def validate_qa(path, expected_hash, image_spec):
+    if image_spec.get("qa_contract_version") != QA_CONTRACT_VERSION:
+        raise RunError(f"Image qa_contract_version must be {QA_CONTRACT_VERSION}")
+    return validate_compact_qa(read_json(path), expected_hash, image_spec)
 
 
 def validate_automatic(
@@ -2413,103 +1833,12 @@ def resolve_transport(args: argparse.Namespace, audit_path: Path | None) -> str 
     return transport
 
 
-def record_image(args: argparse.Namespace, component: bool) -> dict[str, Any]:
-    run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] in {17, 18, 19}:
-        raise RunError("Use image-task review for v17/v18/v19")
-    if assignment["schema_version"] in {15, 16, 17, 18, 19}:
-        if component:
-            raise RunError("QA 11 accepts complete candidates only")
-        return review_workflow().record_candidate(args, run_dir, assignment, manifest)
-    if manifest.get("status") != "in_progress":
-        raise RunError("Run is not open")
-    state = state_for(manifest, args.image)
-    image_spec = next(item for item in assignment["images"] if item["id"] == args.image)
-    if state.get("status") in {"candidate_pass", "passed", "safety_blocked"}:
-        raise RunError("Image task is closed")
-    if len(state["attempts"]) >= MAX_CANDIDATES:
-        raise RunError("Per-image candidate budget is exhausted")
-    provider_allowed(state, args.provider)
-    candidate = Path(args.candidate).resolve()
-    prompt_file = Path(args.prompt_file).resolve()
-    automatic_path = Path(args.automatic_json).resolve()
-    if not args.visual_json:
-        raise RunError("Visual QA is required")
-    visual_path = Path(args.visual_json).resolve()
-    audit_path = Path(args.provider_audit).resolve() if getattr(args, "provider_audit", None) else None
-    for item in (candidate, prompt_file, automatic_path, visual_path, audit_path):
-        if item is not None and not item.is_file():
-            raise RunError(f"Missing required file: {item}")
-    prompt = prompt_file.read_text(encoding="utf-8").strip()
-    if not prompt:
-        raise RunError("Prompt file is empty")
-    candidate_hash = sha256(candidate)
-    automatic = validate_automatic(automatic_path, candidate_hash, image_spec["output"])
-    visual = validate_qa(
-        visual_path,
-        candidate_hash,
-        component=component,
-        image_spec=image_spec,
-    )
-    transport = resolve_transport(args, audit_path)
-    audit = load_provider_audit(audit_path, args.provider, candidate_hash) if audit_path else None
-    number = len(state["attempts"]) + 1
-    role = "component" if component else "candidate"
-    stem = f"{number:02d}_{role}_{args.provider}"
-    attempt_dir = run_dir / "candidates" / args.image
-    saved_image = attempt_dir / f"{stem}.png"
-    saved_prompt = run_dir / "prompts" / args.image / f"{stem}.txt"
-    saved_auto = run_dir / "qa" / args.image / f"{stem}_automatic.json"
-    saved_visual = run_dir / "qa" / args.image / f"{stem}_visual.json"
-    copy_once(candidate, saved_image)
-    copy_once(prompt_file, saved_prompt)
-    copy_once(automatic_path, saved_auto)
-    copy_once(visual_path, saved_visual)
-    provider_audit = None
-    if audit is not None:
-        saved_audit = run_dir / "logs" / args.image / f"{stem}_provider_audit.json"
-        copy_once(audit_path, saved_audit)
-        provider_audit = {
-            "path": str(saved_audit), "sha256": sha256(saved_audit),
-            **{key: audit.get(key) for key in ("thread_id", "prompt_verbatim", "usable")},
-            "verified": audit["usable"] is True,
-        }
-    # A provider that rewrote the prompt or dropped references cannot yield a PASS;
-    # an unverifiable audit may pass but stays flagged in the record and the final report.
-    usable = audit is None or audit["usable"] is not False
-    verdict = "PASS" if usable and automatic["overall"] == "PASS" and visual["verdict"] == "PASS" else "FAIL"
-    record = {
-        "attempt_id": f"attempt-{number:02d}", "role": role,
-        "provider": args.provider, "model": args.model, "verdict": verdict,
-        "candidate": str(saved_image), "candidate_sha256": candidate_hash,
-        "prompt": str(saved_prompt), "automatic_qa": str(saved_auto),
-        "visual_qa": str(saved_visual), "created_at": now(),
-        "output": {
-            "requested": image_spec["output"],
-            "effective": automatic["expected_output"],
-            "actual": automatic.get("metrics"),
-        },
-        "transport": transport,
-        "provider_audit": provider_audit,
-        "consumes_candidate_budget": True,
-    }
-    state["attempts"].append(record)
-    state["status"] = "component_ready" if component and verdict == "PASS" else "candidate_pass" if verdict == "PASS" else "pending"
-    save_manifest(run_dir, manifest)
-    return record
-
-
 def creative_markdown(assignment: dict[str, Any]) -> str:
     lines = [f"# {assignment['run_name']}", "", f"Fact anchor: {assignment['input']['fact_anchor']}", ""]
     lines.extend(["## Confirmed plan", "", plan_markdown(assignment), "```json",
                   json.dumps(assignment["confirmation"], ensure_ascii=False, indent=2), "```", ""])
-    if assignment["schema_version"] == 19:
-        lines.extend(["## Independent priority selection", "", "```json",
-                      json.dumps(assignment["selection_review"], ensure_ascii=False, indent=2), "```", ""])
-    else:
-        lines.extend(["## Tournament standings", "", "```json",
-                      json.dumps(tournament_results(assignment), ensure_ascii=False, indent=2), "```", "",
-                      "Tie decisions: " + json.dumps(assignment.get("tie_breaks", []), ensure_ascii=False), ""])
+    lines.extend(["## Independent priority selection", "", "```json",
+                  json.dumps(assignment["selection_review"], ensure_ascii=False, indent=2), "```", ""])
     native = assignment["input"]["source_analysis"]["native_direction"]
     lines.extend([
         f"Native direction: {native['direction'] or 'none'} — {native['reason']}", "",
@@ -2528,10 +1857,6 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
         lines.append(f"- Mechanism: {idea['mechanism']}")
         lines.append("- Key lines: " + json.dumps(idea["key_lines"], ensure_ascii=False))
         lines.append("")
-    if assignment["schema_version"] != 19:
-        lines.extend(["## Pairwise duels", ""])
-    for duel in assignment.get("duels", []):
-        lines.append(f"- {duel['a']} vs {duel['b']}: {duel['winner'] or 'draw'} — {duel['reason']}")
     summary = design_summary([assignment])
     lines.extend([
         "", "## Design decisions", "",
@@ -2540,7 +1865,7 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
         f"- Direction distribution: {summary['directions']}",
         f"- Images with a rhythm layer: {summary['rhythm_images']} of {summary['image_count']}",
         f"- Exaggeration distribution: {summary['exaggerations']}",
-        f"- Exaggeration policy: {assignment.get('exaggeration_policy', {'mode': 'narrative'})}",
+        f"- Exaggeration policy: {assignment['exaggeration_policy']}",
         f"- Images by cast representation (may overlap): {summary['cast_images']}",
         "- Pre-generation review: verify each template fits its joke and every omitted/offscreen role has a narrative reason. Counts alone do not establish design quality.",
     ])
@@ -2550,8 +1875,7 @@ def creative_markdown(assignment: dict[str, Any]) -> str:
         "", f"Final ranking: {' > '.join(assignment['ranked_ideas'])}",
         "", "## Execution", "",
         f"- Mode: {assignment['execution'].get('mode', 'role-queues')}",
-        (f"- Execution: {assignment['execution']}" if assignment["schema_version"] in {17, 18, 19} else
-         f"- Requested parallelism: {assignment['execution']['requested_parallelism']}"),
+        (f"- Execution: {assignment['execution']}"),
         f"- Commit strategy: {assignment['execution']['commit_strategy']}",
         "", f"## {len(assignment['images'])} tasks", "",
     ])
@@ -2639,7 +1963,7 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
     root.mkdir(parents=True, exist_ok=True)
     run_dir = root / assignment["run_name"]
     checkpoint = None
-    if assignment["schema_version"] in {18, 19} and getattr(args, "batch", None):
+    if (getattr(args, "batch", None)):
         identity = contract_hash({"assignment": assignment, "batch": str(Path(args.batch).resolve())})
         checkpoint_path = run_dir / "init-checkpoint.json"
         if run_dir.exists():
@@ -2701,7 +2025,7 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
                 )
     states = {
         image["id"]: {
-            "status": "pending", "attempts": [], "derived": [],
+            "status": "pending", "attempts": [],
             "provider_errors": [],
             "final_path": None, "final_sha256": None,
         }
@@ -2721,13 +2045,11 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
         },
         "created_at": now(), "updated_at": now(), "images": states,
     }
-    if assignment["schema_version"] in {15, 16, 17, 18, 19}:
-        manifest["review_workflow_version"] = 1
-        manifest["collection"] = {"status": "pending", "reviews": [], "sheets": [], "repair_rounds": 0}
-        manifest["events"] = []
-    if assignment["schema_version"] in {18, 19}:
-        from types import SimpleNamespace
-        extension_module("batch_workflow").BatchWorkflow(SimpleNamespace(**globals())).attach(args, run_dir, assignment, manifest)
+    manifest["review_workflow_version"] = 1
+    manifest["collection"] = {"status": "pending", "reviews": [], "sheets": [], "repair_rounds": 0}
+    manifest["events"] = []
+    from types import SimpleNamespace
+    extension_module("batch_workflow").BatchWorkflow(SimpleNamespace(**globals())).attach(args, run_dir, assignment, manifest)
     write_json(run_dir / "manifest.json", manifest)
     return {
         "run_dir": str(run_dir),
@@ -2736,129 +2058,18 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def cmd_record_error(args: argparse.Namespace) -> dict[str, Any]:
-    run_dir, _assignment, manifest = load_run(args.run_dir)
-    if _assignment["schema_version"] in {17, 18, 19}:
-        raise RunError("Use image-task error for v17/v18/v19")
-    if manifest.get("status") != "in_progress":
-        raise RunError("Run is not open")
-    state = state_for(manifest, args.image)
-    if state.get("status") in {"candidate_pass", "passed", "safety_blocked"}:
-        raise RunError("Image task is closed")
-    provider_allowed(state, args.provider)
-    if args.category not in ADVANCE_ERRORS | {"safety_rejection"}:
-        raise RunError("Unsupported provider error category")
-    record = {"error_id": f"error-{len(state['provider_errors']) + 1:02d}", "provider": args.provider, "model": args.model, "category": args.category, "details": args.details, "created_at": now(), "consumes_candidate_budget": False}
-    state["provider_errors"].append(record)
-    if args.category == "safety_rejection":
-        state["status"] = "safety_blocked"
-    path = run_dir / "logs" / args.image / f"{record['error_id']}_{args.provider}.json"
-    write_json(path, record)
-    save_manifest(run_dir, manifest)
-    return {"recorded": str(path), "attempts": len(state["attempts"])}
-
-
-def cmd_record_composite(args: argparse.Namespace) -> dict[str, Any]:
+def cmd_promote(args):
     run_dir, assignment, manifest = load_run(args.run_dir)
-    state = state_for(manifest, args.image)
-    image_spec = next(item for item in assignment["images"] if item["id"] == args.image)
-    if assignment["schema_version"] in {15, 16, 17, 18, 19}:
-        raise RunError("QA 11 reviews complete candidates, not component composites")
-    source_ids = args.source_attempt
-    expected = image_spec["panel_count"]
-    if expected not in {2, 4} or len(source_ids) != expected:
-        raise RunError("Composite source count must equal a 2- or 4-panel assignment")
-    if len(set(source_ids)) != len(source_ids):
-        raise RunError("Composite source attempts must be unique")
-    sources = []
-    for attempt_id in source_ids:
-        match = next((item for item in state["attempts"] if item["attempt_id"] == attempt_id and item["role"] == "component" and item["verdict"] == "PASS"), None)
-        if match is None:
-            raise RunError(f"Composite source is not a passing component: {attempt_id}")
-        sources.append(match)
-    candidate = Path(args.candidate).resolve()
-    automatic_path = Path(args.automatic_json).resolve()
-    if not args.visual_json:
-        raise RunError("Visual QA is required")
-    visual_path = Path(args.visual_json).resolve()
-    for item in (candidate, automatic_path, visual_path):
-        if not item.is_file():
-            raise RunError(f"Missing required file: {item}")
-    candidate_hash = sha256(candidate)
-    automatic = validate_automatic(automatic_path, candidate_hash, image_spec["output"])
-    visual = validate_qa(visual_path, candidate_hash, image_spec=image_spec)
-    verdict = "PASS" if automatic["overall"] == "PASS" and visual["verdict"] == "PASS" else "FAIL"
-    number = len(state["derived"]) + 1
-    stem = f"composite-{number:02d}"
-    saved_image = run_dir / "candidates" / args.image / f"{stem}.png"
-    saved_auto = run_dir / "qa" / args.image / f"{stem}_automatic.json"
-    saved_visual = run_dir / "qa" / args.image / f"{stem}_visual.json"
-    copy_once(candidate, saved_image)
-    copy_once(automatic_path, saved_auto)
-    copy_once(visual_path, saved_visual)
-    record = {"derived_id": stem, "role": "composite", "verdict": verdict, "candidate": str(saved_image), "candidate_sha256": candidate_hash, "source_attempts": source_ids, "source_sha256": [item["candidate_sha256"] for item in sources], "automatic_qa": str(saved_auto), "visual_qa": str(saved_visual), "output": {"requested": image_spec["output"], "effective": automatic["expected_output"], "actual": automatic.get("metrics")}, "created_at": now(), "consumes_candidate_budget": False}
-    state["derived"].append(record)
-    state["status"] = "candidate_pass" if verdict == "PASS" else "pending"
-    save_manifest(run_dir, manifest)
-    return record
-
-
-def cmd_promote(args: argparse.Namespace) -> dict[str, Any]:
-    run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] in {15, 16, 17, 18, 19}:
-        return review_workflow().promote(args, run_dir, assignment, manifest)
-    state = state_for(manifest, args.image)
-    passing = [item for item in state["attempts"] + state["derived"] if item.get("verdict") == "PASS" and item.get("role") != "component"]
-    if not passing:
-        raise RunError("No passing full comic is available")
-    selected = passing[-1]
-    source = Path(selected["candidate"])
-    image_spec = next(item for item in assignment["images"] if item["id"] == args.image)
-    candidate_hash = sha256(source)
-    if candidate_hash != selected["candidate_sha256"]:
-        raise RunError("Candidate SHA-256 mismatch before promotion")
-    visual = validate_qa(Path(selected["visual_qa"]), candidate_hash, image_spec=image_spec)
-    automatic = validate_automatic(Path(selected["automatic_qa"]), candidate_hash, image_spec["output"])
-    if visual["verdict"] != "PASS" or automatic["overall"] != "PASS":
-        raise RunError("Promotion requires current PASS QA")
-    destination = run_dir / "final" / f"{args.image}.png"
-    copy_once(source, destination)
-    state["status"] = "passed"
-    state["final_path"] = str(destination)
-    state["final_sha256"] = sha256(destination)
-    save_manifest(run_dir, manifest)
-    return {"final": str(destination), "sha256": state["final_sha256"]}
+    return review_workflow().promote(args, run_dir, assignment, manifest)
 
 
 def cmd_finalize(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
-    if assignment["schema_version"] in {15, 16, 17, 18, 19}:
-        review_workflow().before_finalize(run_dir, assignment, manifest)
+    review_workflow().before_finalize(run_dir, assignment, manifest)
     expected = len(assignment["images"])
     passed = [key for key, value in manifest["images"].items() if value["status"] == "passed"]
     if len(passed) != expected and not args.allow_partial:
         raise RunError(f"Only {len(passed)}/{expected} tasks passed; use --allow-partial to finalize honestly")
-    if len(passed) != expected:
-        unresolved = []
-        for key, state in manifest["images"].items():
-            if state["status"] == "passed":
-                continue
-            all_providers_failed = {
-                item["provider"]
-                for item in state["provider_errors"]
-                if item.get("category") in ADVANCE_ERRORS
-            } == set(PROVIDERS)
-            if (
-                state["status"] not in {"safety_blocked", "technical_blocked", "exhausted", "collection_failed"}
-                and len(state["attempts"]) < MAX_CANDIDATES
-                and not all_providers_failed
-            ):
-                unresolved.append(key)
-        if unresolved:
-            raise RunError(
-                "Cannot finalize while tasks still have a viable attempt: "
-                + ", ".join(unresolved)
-            )
     manifest["status"] = "complete" if len(passed) == expected else "partial"
     manifest["completed_at"] = now()
     save_manifest(run_dir, manifest)
@@ -2894,12 +2105,10 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     commands = root.add_subparsers(dest="command", required=True)
     for name, handler in (("render-proposal", cmd_render_proposal),
-                          ("summarize-selection", cmd_summarize_selection),
-                          ("rank-ideas", cmd_rank_ideas)):
+                          ("summarize-selection", cmd_summarize_selection)):
         command = commands.add_parser(name)
         command.add_argument("--draft", required=True)
-        if name != "rank-ideas":
-            command.add_argument("--language", choices=UI_LANGUAGES, default="zh",
+        command.add_argument("--language", choices=UI_LANGUAGES, default="zh",
                                  help="Language of the rendered Markdown; translate the en rendering for others")
         command.set_defaults(handler=handler)
     validate = commands.add_parser("validate-assignment")
@@ -2909,15 +2118,6 @@ def parser() -> argparse.ArgumentParser:
     batch.add_argument("--assignment", action="append", help="Confirmed assignment; repeat for each source")
     batch.add_argument("--draft", action="append", help="Planning draft before the confirmation; repeat for each source")
     batch.set_defaults(handler=cmd_validate_batch)
-    plan = commands.add_parser("plan-execution", help="Frozen single-pool execution helper; v17–v19 tasks use plan-roles")
-    plan.add_argument("--ready-images", type=int, required=True)
-    plan.add_argument("--worker-slots", type=int, required=True)
-    plan.add_argument("--provider-limit", type=int, required=True)
-    plan.add_argument("--user-limit", type=int, default=MAX_PARALLELISM)
-    plan.add_argument("--serial", action="store_true")
-    plan.set_defaults(handler=lambda args: {"execution": plan_execution(
-        args.ready_images, args.worker_slots, args.provider_limit, args.user_limit, args.serial)})
-
     init = commands.add_parser("init")
     init.add_argument("--assignment", required=True)
     init.add_argument("--batch")
@@ -2925,26 +2125,6 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("--effective-subagents", type=int, help="Actual worker count, including 0 for main-agent fallback")
     init.add_argument("--effective-parallelism", type=int)
     init.set_defaults(handler=cmd_init)
-    error = commands.add_parser("record-error")
-    error.add_argument("--run-dir", required=True); error.add_argument("--image", required=True)
-    error.add_argument("--provider", choices=PROVIDERS, required=True); error.add_argument("--model", required=True)
-    error.add_argument("--category", required=True); error.add_argument("--details", required=True)
-    error.set_defaults(handler=cmd_record_error)
-    for command, component in (("record-candidate", False), ("record-component", True)):
-        item = commands.add_parser(command)
-        item.add_argument("--run-dir", required=True); item.add_argument("--image", required=True)
-        item.add_argument("--provider", choices=PROVIDERS, required=True); item.add_argument("--model", required=True)
-        item.add_argument("--candidate", required=True); item.add_argument("--prompt-file", required=True)
-        item.add_argument("--automatic-json", required=True); item.add_argument("--visual-json")
-        item.add_argument("--provider-audit", help="Adapter audit JSON, e.g. generate-codex.py's <output>.codex.json")
-        item.add_argument("--transport", choices=("cli", "builtin"),
-                          help="How a codex candidate was produced: generate-codex.py (cli) or the built-in tool")
-        item.set_defaults(handler=lambda args, component=component: record_image(args, component))
-    composite = commands.add_parser("record-composite")
-    composite.add_argument("--run-dir", required=True); composite.add_argument("--image", required=True)
-    composite.add_argument("--candidate", required=True); composite.add_argument("--automatic-json", required=True)
-    composite.add_argument("--visual-json", required=True); composite.add_argument("--source-attempt", action="append", required=True)
-    composite.set_defaults(handler=cmd_record_composite)
     promote = commands.add_parser("promote")
     promote.add_argument("--run-dir", required=True); promote.add_argument("--image", required=True)
     promote.set_defaults(handler=cmd_promote)
@@ -2961,7 +2141,7 @@ def parser() -> argparse.ArgumentParser:
 
 def invoke(args):
     shared = {"build-review-sheet", "record-collection-review", "promote", "finalize"}
-    if args.command in shared and read_json(Path(args.run_dir) / "assignment.json").get("schema_version") in {17, 18, 19}:
+    if args.command in shared:
         return image_tasks().shared(args, args.handler)
     return args.handler(args)
 

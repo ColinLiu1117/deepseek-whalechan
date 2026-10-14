@@ -17,7 +17,7 @@ const STRINGS = {
     collection: "当前集合", sourceInput: "输入原图",
     viewerHint: "滚轮缩放 · 拖动平移 · 单击 适应↔100% · ← → 切换 · S 对照原图 · I 详情 · Esc 关闭",
     notRecorded: "未记录",
-    roles: {candidate: "整图候选", component: "分格组件", composite: "本地合成"},
+    roles: {candidate: "整图候选"},
     refRoles: {identity: "角色身份", style: "画风", proportion: "比例", typography: "文字样式", composition: "构图", costume: "服装", background: "背景", pose_action: "动作"},
     pictures: {candidate: "{label} 候选", source: "输入原图 {label}", reference: "{label}", final: "{label}"},
     reference: "参考图",
@@ -27,13 +27,11 @@ const STRINGS = {
                final_unrecorded: "{subject}：成品来源记录缺失"},
     prompt: "实际生图提示词", copyPrompt: "复制提示词", copied: "已复制", selectToCopy: "已选中，请按 ⌘C / Ctrl+C 复制",
     originUnknown: "成品来源未能唯一确认，请查看生成过程。",
-    compositeNote: "由分格图片本地合成，不增加产图次数。",
-    panelPart: "分格 {id}", panelMissing: "分格来源未记录", recordedAt: "记录时间：{date}",
     collectionQA: "集合审阅与返工记录", minorIssues: "已接受的轻微瑕疵", outcomes: "任务状态与计时",
     qa: "验收记录", qaLine: "自动检查：{automatic} · 视觉检查：{visual}", failUnknown: "失败原因未记录", retry: "修正建议：{retry}",
     imageMissing: "图片文件缺失", noFinal: "尚无通过验收的成品", enlarge: "放大 {label}",
     passed: "已通过", failed: "未通过", notProduced: "未产出", calls: "产图 {n} 次",
-    tier: "档位 {tier}", tierContrast: "档位 {tier}（{axes}→{lowered}）", intensity: "强度 {intensity}", axisJoin: "、",
+    tier: "档位 {tier}", tierContrast: "档位 {tier}（{axes}→{lowered}）", axisJoin: "、",
     history: "生成过程 · {calls} 次产图 · {errors} 次接口错误", noAttempts: "没有产图记录", final: "成品",
     sameAsFinal: "与成品哈希相同，但来源记录不唯一；不指定某次提示词为成品来源。",
     noImageErrors: "无图错误记录 · {n}", imageN: "图片 {n}",
@@ -68,7 +66,7 @@ const STRINGS = {
     collection: "Current collection", sourceInput: "Input image",
     viewerHint: "Scroll to zoom · drag to pan · click for fit↔100% · ← → browse · S source · I details · Esc close",
     notRecorded: "Not recorded",
-    roles: {candidate: "Full-canvas candidate", component: "Panel component", composite: "Local composite"},
+    roles: {candidate: "Full-canvas candidate"},
     refRoles: {identity: "Identity", style: "Style", proportion: "Proportion", typography: "Typography", composition: "Composition", costume: "Costume", background: "Background", pose_action: "Pose & action"},
     pictures: {candidate: "{label} candidate", source: "Input image {label}", reference: "{label}", final: "{label}"},
     reference: "Reference",
@@ -78,12 +76,10 @@ const STRINGS = {
                final_unrecorded: "{subject}: the final's source record is missing"},
     prompt: "Prompt sent to the provider", copyPrompt: "Copy prompt", copied: "Copied", selectToCopy: "Selected — press ⌘C / Ctrl+C to copy",
     originUnknown: "The final's source attempt could not be identified uniquely; see the generation history.",
-    compositeNote: "Composed locally from panel images; no extra image-producing call.",
-    panelPart: "Panel {id}", panelMissing: "Panel source not recorded", recordedAt: "Recorded: {date}",
     qa: "QA record", qaLine: "Automatic: {automatic} · Visual: {visual}", failUnknown: "Failure reason not recorded", retry: "Suggested fix: {retry}",
     imageMissing: "Image file missing", noFinal: "No passing final yet", enlarge: "Enlarge {label}",
     passed: "Passed", failed: "Failed", notProduced: "Not produced", calls: "{n} image call(s)",
-    tier: "Tier {tier}", tierContrast: "Tier {tier} ({axes}→{lowered})", intensity: "Intensity {intensity}", axisJoin: ", ",
+    tier: "Tier {tier}", tierContrast: "Tier {tier} ({axes}→{lowered})", axisJoin: ", ",
     history: "Generation history · {calls} image call(s) · {errors} provider error(s)", noAttempts: "No image-producing attempts", final: "Final",
     sameAsFinal: "Same hash as the final, but its source is ambiguous; no prompt is credited as the final's source.",
     noImageErrors: "Errors without images · {n}", imageN: "Image {n}",
@@ -133,7 +129,6 @@ function warningText(warning) {
 }
 function tierText(tier) {
   if (!tier) return "";
-  if (tier.intensity) return t("intensity", {intensity: tier.intensity});
   if (!tier.axes) return t("tier", {tier: tier.tier});
   return t("tierContrast", {tier: tier.tier, lowered: tier.lowered_to,
                             axes: tier.axes.map(axis => axis[language] || axis.en).join(t("axisJoin"))});
@@ -185,24 +180,13 @@ function promptBlock(value) {
   block.append(area, copy, status);
   return block;
 }
-function attemptInfo(attempt, all = []) {
+function attemptInfo(attempt) {
   const box = el("div");
   if (!attempt) { box.append(el("p", "muted", t("originUnknown"))); return box; }
   const meta = el("div", "meta");
   meta.append(badge(roleName(attempt.role)), badge(attempt.verdict || t("notRecorded"), attempt.verdict === "PASS" ? "good" : "warn"));
   box.append(meta);
-  if (attempt.role === "composite") {
-    box.append(el("p", "note", t("compositeNote")));
-    for (const id of attempt.sources) {
-      const source = all.find(item => item.id === id);
-      const part = details(t("panelPart", {id}));
-      if (source) part.append(attemptInfo(source));
-      else part.append(el("p", "muted", t("panelMissing")));
-      box.append(part);
-    }
-  } else {
-    box.append(el("p", "note", `${text(attempt.provider)} / ${text(attempt.model)}`), promptBlock(attempt.prompt));
-  }
+  box.append(el("p", "note", `${text(attempt.provider)} / ${text(attempt.model)}`), promptBlock(attempt.prompt));
   box.append(el("p", "note", t("recordedAt", {date: date(attempt.created_at)})));
   const qa = details(t("qa"));
   qa.append(el("p", "", t("qaLine", {automatic: text(attempt.automatic), visual: text(attempt.visual)})));
@@ -238,7 +222,7 @@ function sourceStrip(pictures) {
 }
 function card(image, collection) {
   const article = el("article", "card");
-  article.append(imageButton(image.final, collection, () => attemptInfo(image.origin, image.attempts)));
+  article.append(imageButton(image.final, collection, () => attemptInfo(image.origin)));
   const body = el("div", "card-content");
   body.append(el("h3", "", image.name));
   const meta = el("div", "meta");
@@ -247,13 +231,13 @@ function card(image, collection) {
   if (image.tier) meta.append(badge(tierText(image.tier)));
   body.append(meta);
   if (image.note) body.append(el("p", "note", image.note));
-  if (delivered) body.append(attemptInfo(image.origin, image.attempts));
+  if (delivered) body.append(attemptInfo(image.origin));
   const history = details(t("history", {calls: image.calls, errors: image.errors.length}));
   const candidates = [];
   image.attempts.forEach(attempt => {
     const section = el("div", "attempt");
     section.append(el("p", "note", `${attempt.id} · ${roleName(attempt.role)}`));
-    section.append(imageButton(attempt.picture, candidates, () => attemptInfo(attempt, image.attempts)), attemptInfo(attempt, image.attempts));
+    section.append(imageButton(attempt.picture, candidates, () => attemptInfo(attempt)), attemptInfo(attempt));
     history.append(section);
   });
   if (!image.attempts.length) history.append(el("p", "muted", t("noAttempts")));
@@ -279,7 +263,7 @@ function galleryImageInfo(item) {
     box.append(el("p", "note", t("sameAsFinal")));
   }
   if (item.origin_ambiguous) box.append(el("p", "note", t("finalOriginAmbiguous")));
-  box.append(attemptInfo(item.attempt, item.attempts));
+  box.append(attemptInfo(item.attempt));
   if (item.errors.length) {
     const errors = details(t("noImageErrors", {n: item.errors.length}));
     item.errors.forEach(error => errors.append(
@@ -390,7 +374,7 @@ function renderComicImages(group, panel, heading, slot) {
       summary.append(el("p", "note", t("imageSummary", {name: image.name, calls: image.calls, errors: image.errors.length})));
       image.errors.forEach(error => summary.append(el("p", "muted", `${text(error.category)} · ${text(error.details)}`)));
       image.attempts.filter(attempt => !attempt.picture?.src).forEach(attempt => {
-        summary.append(el("p", "muted", t("attemptMissing", {id: attempt.id})), attemptInfo(attempt, image.attempts));
+        summary.append(el("p", "muted", t("attemptMissing", {id: attempt.id})), attemptInfo(attempt));
       });
     });
     records.append(summary);

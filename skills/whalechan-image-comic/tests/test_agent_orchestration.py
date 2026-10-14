@@ -1,4 +1,4 @@
-"""Synthetic v17 orchestration tests; no model or image API calls."""
+"""Synthetic current orchestration tests; no model or image API calls."""
 import argparse
 import subprocess
 import sys
@@ -189,16 +189,14 @@ class ImageTaskTests(unittest.TestCase):
         altered = m.read_json(batch)
         altered["execution"]["role_limits"]["planning"] = 4
         m.write_json(batch, altered)
-        with self.assertRaisesRegex(m.RunError, "approved v17"):
+        with self.assertRaisesRegex(m.RunError, "approved batch"):
             call("next")
 
 
-    def test_direct_legacy_commands_cannot_mutate_v17_image(self):
+    def test_direct_commands_cannot_mutate_owned_image(self):
         args = self.candidate(1)
         with self.assertRaisesRegex(m.RunError, "image-task"):
             m.review_workflow().prepare(args)
-        with self.assertRaisesRegex(m.RunError, "image-task"):
-            m.record_image(args, False)
 
 
 class QueueTests(unittest.TestCase):

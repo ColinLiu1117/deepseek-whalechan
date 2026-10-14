@@ -63,8 +63,6 @@ Return the detail task to the original author. Make one image plan per selected 
 
 Receive the source tier policy before creating/selecting ideas. New N=5 sets require 3 A, 1 B and 1 C; for other N the author allocates tiers by content close to 60%/20%/20%. For N>=3 retain independent panel counts 1/2/4 and tier coverage, unless explicitly overridden. N=1/2 relaxes coverage while aiming close to the ratio. Never add empty beats or map rank to panels or tiers. Review complete visual plans and their allocation across sources before the one confirmation in proposal-selection.md.
 
-Frozen v13–v18 retain their original ten-candidate, 45-pair tournament and historical ranking/recovery. See the historical tournament section in run-schema.md; do not apply it to new runs.
-
 ## Perform each idea at a tier
 
 Direction says where the laugh lives; exaggeration says how hard it is performed. After selecting N ideas, give each image a tier — `A` manga impact, `B` comic outburst, `C` restrained deadpan — and for N>=3 cover all three across the run unless the user overrides it. The tier belongs to the execution, so do not preassign it as a candidate score or follow rank or panel count. See `exaggeration-tiers.md`.

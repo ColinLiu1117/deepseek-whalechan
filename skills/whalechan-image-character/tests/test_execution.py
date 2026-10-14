@@ -56,23 +56,3 @@ class ExecutionConsentTests(fixtures.FixtureCase):
         manage.write_json(run / 'manifest.json', manifest)
         with self.assertRaisesRegex(manage.RunError, 'confirmed limit'):
             manage.load_run(str(run))
-
-    def test_legacy_frozen_run_keeps_original_execution_and_hash(self):
-        run = self.initialize()
-        path = run / 'assignment.json'
-        frozen = manage.read_json(path)
-        frozen['schema_version'] = 5
-        frozen['execution'].pop('subagent_count')
-        frozen['execution']['max_parallelism'] = 5
-        summary = manage.selection_summary(frozen, path)
-        frozen['confirmation']['summary_sha256'] = summary['summary_sha256']
-        manage.write_json(path, frozen)
-        manifest = manage.read_json(run / 'manifest.json')
-        manifest['execution'].pop('subagent_count')
-        manifest['execution'].pop('effective_subagent_count')
-        manifest['execution']['max_parallelism'] = 5
-        manifest['assignment_sha256'] = manage.sha256(path)
-        manage.write_json(run / 'manifest.json', manifest)
-        before = path.read_bytes()
-        self.assertEqual(manage.load_run(str(run))[1]['schema_version'], 5)
-        self.assertEqual(before, path.read_bytes())

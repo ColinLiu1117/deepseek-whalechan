@@ -1,8 +1,8 @@
 # Cross-case creative review
 
-For v17 assign this existing comparison to a planning sub-agent after source drafts are ready; main only relays its results. It does not add a new review gate. Final collections are handled by collection sub-agents.
+For current tasks, assign this existing comparison to a planning sub-agent after source drafts are ready; main only relays its results. It does not add a new review gate. Final collections are handled by collection sub-agents.
 
-Run this design comparison before the first image call in a multi-source batch. For v15/v16/v17 final images, use only the per-source contact-sheet review in `review-workflow.md`, not another cross-source visual review. Frozen contracts retain their original final comparison. Keep the review beside the batch assignments; do not rewrite frozen history.
+Run this design comparison before the first image call in a multi-source batch. For v19 final images, use only the per-source contact-sheet review in `review-workflow.md`, not another cross-source visual review. Keep the review beside the batch assignments; do not rewrite frozen history.
 
 ## Compare sources, not slots
 
@@ -10,7 +10,7 @@ Start with each source's actual turn, comic target, tone, language differences a
 
 `validate-batch` provides structural signals, not semantic verdicts; a near-copy that differs in one cell still needs your eye. Same-position layouts/templates, identical panel sequences and repeated staging deserve inspection. A repeated visual identity is expected. Neither repeated structure nor every image passing structural checks is automatically wrong; the question is whether each decision follows its source. Different template counts are not proof of different jokes.
 
-Review each source's tier policy in this same pass. New five-image sets use 3A/1B/1C; other N aim close to 60%/20%/20% with content-based integer allocation. Inspect the displayed deviations and whether the selected actions/expressions actually support the assigned tiers. A repeated aggregate 3:1:1 count is expected under this policy; ordinal or panel-tier pairings still need source-specific reasoning. Preserve frozen historical policies.
+Review each source's tier policy in this same pass. New five-image sets use 3A/1B/1C; other N aim close to 60%/20%/20% with content-based integer allocation. Inspect the displayed deviations and whether the selected actions/expressions actually support the assigned tiers. A repeated aggregate 3:1:1 count is expected under this policy; ordinal or panel-tier pairings still need source-specific reasoning.
 
 Inspect repeated key lines, complete dialogue sequences and final punchlines as well as layout warnings. Cite the affected images. Shared source wording can be necessary, but identical replies and consequences require a concrete explanation or an in-idea revision. A generic claim that the ideas share a source is insufficient. Text similarity is a review signal, not an automatic elimination threshold or permission to generate another pool.
 
@@ -29,12 +29,12 @@ Write `batch-review.md` with:
 4. Any uncertainty requiring source clarification; do not silently assume an ambiguous joke.
 5. Conclusion: ready for generation, revise plans, or final images still need review.
 
-Perform this agent review before displaying the complete plan for the single user confirmation. For v15 review the final per-source contact sheets through the collection lifecycle, without another routine user approval. After confirmation, changes to the core idea or execution allocation require an updated displayed plan and confirmation of that revision. Do not satisfy a warning by random font rotation, forced camera variety, or merely reordering images. If repetition is legitimate, retain it and record why.
+Perform this agent review before displaying the complete plan for the single user confirmation. For current tasks, review the final per-source contact sheets through the collection lifecycle, without another routine user approval. After confirmation, changes to the core idea or execution allocation require an updated displayed plan and confirmation of that revision. Do not satisfy a warning by random font rotation, forced camera variety, or merely reordering images. If repetition is legitimate, retain it and record why.
 
 ## Honest limits
 
 Scripts cannot establish humor or independent visual inspection from prose fields. Record what was actually inspected and leave pending work pending. Compare final images with their sources as well as with each other; a perfectly rendered wrong interpretation still fails.
 
-For v18/v19 the planning worker submits the actual cross-source observation and warning dispositions to batch-proposal in the ordered source list. The command verifies/computes structural data but never substitutes for creative comparison. Use collection-task for the existing final per-source review; do not add another cross-source visual pass.
+For v19 the planning worker submits the actual cross-source observation and warning dispositions to batch-proposal in the ordered source list. The command verifies/computes structural data but never substitutes for creative comparison. Use collection-task for the existing final per-source review; do not add another cross-source visual pass.
 
 For mixed N, compare all available rows; a shorter source has no missing-position defect. Review each source against its own confirmed count.

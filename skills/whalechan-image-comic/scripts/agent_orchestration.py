@@ -5,14 +5,14 @@ import fcntl
 from contextlib import contextmanager
 from pathlib import Path
 
-ROLES = ("planning", "generation", "collection", "delivery")
+ROLES = ("planning", "selection", "generation", "collection", "delivery")
 PRIORITY_MODE = "independent-priority-ranking"
 
 def roles(policy):
-    return ROLES + (("selection",) if policy.get("planning_mode") == PRIORITY_MODE else ())
+    return ROLES
 
 
-DEFAULT_LIMITS = {"planning": 5, "generation": 5, "codex_generation": 3, "collection": 2, "delivery": 1}
+DEFAULT_LIMITS = {"planning": 5, "selection": 2, "generation": 5, "codex_generation": 3, "collection": 2, "delivery": 1}
 
 
 @contextmanager
@@ -37,12 +37,13 @@ def execution(value=None):
     if "tool" in value:
         from provider_policy import validate
         validate(value["tool"])
-    if value.get("planning_mode") not in {None, PRIORITY_MODE}:
+    value.setdefault("planning_mode", PRIORITY_MODE)
+    if value["planning_mode"] != PRIORITY_MODE:
         raise ValueError("Unsupported planning_mode")
-    defaults = {**DEFAULT_LIMITS, **({"selection": 2} if value.get("planning_mode") else {})}
+    defaults = dict(DEFAULT_LIMITS)
     limits = value.get("role_limits", defaults)
     if not isinstance(limits, dict) or set(limits) != set(defaults) or any(type(n) is not int or not 1 <= n <= 10 for n in limits.values()):
-        raise ValueError("role_limits must name all five positive limits, at most 10")
+        raise ValueError("role_limits must name all role limits and codex_generation, at most 10")
     total = value.get("batch_limit", 10)
     if type(total) is not int or not 1 <= total <= 10:
         raise ValueError("batch_limit must be between 1 and 10")
@@ -109,8 +110,8 @@ class Orchestration:
         if len(runs) != len(paths):
             raise self.m.RunError("Missing frozen run path")
         for run, assignment, manifest in runs:
-            if assignment["schema_version"] not in {17, 18, 19} or assignment["execution"] != policy:
-                raise self.m.RunError("Task run must share the approved v17/v18/v19 batch execution")
+            if assignment["schema_version"] != self.m.ASSIGNMENT_SCHEMA_VERSION or assignment["execution"] != policy:
+                raise self.m.RunError("Task run must share the approved batch execution")
             if task["role"] in {"collection", "delivery"} and task.get("recovery_evidence"):
                 return True  # Resume the existing sheet/receipt, never repeat its visual judgment.
             if task["role"] == "generation":
@@ -166,12 +167,16 @@ class Orchestration:
                 if path.exists():
                     raise self.m.RunError("Batch already exists")
                 policy = execution(self.m.read_json(Path(args.policy)))
-                state = {"execution": policy, "sources": args.source, "tasks": {}, "workers": {}, "events": []}
+                state = {"schema_version": self.m.ASSIGNMENT_SCHEMA_VERSION, "execution": policy,
+                         "sources": args.source, "tasks": {}, "workers": {}, "events": []}
                 if not args.source or len(set(args.source)) != len(args.source):
                     raise self.m.RunError("Provide unique ordered sources")
             else:
                 state = self.m.read_json(path)
-                execution(state["execution"])
+                if state.get("schema_version") != self.m.ASSIGNMENT_SCHEMA_VERSION:
+                    raise self.m.RunError("Batch schema_version must match the current assignment schema")
+                if execution(state["execution"]) != state["execution"]:
+                    raise self.m.RunError("Batch execution must contain the complete current role policy")
             result = {}
             tasks = state["tasks"]
             if args.action == "enqueue":
@@ -224,17 +229,16 @@ class Orchestration:
                     if owner not in residents and len(residents) >= slots:
                         raise self.m.RunError("Idle agents still occupy slots; reuse or confirm release")
                     choice.update(status="running", owner=owner, started_at=self.m.now())
-                    if state["execution"].get("planning_mode") == PRIORITY_MODE:
-                        contributors = choice.setdefault("contributors", [])
-                        if owner not in contributors:
-                            contributors.append(owner)
+                    contributors = choice.setdefault("contributors", [])
+                    if owner not in contributors:
+                        contributors.append(owner)
                     residents[owner] = choice["id"]
                     result["next_task"] = copy.deepcopy(choice)
             elif args.action == "finish":
                 task = tasks.get(args.task)
                 if not task or task["status"] != "running" or task["owner"] != args.worker:
                     raise self.m.RunError("Only the running task owner can finish")
-                if state["execution"].get("planning_mode") == PRIORITY_MODE and task["inputs"].get("stage"):
+                if task["inputs"].get("stage"):
                     raise self.m.RunError("Use planning-task submit for v19 planning receipts")
                 output = Path(args.result).resolve()
                 record = self.m.read_json(output)
@@ -278,11 +282,10 @@ class Orchestration:
         plan.add_argument("--external", type=int, default=0)
         plan.add_argument("--provider", choices=self.m.PROVIDERS, default="codex")
         plan.add_argument("--provider-limit", type=int)
-        plan.add_argument("--schema-version", type=int, choices=(18, 19), default=19)
-        for role in ROLES + ("selection",):
+        for role in ROLES:
             plan.add_argument("--" + role, type=int, default=0, help="Ready task count")
         def show(args):
-            policy = execution({"batch_id": args.batch_id, **({"planning_mode": PRIORITY_MODE} if args.schema_version == 19 else {})})
+            policy = execution({"batch_id": args.batch_id, "planning_mode": PRIORITY_MODE})
             slots = capacity(args.slots, args.scope, args.external)
             return {"execution": policy, "available_slots": slots, "targets": targets(
                 policy, slots, {r: getattr(args, r) for r in roles(policy)}, args.provider, args.provider_limit)}

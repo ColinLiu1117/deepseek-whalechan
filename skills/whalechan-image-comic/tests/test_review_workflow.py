@@ -22,11 +22,11 @@ class ReviewWorkflowTests(unittest.TestCase):
                         "-type", "TrueColor", args.candidate], check=True)
         old = m.read_json(Path(args.visual_json))
         digest = m.sha256(Path(args.candidate))
-        form = old["evidence"]["form_evidence"]
+        form = old["form_evidence"]
         form["candidate_sha256"] = digest
         value = {"review_status": "reviewed", "reviewer": "synthetic-test",
                  "method": "direct-image-inspection", "checked": sorted(m.CONFIGURABLE_GATES),
-                 "panels": old["observation"]["panels"], "text_transcription": self.image_spec["core_text"],
+                 "panels": old["panels"], "text_transcription": self.image_spec["core_text"],
                  "verdict": verdict, "core_defects": [] if verdict == "PASS" else [
                      {"check": "J1", "detail": "Synthetic missing visual payoff"}],
                  "minor_issues": [], "targeted_retry": None if verdict == "PASS" else "Restore the approved action",
@@ -35,19 +35,19 @@ class ReviewWorkflowTests(unittest.TestCase):
         return args
 
     def prepare(self, args):
-        return m.review_workflow().prepare(args)
+        return self.workflow.prepare(args)
 
     def record(self, args):
         self.prepare(args)
-        return m.record_image(args, False)
+        return self.workflow.record_candidate(args, *m.load_run(str(self.run_dir)))
 
     def block_others(self):
         frozen = m.read_json(self.run_dir / "assignment.json")
         for spec in frozen["images"]:
             if spec["id"] != self.image:
-                m.review_workflow().block(argparse.Namespace(run_dir=str(self.run_dir), image=spec["id"], reason="Synthetic technical block"))
+                self.workflow.block(argparse.Namespace(run_dir=str(self.run_dir), image=spec["id"], reason="Synthetic technical block"))
     def collection(self, fail=False):
-        w = m.review_workflow()
+        w = self.workflow
         index = w.build_sheet(argparse.Namespace(run_dir=str(self.run_dir)))
         review = {"review_status": "reviewed", "reviewer": "synthetic-set-test",
                   "sheet_sha256": index["sheet_sha256"], "observation": "Synthetic set comparison",
@@ -67,7 +67,7 @@ class ReviewWorkflowTests(unittest.TestCase):
         m.write_json(Path(args.visual_json), qa)
         self.assertEqual(self.record(args)["verdict"], "PASS")
         with self.assertRaisesRegex(m.RunError, "already be reviewed"):
-            m.record_image(args, False)
+            self.workflow.record_candidate(args, *m.load_run(str(self.run_dir)))
         with self.assertRaisesRegex(m.RunError, "collection"):
             m.cmd_promote(argparse.Namespace(run_dir=str(self.run_dir), image=self.image))
         self.block_others()
@@ -99,7 +99,7 @@ class ReviewWorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(m.RunError, "not ready"):
             self.prepare(self.candidate(2))
         self.block_others()
-        self.assertIn("skipped", m.review_workflow().build_sheet(argparse.Namespace(run_dir=str(self.run_dir))))
+        self.assertIn("skipped", self.workflow.build_sheet(argparse.Namespace(run_dir=str(self.run_dir))))
         result = m.cmd_finalize(argparse.Namespace(run_dir=str(self.run_dir), allow_partial=True))
         self.assertEqual(result["status"], "partial")
 
@@ -113,11 +113,11 @@ class ReviewWorkflowTests(unittest.TestCase):
             bad = copy.deepcopy(original); bad[field] = value
             m.write_json(Path(args.visual_json), bad)
             with self.subTest(field=field), self.assertRaises(m.RunError):
-                m.record_image(args, False)
+                self.workflow.record_candidate(args, *m.load_run(str(self.run_dir)))
         state = m.load_run(str(self.run_dir))[2]["images"][self.image]
         self.assertEqual((len(state["attempts"]), state["status"]), (1, "awaiting_review"))
         m.write_json(Path(args.visual_json), original)
-        self.assertEqual(m.record_image(args, False)["verdict"], "PASS")
+        self.assertEqual(self.workflow.record_candidate(args, *m.load_run(str(self.run_dir)))["verdict"], "PASS")
 
     def test_set_repair_cannot_reopen_exhausted_task(self):
         self.record(self.candidate(1, "FAIL"))
@@ -133,7 +133,7 @@ class ReviewWorkflowTests(unittest.TestCase):
         args = self.candidate(1)
         digest = m.sha256(Path(args.candidate))
         self.record(args); self.block_others()
-        index = m.review_workflow().build_sheet(argparse.Namespace(run_dir=str(self.run_dir)))
+        index = self.workflow.build_sheet(argparse.Namespace(run_dir=str(self.run_dir)))
         self.assertEqual(len(index["items"]), 5)
         self.assertEqual(sum(i["candidate"] is None for i in index["items"]), 4)
         self.assertEqual(m.sha256(Path(args.candidate)), digest)
@@ -141,7 +141,7 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(result, "1864x1320")
         Path(index["sheet"]).write_bytes(b"changed")
         with self.assertRaisesRegex(m.RunError, "sheet changed"):
-            m.review_workflow().record_collection(argparse.Namespace(run_dir=str(self.run_dir), review_json="unused"))
+            self.workflow.record_collection(argparse.Namespace(run_dir=str(self.run_dir), review_json="unused"))
 
     def test_all_five_pass_export_preserves_set_review_and_minor_issues(self):
         from test_gallery import gallery, payload
@@ -175,8 +175,6 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertNotIn("Manpu allowance:", prompt)
         plan = m.plan_markdown(frozen)
         self.assertIn("技术检查失败不触发生图", plan)
-        legacy = copy.deepcopy(frozen); legacy["schema_version"] = 14
-        self.assertNotEqual(m.selection_summary(frozen)["summary_sha256"], m.selection_summary(legacy)["summary_sha256"])
 
     def test_missing_file_blocks_without_another_generation(self):
         args = self.candidate(1); Path(args.candidate).unlink()
@@ -210,7 +208,7 @@ class ReviewWorkflowTests(unittest.TestCase):
         result = self.prepare(args)
         self.assertEqual(result["status"], "technical_blocked")
         self.block_others()
-        m.review_workflow().build_sheet(argparse.Namespace(run_dir=str(self.run_dir)))
+        self.workflow.build_sheet(argparse.Namespace(run_dir=str(self.run_dir)))
         m.cmd_finalize(argparse.Namespace(run_dir=str(self.run_dir), allow_partial=True))
         group = payload(gallery.export_gallery([self.run_dir])["gallery"])["groups"][0]
         self.assertEqual((group["passed"], group["calls"]), (0, 1))

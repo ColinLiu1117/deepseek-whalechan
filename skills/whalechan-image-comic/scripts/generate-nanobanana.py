@@ -64,7 +64,7 @@ def load_request(path: Path) -> dict[str, Any]:
     value["output"] = parse_output(
         value, lambda message: AdapterError(message, "capability")
     )
-    # quality is OpenAI-specific; accept and ignore it so one request works across the fallback chain.
+    # quality is OpenAI-specific; accept and ignore it so one request format works with any preflight-selected provider.
     unsupported = set(value) - {"prompt", "references", "reference_paths", "output", "quality"}
     if unsupported:
         raise AdapterError("request contains unsupported fields", "capability")

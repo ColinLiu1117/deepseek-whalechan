@@ -18,8 +18,7 @@ selection = m.extension_module("selection_contract")
 def draft(n=5, source="source-a"):
     base = fixtures.assignment()
     value = copy.deepcopy(base)
-    for key in ("duels", "tie_breaks", "confirmation"):
-        value.pop(key, None)
+    value.pop("confirmation", None)
     value.update(schema_version=19, target_images=n, source_id=source, run_name=source,
                  author_agent_ids=["author"], concept_task_id="concepts-" + source)
     value["execution"].update(planning_mode=selection.METHOD)
@@ -85,20 +84,6 @@ class SelectionTests(unittest.TestCase):
             with self.assertRaises((ValueError, m.RunError)):
                 m.plan_summary(value)
 
-    def test_v18_normalized_golden_hash_and_prompts(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "draft.json"
-            m.write_json(path, fixtures.assignment())
-            value = m.validate_assignment(path)
-            self.assertEqual(m.selection_summary(value)["summary_sha256"],
-                             "9e0854857be82a34f8a2f87fcbab0657eac67e2078800e6fc286cae28c659f83")
-            expected = ["24e816489a3b1e09f275d631c1b0767cb244dd101e0729cd1e25f9717831b5b3",
-                        "18a91c74bb365154d6d8bd1797448d019c1f282871e6149dded83be299d30478",
-                        "23fa02e4a160f284b9d98c55464ad0295f7c1c633bbe5f6a43b73eae89e894cb",
-                        "2138aafca0f709d0d3fb2ac5769721dfa80cecbfe1723f07a4554f71d19bd19a",
-                        "adf94df4ee6dc8e00c65e9209d0748d7cb66144861500516fd798dadab0b697b"]
-            self.assertEqual([hashlib.sha256(m.visual_prompt().render(value, i).encode()).hexdigest()
-                              for i in value["images"]], expected)
 
     def test_dynamic_sheet_slots_and_multi_digit_labels(self):
         module = m.extension_module("build-review-sheet")
@@ -112,7 +97,7 @@ class SelectionTests(unittest.TestCase):
                 items = [{"candidate": str(source) if i == 0 else None,
                           "sha256": hashlib.sha256(original).hexdigest() if i == 0 else None}
                          for i in range(n)]
-                module.compose(items, output, dynamic=True)
+                module.compose(items, output)
                 cols = math.ceil(math.sqrt(n))
                 rows = math.ceil(n/cols)
                 result = subprocess.check_output(["magick", "identify", "-format", "%wx%h", str(output)]).decode()
@@ -123,12 +108,6 @@ class SelectionTests(unittest.TestCase):
                     pixel = subprocess.check_output(["magick", str(output), "-format",
                                                      f"%[pixel:p{{{x},{y}}}]", "info:"]).decode()
                     self.assertIn("17,24,39", pixel)
-            legacy = root / "legacy.png"
-            module.compose([{"candidate": str(source) if i == 0 else None,
-                             "sha256": hashlib.sha256(original).hexdigest() if i == 0 else None}
-                            for i in range(5)], legacy)
-            self.assertEqual(subprocess.check_output(["magick", "compare", "-metric", "AE",
-                str(legacy), str(root / "sheet-5.png"), "null:"], stderr=subprocess.STDOUT).decode(), "0")
             self.assertEqual(source.read_bytes(), original)
 
 

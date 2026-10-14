@@ -34,23 +34,6 @@ def text_style_reference(style: str = TEXT_STYLE) -> dict:
     }
 
 
-
-def confirm_fixture_selection(value: dict, choices: list[dict] | None = None) -> dict:
-    """Synthetic two-turn approval for tests only; never user authorization."""
-    if choices is None:
-        counts = {}
-        for image in value["images"]:
-            counts[image["idea_id"]] = counts.get(image["idea_id"], 0) + 1
-        choices = [{"choice": option["choice"], "count": counts[option["idea_id"]]}
-                   for option in value["proposal"]["options"] if option["idea_id"] in counts]
-    value["selection"] = {"proposal_sha256": manage.contract_hash(value["proposal"]),
-                          "user_reply": "Synthetic Gate 1 choice", "choices": choices, "adjustments": []}
-    value["confirmation"] = {"status": "confirmed", "user_reply": "Synthetic Gate 2 confirmation",
-                             "summary_sha256": manage.selection_summary(value)["summary_sha256"]}
-    return value
-
-
-
 # One passing idea per comedy direction, so the fixture exercises every carrier.
 DIRECTION_FIXTURES = [
     ("reversal", {"expectation": "Fix the punctuation", "reversal": "She builds a factory instead"}),
@@ -61,9 +44,9 @@ DIRECTION_FIXTURES = [
 ]
 
 
-def legacy_assignment() -> dict:
+def visual_fixture() -> dict:
     pool = []
-    for number in range(1, 9):
+    for number in range(1, 11):
         direction, carrier = DIRECTION_FIXTURES[(number - 1) % len(DIRECTION_FIXTURES)]
         item = {
             "id": f"idea_{number:02d}",
@@ -75,15 +58,10 @@ def legacy_assignment() -> dict:
             "fact_anchor": "missing comma",
             "scene": f"scene {number}",
             "mechanism": f"mechanism {number}",
-            "gate_reason": "The reversal is visible and source-specific.",
-            "gate": "PASS" if number <= 5 else "FAIL",
         }
-        if item["gate"] == "FAIL":
-            item["rejection_reason"] = "too flat"
         pool.append(item)
     layouts = [(1, "single"), (2, "top-bottom"), (4, "2x2"), (1, "single"), (2, "left-right")]
-    ranks = [(1, 1), (1, 2), (1, 3), (2, 1), (3, 1)]
-    intensities = ["C", "C", "B", "C", "B"]
+    ranks = [(n, 1) for n in range(1, 6)]
     images = []
     for index in range(5):
         panels, layout = layouts[index]
@@ -123,7 +101,6 @@ def legacy_assignment() -> dict:
                     for panel in range(1, panels + 1)
                 ],
                 "layout": layout,
-                "intensity": intensities[index],
                 "core_text": ["全厂推理完毕", "缺了个逗号。"],
                 "text_style": style,
                 "text_style_reason": "Separate the setup from the oversized factory-service boast.",
@@ -137,7 +114,7 @@ def legacy_assignment() -> dict:
             }
         )
     value = {
-        "schema_version": 11,
+        "schema_version": 19,
         "run_name": "comma-factory",
         "input": {
             "type": "text", "content": "input", "language": "zh-CN", "fact_anchor": "missing comma", "participants": [],
@@ -149,86 +126,48 @@ def legacy_assignment() -> dict:
         },
         "selection_reason": "These premises expose the disproportionate response.",
         "creative_pool": pool,
-        "duels": [
-            {"winner": "idea_01", "loser": "idea_04", "reason": "harder"},
-            {"winner": "idea_02", "loser": "idea_04", "reason": "clearer"},
-            {"winner": "idea_03", "loser": "idea_04", "reason": "sharper"},
-        ],
         "ranked_ideas": ["idea_01", "idea_02", "idea_03"],
         "images": images,
-        "execution": {
-            "mode": "sequential",
-            "requested_parallelism": 1,
-            "max_parallelism": 5,
-            "commit_strategy": "coordinator-serial",
-        },
         "budget": {"per_image_candidates": 3},
     }
     value["proposal"] = {
         "revision": 1, "fact_anchor": "missing comma",
         "native_direction": copy.deepcopy(value["input"]["source_analysis"]["native_direction"]),
-        "recommended_choices": ["A"], "recommendation_reason": "The factory reveal is clearest",
         "options": [
-            {"choice": choice, "title": f"Proposal {choice}", "idea_id": idea["id"],
+            {"title": f"Proposal {choice}", "idea_id": idea["id"],
              "premise": idea["premise"], "scene": idea["scene"], "twist": f"twist {idea['id']}",
              "direction": idea["direction"], "is_native": idea["direction"] == "reversal",
-             "staging": "Wide shot with the comma visible", "key_lines": ["缺了个逗号。"],
-             "rating": 3, "recommendation_reason": "The visual consequence reveals the mistake"}
+             "staging": "Wide shot with the comma visible", "key_lines": ["缺了个逗号。"]}
             for choice, idea in zip("ABCDE", pool[:5])
         ],
     }
-    return confirm_fixture_selection(value)
-
-
-
-def historical_execution(value):
-    value["execution"] = {"mode": "parallel", "requested_parallelism": 3, "max_parallelism": 10,
-                          "subagent_count": 3, "commit_strategy": "coordinator-serial"}
-    value["worker_plan"] = {"coordinator": "main", "max_parallelism": 3,
-        "workers": [{"id": "worker-1", "idea_ids": ["idea_01", "idea_04"]},
-                    {"id": "worker-2", "idea_ids": ["idea_02", "idea_05"]},
-                    {"id": "worker-3", "idea_ids": ["idea_03"]}]}
+    return value
 
 
 def confirm_fixture_plan(value: dict) -> dict:
     """Synthetic single approval for tests only; never user authorization."""
-    if value.get("schema_version", 18) < 18:
-        value.get("execution", {}).pop("tool", None)
-    if value.get("schema_version", 17) < 17 and "role_limits" in value.get("execution", {}):
-        historical_execution(value)
+    for option, image in zip(value["proposal"]["options"], value["images"]):
+        next(c for c in value["creative_pool"] if c["id"] == option["idea_id"])["key_lines"] = list(option["key_lines"])
+        if "proportion" in image:
+            option["proportion"] = copy.deepcopy(image["proportion"])
+    value["pool_sha256"] = manage.extension_module("selection_contract").pool(manage, value, verify_hash=False)
+    value["selection_review"].update({k:value[k] for k in ("source_id","target_images","pool_sha256","selection_reason")})
     value["confirmation"] = {"status": "confirmed", "user_reply": "Synthetic plan confirmation",
                              "summary_sha256": manage.selection_summary(value)["summary_sha256"]}
     return value
 
 
 def assignment() -> dict:
-    value = legacy_assignment()
-    value["schema_version"] = 18  # Frozen v18 fixtures retain the tournament contract
-    value.pop("selection")
-    value.pop("confirmation")
+    value = visual_fixture()
     pool = value["creative_pool"]
-    for number in (9, 10):
-        idea = copy.deepcopy(pool[number - 6])
-        idea.update(id=f"idea_{number:02d}", premise=f"premise {number}", scene=f"scene {number}")
-        pool.append(idea)
     for index, idea in enumerate(pool, 1):
-        for field in ("gate", "gate_reason", "rejection_reason"):
-            idea.pop(field, None)
         idea["key_lines"] = [f"任务 {index} 已完成", f"独有结果 {index}。"]
-    value["duels"] = [{"a": first["id"], "b": second["id"], "winner": first["id"],
-                       "reason": f"{first['id']} has the more immediate visual payoff than {second['id']}."}
-                      for index, first in enumerate(pool) for second in pool[index + 1:]]
     value["ranked_ideas"] = [idea["id"] for idea in pool[:5]]
     proposal = value["proposal"]
-    proposal.pop("recommended_choices")
-    proposal.pop("recommendation_reason")
-    tiers = ["A", "B", "C", "C", "B"]
+    tiers = ["A", "B", "C", "A", "A"]
     for index, (option, image, idea, tier) in enumerate(zip(proposal["options"], value["images"], pool, tiers), 1):
-        for field in ("choice", "rating", "recommendation_reason"):
-            option.pop(field)
         option.update(key_lines=list(idea["key_lines"]), panel_count=image["panel_count"], twist=idea["punchline"],
                       selection_reason=f"Rank {index}: a distinct visible consequence.", exaggeration=tier)
-        image.pop("intensity")
         image.update(source_rank=index, idea_id=idea["id"], premise=idea["premise"], execution=1,
                      core_text=list(idea["key_lines"]), exaggeration=tier,
                      effects_plan=[] if tier == "C" else [{"axis": "effect_lines", "effect": "speed lines behind the factory"}])
@@ -238,89 +177,16 @@ def assignment() -> dict:
         for entry in image["expression_plan"]:
             entry["tier"] = tier
             entry["visual_description"] = "She gazes steadily at the work with a quiet, closed mouth."
-    value["worker_plan"] = {"coordinator": "main", "max_parallelism": 3,
-                            "workers": [{"id": "worker-1", "idea_ids": ["idea_01", "idea_04"]},
-                                        {"id": "worker-2", "idea_ids": ["idea_02", "idea_05"]},
-                                        {"id": "worker-3", "idea_ids": ["idea_03"]}]}
-    value["execution"].update(mode="parallel", requested_parallelism=3, max_parallelism=10, subagent_count=3)
     value["execution"] = manage.role_execution({"batch_id": "synthetic-batch", "tool": {"provider": "codex", "transport": "builtin", "model": "unknown", "on_error": "pause"}})
     value["worker_plan"] = {"coordinator": "main", "allocation": "dynamic"}
+    value.update(target_images=5, source_id="source-a", author_agent_ids=["author"], concept_task_id="concepts-source-a",
+                 exaggeration_policy={"mode":"target-ratio","ratio":{"A":3,"B":1,"C":1}})
+    for option, image in zip(value["proposal"]["options"], value["images"]):
+        option["proportion"] = {"mode":"preset","preset":"semi-chibi"}
+    value["selection_review"] = {"review_method":"independent-priority-ranking", "reviewer_agent_id":"reviewer",
+        "selection_task_id":"selection-source-a", "ranking":[{"idea_id":c["id"],"reason":"Synthetic priority"} for c in pool],
+        "selection_reason":value["selection_reason"]}
     return confirm_fixture_plan(value)
-
-
-def design_evidence(image: dict) -> dict:
-    """Synthetic protocol evidence for unit tests, not an image review."""
-    return {
-        "text_style_match": {"template": image["text_style"], "observed_cues": ["assigned lettering hierarchy and frame"]},
-        "dialogue_match": [dict(line, observed_cues=["connector reaches the assigned speaker"]) for line in image["dialogue_plan"]],
-        "cast_match": [
-            {**{key: member[key] for key in ("participant", "representation", "panels")},
-             "observed_cues": ["assigned representation and role contribution"]}
-            for member in image["cast_plan"]
-        ],
-    }
-
-
-
-def exaggeration_check(image: dict) -> dict:
-    """Synthetic E1 evidence for unit tests, not an image review."""
-    tiers = manage.exaggeration_tiers()
-    return {"tier": image["exaggeration"], "landing_panel": image["landing_panel"],
-            "markers": [{"id": marker["id"], "observed": "synthetic marker observation"}
-                        for marker in manage.required_markers(image, tiers)],
-            "palette_violations": [], "style_spill": False,
-            "identity_anchors": [{"panel": entry["panel"], "anchors": ["hair", "fin_ears", "tail"]}
-                                 for entry in image["expression_plan"] if entry["performance"] == "manga_burst"]}
-
-
-def as_historical_images(frozen: dict) -> dict:
-    """Strip v14 tier fields so a reconstructed pre-v14 run looks as it was frozen."""
-    for image in frozen["images"]:
-        for field in ("exaggeration", "landing_panel", "contrast", "effects_plan"):
-            image.pop(field, None)
-        image["background"].pop("origin", None)
-        image.update(intensity="C", qa_contract_version=9)
-        for entry in image["expression_plan"]:
-            entry.pop("tier", None)
-    for option in frozen["proposal"]["options"]:
-        option.pop("exaggeration", None)
-        option.pop("contrast", None)
-    frozen.pop("exaggeration_policy", None)
-    return frozen
-
-
-def reviewed_observation(image: dict, candidate_hash: str) -> dict:
-    """Synthetic review protocol fixture; never production image evidence."""
-    return {
-        "review_status": "reviewed",
-        "observation": {
-            "candidate_sha256": candidate_hash, "reviewer": "unit-test fixture",
-            "method": "direct-image-inspection",
-            "panels": [{"panel": panel, "observed_scene": "Synthetic factory scene"}
-                       for panel in range(1, image["panel_count"] + 1)],
-            "text_transcription": list(image["core_text"]),
-        },
-    }
-
-
-
-def selected_assignment(choices):
-    value = legacy_assignment()
-    template = copy.deepcopy(value["images"][0])
-    options = {item["choice"]: item for item in value["proposal"]["options"]}
-    value["images"] = []
-    value["ranked_ideas"] = []
-    for selection in choices:
-        option = options[selection["choice"]]
-        value["ranked_ideas"].append(option["idea_id"])
-        for number in range(1, selection.get("count", 5) + 1):
-            image = copy.deepcopy(template)
-            image.pop("source_rank")
-            image.update(name=f"{selection['choice'].lower()}_{number}",
-                         idea_id=option["idea_id"], premise=option["premise"], execution=number,
-                         execution_note=f"Consequence {selection['choice']} {number}")
-            value["images"].append(image)
-    return confirm_fixture_selection(value, choices)
 
 
 class RunStateTests(unittest.TestCase):
@@ -335,38 +201,19 @@ class RunStateTests(unittest.TestCase):
     def initialize(self, choices=None):
         root = Path(self.temporary.name)
         assignment_path = root / "assignment.json"
-        value = assignment() if choices is None else selected_assignment(choices)
+        value = assignment()
         assignment_path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
         result = manage.cmd_init(argparse.Namespace(
             assignment=str(assignment_path), root=str(root / "runs"), effective_parallelism=None,
         ))
         self.run_dir = Path(result["run_dir"])
         frozen = manage.read_json(self.run_dir / "assignment.json")
-        # Existing lifecycle/QA tests exercise frozen v14 recovery. New workflow
-        # tests opt in to the current version explicitly; neither fixture represents a real review.
-        if not getattr(self, "image_task_workflow", False):
-            frozen["schema_version"] = 16 if getattr(self, "current_review_workflow", False) else 14
-            historical_execution(frozen)
-            for image in frozen["images"]:
-                image["qa_contract_version"] = 11 if frozen["schema_version"] == 16 else 10
-            frozen["confirmation"]["summary_sha256"] = manage.selection_summary(frozen)["summary_sha256"]
-            manage.write_json(self.run_dir / "assignment.json", frozen)
-            manifest = manage.read_json(self.run_dir / "manifest.json")
-            manifest["assignment_sha256"] = manage.sha256(self.run_dir / "assignment.json")
-            manifest["execution"] = {**frozen["execution"], "effective_parallelism": 1, "effective_subagent_count": 1}
-            if frozen["schema_version"] == 14:
-                manifest.pop("collection", None)
-                manifest.pop("review_workflow_version", None)
-                manifest.pop("events", None)
-            manage.write_json(self.run_dir / "manifest.json", manifest)
-        if getattr(self, "image_task_workflow", False) and not getattr(self, "v18_workflow", False):
-            frozen["schema_version"] = 17
-            confirm_fixture_plan(frozen)
-            manage.write_json(self.run_dir / "assignment.json", frozen)
-            manifest = manage.read_json(self.run_dir / "manifest.json")
-            manifest["assignment_sha256"] = manage.sha256(self.run_dir / "assignment.json")
-            manifest["execution"].pop("tool", None)
-            manage.write_json(self.run_dir / "manifest.json", manifest)
+        batch = manage.read_json(self.run_dir / "batch.json")
+        batch["status"] = "ready"  # Synthetic local preflight evidence for offline protocol tests.
+        manage.write_json(self.run_dir / "batch.json", batch)
+        from types import SimpleNamespace
+        proxy = SimpleNamespace(**vars(manage)); proxy.task_local = True
+        self.workflow = manage.extension_module("review_workflow").ReviewWorkflow(proxy)
         self.image_spec = frozen["images"][0]
         self.image = self.image_spec["id"]
         return frozen
@@ -375,7 +222,7 @@ class RunStateTests(unittest.TestCase):
         root = self.run_dir / f"test-input-{number}"
         root.mkdir()
         candidate = root / "candidate.png"
-        subprocess.run([self.magick, "-size", "1024x1024", "xc:white", str(candidate)], check=True)
+        subprocess.run([self.magick, "-size", "1024x1024", "xc:#aabbcc", "-colorspace", "sRGB", "-type", "TrueColor", str(candidate)], check=True)
         prompt = root / "prompt.txt"
         prompt.write_text("test prompt", encoding="utf-8")
         candidate_hash = hashlib.sha256(candidate.read_bytes()).hexdigest()
@@ -408,16 +255,7 @@ class RunStateTests(unittest.TestCase):
         gates = {key: "PASS" for key in manage.CONFIGURABLE_GATES}
         defects = []
         targeted = None
-        evidence = {
-            **design_evidence(self.image_spec),
-            "why_funny": "contrast",
-            "fact_anchor_visible_as": "comma",
-            "text_transcription": self.image_spec["core_text"],
-            "style_match": "canonical rounded cel shading is visible",
-            "costume_match": "the canonical maid outfit is visible",
-            "background_match": "the pure white background is visible",
-            "action_match": "panel one performs the frozen action",
-            "form_evidence": {
+        evidence = {"form_evidence": {
                 "candidate_sha256": candidate_hash,
                 "measurement_method": "pose-neutralized-skeleton",
                 "target_source": "preset",
@@ -433,29 +271,18 @@ class RunStateTests(unittest.TestCase):
                 "calculated_head_ratio": 2.8,
                 "measurement_overlay": str(overlay),
                 "measurement_overlay_sha256": hashlib.sha256(overlay.read_bytes()).hexdigest(),
-            },
-            "form_consistency": "Every panel preserves the same body form.",
-            "crop_status": "Every crop is intentional and complete for its shot.",
-            "expression_match": [dict(plan, observed_cues=["synthetic assigned expression"],
-                                      forbidden_cues_present=[])
-                                 for plan in self.image_spec["expression_plan"]],
-            "exaggeration_check": exaggeration_check(self.image_spec),
-        }
+            }}
         if verdict == "FAIL":
             gates["J1"] = "FAIL"
             defects = ["The punchline is flat"]
             targeted = "Replace the punchline"
-        visual.write_text(json.dumps({**reviewed_observation(self.image_spec, candidate_hash), "verdict": verdict, "candidate_sha256": candidate_hash, "gates": gates, "evidence": evidence, "defects": defects, "targeted_retry": targeted}), encoding="utf-8")
+        visual.write_text(json.dumps({"review_status":"reviewed", "reviewer":"synthetic-test",
+            "method":"direct-image-inspection", "candidate_sha256":candidate_hash,
+            "checked":sorted(manage.CONFIGURABLE_GATES), "panels":[{"panel":i,"observed_scene":"Synthetic scene"}
+                for i in range(1,self.image_spec["panel_count"]+1)], "text_transcription":self.image_spec["core_text"],
+            "verdict":verdict,"core_defects":[] if verdict=="PASS" else [{"check":"J1","detail":"Synthetic defect"}],
+            "minor_issues":[],"targeted_retry":targeted,"form_evidence":evidence["form_evidence"]}))
         return argparse.Namespace(run_dir=str(self.run_dir), image=self.image, provider="codex", model="test", candidate=str(candidate), prompt_file=str(prompt), automatic_json=str(automatic), visual_json=str(visual), transport="builtin")
-
-    def test_budget_is_per_image_and_stops_at_three(self) -> None:
-        for number in range(1, 4):
-            manage.record_image(self.files(number), component=False)
-        with self.assertRaisesRegex(manage.RunError, "budget is exhausted"):
-            manage.record_image(self.files(4), component=False)
-        _run, _assignment, manifest = manage.load_run(str(self.run_dir))
-        self.assertEqual(len(manifest["images"][self.image]["attempts"]), 3)
-        self.assertEqual(len(manifest["images"]["02_comic_2"]["attempts"]), 0)
 
 
     def test_frozen_assignment_and_existing_prompt_are_protected(self):
@@ -473,31 +300,6 @@ class RunStateTests(unittest.TestCase):
         manage.write_json(frozen_path, frozen)
         with self.assertRaisesRegex(manage.RunError, "Frozen assignment SHA-256"):
             manage.load_run(str(self.run_dir))
-
-    def test_complete_and_partial_delivery_group_by_idea(self):
-        frozen = manage.read_json(self.run_dir / "assignment.json")
-        for number, image in enumerate(frozen["images"], 1):
-            self.image_spec, self.image = image, image["id"]
-            manage.record_image(self.files(number, "PASS"), component=False)
-            manage.cmd_promote(argparse.Namespace(run_dir=str(self.run_dir), image=self.image))
-        result = manage.cmd_finalize(argparse.Namespace(run_dir=str(self.run_dir), allow_partial=False))
-        self.assertEqual((result["status"], result["passed"], result["expected"]), ("complete", 5, 5))
-        self.assertEqual([len(item["final_paths"]) for item in result["proposals"]], [1] * 5)
-        self.assertTrue(all(not item["missing"] for item in result["proposals"]))
-        self.assertEqual(result["unverified_provider_audits"], [])
-        frozen = self.initialize()
-        manage.record_image(self.files(1, "PASS"), component=False)
-        manage.cmd_promote(argparse.Namespace(run_dir=str(self.run_dir), image=self.image))
-        with self.assertRaisesRegex(manage.RunError, "viable attempt"):
-            manage.cmd_finalize(argparse.Namespace(run_dir=str(self.run_dir), allow_partial=True))
-        for image in frozen["images"][1:]:
-            for provider in manage.PROVIDERS:
-                manage.cmd_record_error(argparse.Namespace(run_dir=str(self.run_dir), image=image["id"],
-                                                            provider=provider, model="test", category="unavailable", details="offline test"))
-        result = manage.cmd_finalize(argparse.Namespace(run_dir=str(self.run_dir), allow_partial=True))
-        self.assertEqual((result["status"], result["passed"], result["expected"]), ("partial", 1, 5))
-        self.assertEqual(sum(len(item["missing"]) for item in result["proposals"]), 4)
-
 
 
 if __name__ == "__main__":

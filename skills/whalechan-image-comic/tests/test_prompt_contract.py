@@ -1,4 +1,4 @@
-"""Pure drawing prompts, informed planning and historical recovery contracts."""
+"""Pure drawing prompts, informed planning and current confirmation contracts."""
 import argparse
 import copy
 import hashlib
@@ -38,7 +38,7 @@ class PromptContractTests(unittest.TestCase):
         result = m.cmd_init(argparse.Namespace(assignment=str(self.path),
                            root=str(Path(self.tmp.name) / "runs"), effective_parallelism=1))
         run, frozen, manifest = m.load_run(result["run_dir"])
-        self.assertEqual(frozen["schema_version"], 18)
+        self.assertEqual(frozen["schema_version"], 19)
         self.assertEqual(m.selection_summary(frozen)["summary_sha256"], before)
         self.assertEqual(manifest["review_workflow_version"], 1)
         self.assertTrue(all(i["qa_contract_version"] == 11 for i in frozen["images"]))
@@ -137,33 +137,6 @@ class PromptContractTests(unittest.TestCase):
             with self.subTest(delivery=delivery):
                 self.assertIn(expected, builder.build_prompt(normalized, normalized["images"][0]))
 
-    def test_v16_confirmation_and_prompts_remain_unchanged(self):
-        value = self.normalize()
-        value["schema_version"] = 16
-        fixtures.confirm_fixture_plan(value)
-        self.assertEqual(value["confirmation"]["summary_sha256"],
-                         "0aab1f9b913ad64104bfa771eec405ceaf3a65d48b32fc5b186d97dc331fe2ed")
-        expected = ["24e816489a3b1e09f275d631c1b0767cb244dd101e0729cd1e25f9717831b5b3",
-                    "18a91c74bb365154d6d8bd1797448d019c1f282871e6149dded83be299d30478",
-                    "23fa02e4a160f284b9d98c55464ad0295f7c1c633bbe5f6a43b73eae89e894cb",
-                    "2138aafca0f709d0d3fb2ac5769721dfa80cecbfe1723f07a4554f71d19bd19a",
-                    "adf94df4ee6dc8e00c65e9209d0748d7cb66144861500516fd798dadab0b697b"]
-        self.assertEqual([hashlib.sha256(builder.build_prompt(value, i).encode()).hexdigest()
-                          for i in value["images"]], expected)
-
-    def test_v15_prompt_and_confirmation_match_pre_change_baseline(self):
-        value = self.normalize()
-        value["schema_version"] = 15
-        fixtures.confirm_fixture_plan(value)
-        self.assertEqual(value["confirmation"]["summary_sha256"],
-                         "c45057dfa1ac92d27e1db55e54f83fd51eb79eca77791d10e3d386ffcbbfcd7b")
-        expected = ["9ff81735f5bf746f56f13ca5561ea6668767650f77ec85838db578e69cf3c969",
-                    "a41aeb4e073f6d50406716e25e9f2f64c7065b8b6700e4430cf592ae69b5bfbc",
-                    "1b853e33817df1e3be9f268c90faddcfafcbfe62124279a2899e77df776a159b",
-                    "4671ac931144fe7a3e0cd00eb98e0479ec762e8fb86c75bffcd5379ddd0ea65d",
-                    "bc6f48ed5c24e5518cd18d73c46312d26c58092f956745b5f670c364b6405e8f"]
-        self.assertEqual([hashlib.sha256(builder.build_prompt(value, i).encode()).hexdigest()
-                          for i in value["images"]], expected)
 
     def test_reference_bytes_bind_confirmation_and_external_copy_is_stable(self):
         image = self.value["images"][0]
@@ -182,22 +155,6 @@ class PromptContractTests(unittest.TestCase):
         external.write_bytes(b"different reference bytes")
         with self.assertRaisesRegex(m.RunError, "stale"):
             m.validate_approval(self.value)
-
-    def test_frozen_v15_keeps_review_workflow_and_prompt_recovery(self):
-        self.path.write_text(json.dumps(self.value))
-        result = m.cmd_init(argparse.Namespace(assignment=str(self.path),
-                           root=str(Path(self.tmp.name) / "runs"), effective_parallelism=1))
-        run = Path(result["run_dir"])
-        frozen = m.read_json(run / "assignment.json")
-        frozen["schema_version"] = 15
-        fixtures.confirm_fixture_plan(frozen)  # Synthetic historical fixture only.
-        m.write_json(run / "assignment.json", frozen)
-        manifest = m.read_json(run / "manifest.json")
-        manifest["assignment_sha256"] = m.sha256(run / "assignment.json")
-        manifest["execution"] = {**frozen["execution"], "effective_parallelism": 1, "effective_subagent_count": 1}
-        m.write_json(run / "manifest.json", manifest)
-        self.assertEqual(m.review_workflow().load(argparse.Namespace(run_dir=str(run)))[1]["schema_version"], 15)
-        self.assertIn("CONFIRMED COMIC PLAN", builder.build_prompt(frozen, frozen["images"][0]))
 
 
 if __name__ == "__main__":

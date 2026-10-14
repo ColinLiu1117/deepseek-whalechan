@@ -68,7 +68,7 @@ class DesignContractTests(unittest.TestCase):
                 if other["idea_id"] != image["idea_id"]:
                     for line in other["core_text"]:
                         self.assertNotIn(line, prompt)
-            for hidden in ("worker-1", "worker-2", "worker-3", frozen["duels"][0]["reason"],
+            for hidden in ("worker-1", "worker-2", "worker-3", frozen["selection_review"]["ranking"][0]["reason"],
                            frozen["proposal"]["options"][index]["selection_reason"]):
                 self.assertNotIn(hidden, prompt)
 
@@ -101,20 +101,19 @@ class DesignContractTests(unittest.TestCase):
         for defect in ("missing", "wrong-image", "planned-evidence"):
             broken = copy.deepcopy(qa)
             if defect == "missing":
-                broken.pop("observation")
+                broken.pop("panels")
             elif defect == "wrong-image":
-                broken["observation"]["candidate_sha256"] = "0" * 64
+                broken["candidate_sha256"] = "0" * 64
             else:
-                broken["observation"]["method"] = "planned-evidence"
+                broken["method"] = "planned-evidence"
             manage.write_json(path, broken)
-            with self.subTest(defect=defect), self.assertRaisesRegex(manage.RunError, "observation"):
+            with self.subTest(defect=defect), self.assertRaises(manage.RunError):
                 manage.validate_qa(path, candidate_hash, image_spec=self.image_spec)
-        qa["observation"]["text_transcription"] = ["wrong visible words"]
+        qa["text_transcription"] = ["wrong visible words"]
         manage.write_json(path, qa)
-        with self.assertRaisesRegex(manage.RunError, "observation.text_transcription"):
+        with self.assertRaisesRegex(manage.RunError, "transcription"):
             manage.validate_qa(path, candidate_hash, image_spec=self.image_spec)
-        qa.update(verdict="FAIL", defects=["The visible words are wrong"], targeted_retry="Correct the lettering")
-        qa["gates"]["T1"] = "FAIL"
+        qa.update(verdict="FAIL", core_defects=[{"check":"T1","detail":"The visible words are wrong"}], targeted_retry="Correct the lettering")
         manage.write_json(path, qa)
         self.assertEqual(manage.validate_qa(path, candidate_hash, image_spec=self.image_spec)["verdict"], "FAIL")
 

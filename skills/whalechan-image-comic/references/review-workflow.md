@@ -1,23 +1,21 @@
-# Review workflow — assignments v15/v16/v17/v18/v19 / QA 11
+# Review workflow — QA11
 
 Contents: [Ownership](#ownership) · [Criteria](#criteria) · [Candidate](#candidate) · [Collection](#collection) · [Failure](#failure) · [Timing](#timing)
 
 ## Ownership
 
-For v18/v19 use image-task start/ingest/review-start/submit and collection-task prepare/submit from batch-commands.md. Keep all fourteen actual checks and required form evidence. Scripts fill mechanical metadata only; never default checked declarations or PASS. Service errors pause the locked tool; visual failures alone allow same-tool retries.
+For v19 use image-task start/ingest/review-start/submit and collection-task prepare/submit from batch-commands.md. Keep all fourteen actual checks and required form evidence. Scripts fill mechanical metadata only; never default checked declarations or PASS. Service errors pause the locked tool; visual failures alone allow same-tool retries.
 
-For v17 use the role/task commands in `agent-orchestration.md`: the same generation worker performs the single-image lifecycle, collection workers make and review sheets, and delivery workers promote/finalize/export. The coordinator handles no content or visual work. The direct prepare-candidate/record-candidate examples in historical-recovery.md are the frozen v15/v16 path; v17 calls the same validators through image-task prepare/review.
-
-Review each returned candidate once, at its original resolution, by one designated reviewer. For frozen v15/v16 a worker may render and review, or the coordinator may be the sole reviewer; never repeat the same candidate's visual review at handoff. The coordinator checks files and records through scripts, not by opening the picture again. Keep manifest mutations serial: coordinator-owned for frozen v15/v16, designated collection/delivery-worker-owned for v17. Only the two visual decisions below authorize image-producing retries.
+Review each returned candidate once, at its original resolution, by one designated reviewer. The coordinator checks files and records through scripts, not by opening the picture again. Keep manifest mutations serial: designated collection/delivery-worker-owned. Only the two visual decisions below authorize image-producing retries.
 
 1. Single-image QA: inspect all fourteen categories in one pass and report all observed core defects.
 2. Collection QA: inspect one contact sheet per source's N tasks. If it fails, allow one repair round and one focused collection recheck. Do not add another final visual sweep, cross-source image review, or delivery-time visual review.
 
-Local edits produce new candidates and consume slots. Inspect their whole canvas once. Never infer unchanged pixels from the edit instruction. New runs use complete canvases; panel-component rescue remains a frozen-run recovery feature.
+Local edits produce new candidates and consume slots. Inspect their whole canvas once. Never infer unchanged pixels from the edit instruction. Generation and repairs use complete canvases.
 
 ## Criteria
 
-For v16/v17/v18/v19, inspect against the authored panel actions, `visual_description`, exact dialogue and explicit user locks. Preset names and unused effect menus are planning aids, not additional pixel requirements. Nonessential details left open during planning remain open during QA.
+For v19, inspect against the authored panel actions, `visual_description`, exact dialogue and explicit user locks. Preset names and unused effect menus are planning aids, not additional pixel requirements. Nonessential details left open during planning remain open during QA.
 
 Keep J1 joke, K1 source anchor, I1 identity, C1 cast/performance, P1 panels, T1 lettering/ownership, A1 anatomy, V1 visual/expression, S1 style, O1 costume, B1 background, X1 action, E1 tier and H1 proportion. `checked` explicitly attests that the reviewer inspected each category; scripts cannot inspect pixels or prove this assertion.
 
@@ -29,9 +27,7 @@ For measured compositions retain candidate-bound H1 landmark measurement and ove
 
 ## Candidate
 
-Frozen v15/v16 preparation and recording commands are in [historical-recovery.md](historical-recovery.md#candidate-commands--v15v16). For v17 use image-task begin/prepare/review-start/review/finish from agent-orchestration.md; the same compact report and QA rules apply.
-
-For v19 and frozen v18, the generation worker uses image-task start, ingest, review-start and submit from [batch-commands.md](batch-commands.md#image). Ingest preserves and counts the returned bytes and performs automatic checks. Record review-start when opening the archived candidate, then fill the returned compact report:
+the generation worker uses image-task start, ingest, review-start and submit from [batch-commands.md](batch-commands.md#image). Ingest preserves and counts the returned bytes and performs automatic checks. Record review-start when opening the archived candidate, then fill the returned compact report:
 
 ```json
 {
@@ -49,19 +45,19 @@ For v19 and frozen v18, the generation worker uses image-task start, ingest, rev
 }
 ```
 
-This example shows structure, not default acceptance. Use one ordered observation per actual panel. A core defect is `{check, detail}`; FAIL requires at least one and a specific `targeted_retry`. A PASS requires exact transcription and no core defects. Measured PASS uses the shared measurement evidence fields from [form-evidence.md](form-evidence.md). Candidate SHA-256 may be omitted; the manager supplies it, or verifies it when provided.
+This example shows structure, not default acceptance. Use one ordered observation per actual panel. A core defect is `{check, detail}`; FAIL requires at least one and a specific `targeted_retry`. A PASS requires exact transcription and no core defects. Measured PASS uses the measurement evidence below. Candidate SHA-256 may be omitted; the manager supplies it, or verifies it when provided.
 
 Submit the compact report with image-task submit from [batch-commands.md](batch-commands.md#image). Its receipt records the verdict and eligible same-tool retry or collection transition. The original three-call budget applies.
 
 ## Collection
 
-For v18/v19 use collection-task prepare/submit from [batch-commands.md](batch-commands.md#collection), which merges journals and creates/reuses the sheet. For the frozen direct-command path, when all N tasks are awaiting collection or terminal, run:
+Use collection-task prepare/submit from [batch-commands.md](batch-commands.md#collection), which merges journals and creates/reuses the sheet. Its local sheet builder is:
 
 ```bash
 python3 scripts/build-review-sheet.py --run-dir <run>
 ```
 
-For v19 the script uses ceil(sqrt(N)) columns and ceil(N/columns) rows, preserving all N numbered slots and multi-digit labels. N=5 remains 3×2; frozen five-image sheets retain their original grid. Complete images fit without cropping; missing tasks remain gray at their original positions. If a large sheet cannot be meaningfully reviewed at the tool's pixel limit, report that technical limit; do not silently reduce N or add review rounds. `index.json` maps positions to image IDs, premises, exact lines, attempt IDs and hashes. The original candidates remain unchanged. Sheet creation is local and consumes no image budget. If no candidates remain, the script records a skipped collection and no visual call is needed.
+For v19 the script uses ceil(sqrt(N)) columns and ceil(N/columns) rows, preserving all N numbered slots and multi-digit labels. N=5 remains 3×2. Complete images fit without cropping; missing tasks remain gray at their original positions. If a large sheet cannot be meaningfully reviewed at the tool's pixel limit, report that technical limit; do not silently reduce N or add review rounds. `index.json` maps positions to image IDs, premises, exact lines, attempt IDs and hashes. The original candidates remain unchanged. Sheet creation is local and consumes no image budget. If no candidates remain, the script records a skipped collection and no visual call is needed.
 
 Send the sheet and index together for one set review. Inspect only distinctness of ideas/payoffs, identity/style consistency and overall readability/tone. Do not recheck tiny mouths, sweat counts, exact glyphs or other already reviewed single-image details. Small-scale uncertainty is not a core failure.
 
@@ -78,11 +74,11 @@ Send the sheet and index together for one set review. Inspect only distinctness 
 }
 ```
 
-`images` names only tasks to repair, not every image mentioned for comparison. For v18/v19 record through collection-task submit. Frozen direct-command runs use `manage-run.py record-collection-review --run-dir <run> --review-json <json>`.
+`images` names only tasks to repair, not every image mentioned for comparison. For v19 record through collection-task submit.
 
 On first collection failure, only named images with unused slots reopen. Repair them within their frozen plans; each new candidate gets one single-image review. Single-image failures can use the remaining shared budget inside this one repair round. Then build the updated N-slot sheet and submit one focused collection recheck. Keep unchanged candidates as visual context. A recheck cannot name new repair targets or start another collection round. Failed targets become `collection_failed`; exhausted or technically blocked tasks remain missing. If no repair is possible, close the collection without another visual call.
 
-For v18/v19 the delivery worker runs batch-deliver from [batch-commands.md](batch-commands.md#delivery). In frozen direct-command runs, when the collection is complete, run `promote` for each `collection_accepted` task. The manager revalidates data and hashes without another LLM image inspection. Then `finalize`, using `--allow-partial` for terminal shortfalls, and export the gallery. Do not fill gaps with rejected pictures or restore an earlier set-rejected candidate as a final.
+For v19 the delivery worker runs batch-deliver from [batch-commands.md](batch-commands.md#delivery). Its promotion stage runs `promote` for each `collection_accepted` task. The manager revalidates data and hashes without another LLM image inspection. Then `finalize`, using `--allow-partial` for terminal shortfalls, and export the gallery. Do not fill gaps with rejected pictures or restore an earlier set-rejected candidate as a final.
 
 ## Failure
 
@@ -94,6 +90,40 @@ For v18/v19 the delivery worker runs batch-deliver from [batch-commands.md](batc
 
 ## Timing
 
-`manifest.events` records generation/review starts, receipt saving, automatic-check completion, single-review recording, sheet creation, collection-review recording, promotion and finalization. The receipt timestamp is when `prepare-candidate` receives the saved output, not backend GPU completion time. Pair it with provider/session timestamps when separating transport delay. Record current review starts through image-task review-start; frozen v15/v16 use `mark-stage`; never backfill invented timestamps. Scripts enforce stored decisions, not the truthfulness or real-world count of LLM image inspections.
+`manifest.events` records generation/review starts, receipt saving, automatic-check completion, single-review recording, sheet creation, collection-review recording, promotion and finalization. The receipt timestamp is when `image-task ingest` receives the saved output, not backend GPU completion time. Pair it with provider/session timestamps when separating transport delay. Record review starts through image-task review-start; never backfill invented timestamps. Scripts enforce stored decisions, not the truthfulness or real-world count of LLM image inspections.
 
-Frozen assignments v11/v13/v14 keep their original QA 9/10 and recovery behavior. Frozen v15 retains its original prompt contract and this QA 11 workflow. New assignments use v19 and QA 11; never migrate approval histories or old PASS results merely to change policy.
+## Proportion evidence — H1
+
+Use within the assigned candidate review. The frozen proportion_check determines measured versus visible-only evidence. Measurement remains part of that review.
+
+### Measured
+
+Run scripts/measure-form.py on the original candidate using its frozen target and acceptance range. Mark skull top excluding hair/headwear, chin, pelvis, knee and sole along the anatomical centerline. Inspect the overlay and correct misplaced landmarks. Report the actual calculated ratio and candidate/target/overlay hashes.
+
+This example illustrates the measured object; coordinates, hashes and ratios come from the actual candidate:
+
+```json
+{
+  "candidate_sha256": "64 lowercase hexadecimal characters",
+  "measurement_method": "pose-neutralized-skeleton",
+  "target_source": "custom",
+  "target_sha256": "64 lowercase hexadecimal characters",
+  "mean_head_ratio": 5.0,
+  "acceptance_range": [4.85, 5.15],
+  "head_axis": {"top": [500, 100], "chin": [500, 260]},
+  "body_segments": [
+    {"name": "chin_to_pelvis", "start": [500, 260], "end": [500, 500]},
+    {"name": "pelvis_to_knee", "start": [500, 500], "end": [500, 690]},
+    {"name": "knee_to_sole", "start": [500, 690], "end": [500, 900]}
+  ],
+  "calculated_head_ratio": 5.0,
+  "measurement_overlay": "/absolute/path/measurement.png",
+  "measurement_overlay_sha256": "64 lowercase hexadecimal characters"
+}
+```
+
+Store this object at form_evidence, including candidate_sha256. QA11 fills an omitted top-level report candidate_sha256; its nested measured evidence still requires the actual candidate hash. The target hash binds the frozen proportion. The overlay path and hash identify the inspected measurement artifact.
+
+### Visible-only
+
+For a planned close-up or partial-body view, provide form_evidence with mode: visible-only, a specific reason and nonempty observed_cues. QA11 lists H1 in checked and binds the candidate through the top-level report hash; its compact format has no per-gate verdict map. Describe the visible proportions and report the measurement limitation at delivery. A shot planned as measurable requires measured evidence.

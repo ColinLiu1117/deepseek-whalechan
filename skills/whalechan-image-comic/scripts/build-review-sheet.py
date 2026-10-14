@@ -17,16 +17,16 @@ ALL_DIGITS = ("111101101101111", *DIGITS, "111100111101111",
               "111001001001001", "111101111101111", "111101111001111")
 
 
-def compose(items, output, dynamic=False):
-    if not items or (not dynamic and len(items) != 5):
-        raise ValueError("A collection sheet requires exactly five task slots")
+def compose(items, output):
+    if not items:
+        raise ValueError("A collection sheet requires at least one task slot")
     magick = shutil.which("magick")
     if not magick:
         raise RuntimeError("ImageMagick is required")
     if output.exists():
         raise ValueError("Refusing to overwrite a review sheet")
     cell, gutter, label = 600, 16, 36
-    columns = math.ceil(math.sqrt(len(items))) if dynamic else 3
+    columns = math.ceil(math.sqrt(len(items)))
     rows = math.ceil(len(items) / columns)
     width, height = columns * cell + (columns + 1) * gutter, rows * (cell + label) + (rows + 1) * gutter
     command = [magick, "-size", f"{width}x{height}", "xc:white"]

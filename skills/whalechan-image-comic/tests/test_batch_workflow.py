@@ -1,4 +1,4 @@
-"""Offline v18 protocol tests. Synthetic pixels/observations are not real visual approvals."""
+"""Offline current protocol tests. Synthetic pixels/observations are not real visual approvals."""
 import argparse
 import copy
 import json
@@ -26,8 +26,8 @@ class BatchWorkflowTests(unittest.TestCase):
         self.magick = __import__("shutil").which("magick")
         if not self.magick:
             self.skipTest("ImageMagick required")
-        spec = {"schema_version": 18, "sources": [{"id": "source-a", "text": "input"}],
-                "execution": {"batch_id": "test-v18"}, "language": "zh",
+        spec = {"schema_version": 19, "sources": [{"id": "source-a", "text": "input"}],
+                "execution": {"batch_id": "test-current"}, "language": "zh",
                 "availability": self.native, "language_evidence": {"source": "synthetic user fixture"}}
         self.spec = self.save("spec.json", spec)
         self.cli("batch-prepare", "--spec", self.spec)
@@ -42,10 +42,10 @@ class BatchWorkflowTests(unittest.TestCase):
         return m.invoke(m.parser().parse_args(tokens))
 
     def initialize(self):
-        draft = fixtures.assignment()
-        draft["execution"] = self.workflow.state(self.batch)["execution"]
-        draft.pop("confirmation")
-        draft_path = self.save("draft.json", draft)
+        from test_priority_selection import PlanningTests
+        planning = PlanningTests()
+        planning.root, planning.batch, planning.workflow = self.root, self.batch, self.workflow
+        draft_path = planning.finish_plan()["output"]
         review = self.save("cross.json", {"review_status": "reviewed", "sources": ["source-a"],
                                          "observation": "Synthetic authored source comparison"})
         proposal = self.cli("batch-proposal", "--draft", draft_path, "--review-json", review)
@@ -57,6 +57,8 @@ class BatchWorkflowTests(unittest.TestCase):
         self.image_spec = self.frozen["images"][0]
         self.image = self.image_spec["id"]
         self.task = "source-a-gen-" + self.image
+        for owner in ("author", "reviewer"):
+            self.cli("agent-batch", "release", "--worker", owner, "--evidence", "Synthetic runtime released idle resident")
         self.claim(self.task)
         return confirm
 
@@ -234,12 +236,12 @@ class BatchWorkflowTests(unittest.TestCase):
 
     def test_interrupted_initialization_reuses_same_directory(self):
         # Build a real bound proposal, then interrupt initialization after frozen assignment output.
-        draft = fixtures.assignment()
-        draft["execution"] = self.workflow.state(self.batch)["execution"]
-        draft.pop("confirmation")
-        proposal = self.cli("batch-proposal", "--draft", self.save("draft.json", draft),
-            "--review-json", self.save("cross.json", {"review_status": "reviewed",
-               "sources": ["source-a"], "observation": "Synthetic comparison"}))
+        from test_priority_selection import PlanningTests
+        planning = PlanningTests()
+        planning.root, planning.batch, planning.workflow = self.root, self.batch, self.workflow
+        draft_path = planning.finish_plan()["output"]
+        proposal = self.cli("batch-proposal", "--draft", draft_path,
+            "--review-json", self.save("cross.json", {"review_status":"reviewed", "sources":["source-a"], "observation":"Synthetic comparison"}))
         confirmation = self.save("confirmation.json", {"user_reply": "Synthetic authorization",
                                                      "summary_sha256": proposal["summary_sha256"]})
         original = m.write_json
@@ -252,7 +254,7 @@ class BatchWorkflowTests(unittest.TestCase):
                 self.cli("batch-start", "--confirmation", confirmation, "--root", self.root / "runs")
         result = self.cli("batch-start", "--confirmation", confirmation, "--root", self.root / "runs")
         self.assertEqual(len(list((self.root / "runs").iterdir())), 1)
-        self.assertEqual(m.load_run(result["runs"]["source-a"])[1]["schema_version"], 18)
+        self.assertEqual(m.load_run(result["runs"]["source-a"])[1]["schema_version"], 19)
 
     def test_all_technical_blocks_skip_collection_and_deliver_partial(self):
         self.initialize()
@@ -343,13 +345,6 @@ class BatchWorkflowTests(unittest.TestCase):
         self.assertEqual(len(manifest["collection"]["reviews"]), 2)
         self.assertNotIn("source-a-collection-2", self.workflow.state(self.batch)["tasks"])
 
-    def test_v17_confirmation_hash_is_unchanged_from_previous_commit(self):
-        value = fixtures.assignment()
-        value["schema_version"] = 17
-        value["execution"].pop("tool")
-        value.pop("confirmation")
-        self.assertEqual(m.selection_summary(value)["summary_sha256"],
-                         "6e80780de94b70e816d80c9f319ab152ada92974cf94547958cee81645d5b7ae")
 
     def test_two_sources_share_one_confirmation_and_one_tool(self):
         # Reuse prepare with a new batch; no independent per-source pools.
@@ -358,12 +353,11 @@ class BatchWorkflowTests(unittest.TestCase):
         spec["sources"].append({"id": "source-b", "text": "input"})
         self.cli("batch-prepare", "--spec", self.save("two-spec.json", spec))
         drafts = []
-        for source in ("a", "b"):
-            value = fixtures.assignment()
-            value["run_name"] = "source-" + source
-            value["execution"] = self.workflow.state(self.batch)["execution"]
-            value.pop("confirmation")
-            drafts += ["--draft", self.save(source + ".json", value)]
+        from test_priority_selection import PlanningTests
+        planning = PlanningTests()
+        planning.root, planning.batch, planning.workflow = self.root, self.batch, self.workflow
+        for source in ("source-a", "source-b"):
+            drafts += ["--draft", planning.finish_plan(source=source)["output"]]
         review = self.save("two-cross.json", {"review_status": "reviewed", "sources": ["source-a", "source-b"],
                               "observation": "Synthetic acknowledged structural similarity"})
         result = self.cli("batch-proposal", *drafts, "--review-json", review)

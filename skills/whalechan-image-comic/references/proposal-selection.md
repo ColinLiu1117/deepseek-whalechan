@@ -22,7 +22,7 @@ Show one eight-column Markdown table per source, with N rows (the following is a
 
 Numbers identify rows, not mechanisms, layouts or tiers. Name the actual comedy direction; optionally mark a native-direction idea with “（原）” and explain the marker. Use the fixed labels `A-日漫冲击`, `B-漫画爆发`, `C-克制冷幽默` in both the tier column and distribution line (`A-Manga impact`, `B-Comic outburst`, `C-Restrained deadpan` in English). Write a declared contrast after the descriptive label, such as “A-日漫冲击（脸→C）”. The helper computes the distribution line and marks each coverage policy as satisfied or user-overridden. Do not impose native/character quotas. Keep cells concise, escape pipes and use `<br>` for line breaks.
 
-Show the target head-to-body ratio immediately below the distribution line and before image totals, never as another table column. Record `proportion` in every new `proposal.options` entry before rendering, including the default `{"mode": "preset", "preset": "semi-chibi"}`. Resolve targets from the preset catalog or the explicit custom ratio. When all N match, show one shared target; otherwise group table row numbers by target, for example “第 1、3、5 张为 2.8 头身（半 Q 版，semi-chibi）；第 2、4 张为 2.5 头身（Q 版，chibi）”. Custom ratios read “3.0 头身（自定义）”. These are planned targets, not measurements of generated images. Historical plans without this field retain their original confirmation contract and are marked as not having recorded a planning target.
+Show the target head-to-body ratio immediately below the distribution line and before image totals, never as another table column. Record `proportion` in every new `proposal.options` entry before rendering, including the default `{"mode": "preset", "preset": "semi-chibi"}`. Resolve targets from the preset catalog or the explicit custom ratio. When all N match, show one shared target; otherwise group table row numbers by target, for example “第 1、3、5 张为 2.8 头身（半 Q 版，semi-chibi）；第 2、4 张为 2.5 头身（Q 版，chibi）”. Custom ratios read “3.0 头身（自定义）”. These are planned targets, not measurements of generated images.
 
 Below the table, show:
 
@@ -41,7 +41,7 @@ Before displaying the plan, inspect runtime capacity and use plan-roles from age
 
 ## Record the decision
 
-Use schema v19 and the helper commands in `run-schema.md`. Save drafts under `artifacts/whalechan-image-comic/<run-name>-planning/` unless the user specifies another location. Preserve revisions as separate files. Complete image plans and the worker allocation before rendering the plan; drafts do not require visual QA.
+Use the current schema and the helper commands in `run-schema.md`. Save drafts under `artifacts/whalechan-image-comic/<run-name>-planning/` unless the user specifies another location. Preserve revisions as separate files. Complete image plans and the worker allocation before rendering the plan; drafts do not require visual QA.
 
 Render the plan with either read-only helper:
 
@@ -58,9 +58,7 @@ Disclose the QA 11 policy in the execution summary: one candidate inspection, mi
 
 After confirmation, assign validation/freezing to a planning worker. Main dispatches actual sub-agents through runtime tools. Generation workers own isolated image journals and permitted retries; collection/delivery workers reconcile and mutate shared manifests serially. Follow agent-orchestration.md for capacity reductions, resident reuse, ownership and recovery.
 
-Frozen v11/v13/v14/v15/v16/v17/v18 keep their original contracts. Never fabricate a v19 confirmation or migrate approvals. Create new runs with v19.
-
-For v18/v19 use batch-proposal to combine per-source tables, tool/capacity disclosures and budgets. Bind the actual single user reply to its returned batch summary; batch-start derives each source confirmation from the bound summaries without another question. Report structural-warning dispositions in the authored cross-source observation. Tool preflight does not authorize generation; provider selection is locked before this gate. See batch-commands.md.
+For v19 use batch-proposal to combine per-source tables, tool/capacity disclosures and budgets. Bind the actual single user reply to its returned batch summary; batch-start derives each source confirmation from the bound summaries without another question. Report structural-warning dispositions in the authored cross-source observation. Tool preflight does not authorize generation; provider selection is locked before this gate. See batch-commands.md.
 
 ## Selection handoff
 

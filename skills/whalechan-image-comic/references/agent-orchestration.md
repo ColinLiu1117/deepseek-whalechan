@@ -21,7 +21,7 @@ This produces independent policy and current targets (2 generation + 1 collectio
 
 Use defaults when provider capacity is unknown; label them as policy, not measured service capacity. Apply an observed lower provider limit through --provider-limit and reduce dispatch after explicit capacity/rate-limit failures. A single agent's concurrent ImageGen submissions may be serialized; assign separate agents for actual concurrency.
 
-If delegation is entirely unavailable, disclose serial main-agent fallback. Temporarily occupied slots are not unavailable delegation: queue work and reuse residents. Respect explicit user serial execution.
+If delegation is entirely unavailable, disclose serial main-agent fallback. For v19 this applies to execution after independently selected plans already exist; concepts/selection/detail planning requires the author and a different real selector. If that independence is unavailable, retain the planning state and report the limitation. Frozen v17/v18 retain their original planning fallback. Temporarily occupied slots are not unavailable delegation: queue work and reuse residents. Respect explicit user serial execution.
 
 ## Ownership
 

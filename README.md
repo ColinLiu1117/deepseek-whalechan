@@ -192,9 +192,9 @@ The project provides two specialized, out-of-the-box Agent Skills under the [`sk
 | Skill Name | Role & Core Function | Workflow Mechanism & Technical Features |
 | :--- | :--- | :--- |
 | [`whalechan-image-character`](skills/whalechan-image-character/) | **Character Portraits & Themed Illustrations**<br>Generates high-consistency, strictly verified, identity-locked Whale-chan solo, prop, and scene illustrations. | • **Standardized Pipeline**: Seven-column proposal selection ➔ Scope & budget confirmation ➔ Assignment expansion & freeze ➔ Generation & QA<br>• **Dual QA System**: Deterministic image format checks, skeletal joint fitting, and native-res visual QA matrix |
-| [`whalechan-image-comic`](skills/whalechan-image-comic/) | **Multi-Panel Comedy Comics**<br>Ranks ten ideas through 45 pairwise duels and makes one comic for each of the five winners. | • **One User Gate**: Show the five-idea table, five-image total and worker allocation ➔ Confirm once ➔ Generate and verify<br>• **Five Comedy Directions**: Reversal, exposure, escalation, recognition and character gag, compared without creative admission thresholds or repeated candidate pools<br>• **Multi-Panel Grammar**: Cover 1-, 2- and 4-panel layouts across the set, allocating by narrative need<br>• **Three Exaggeration Tiers**: Cover A manga impact, B comic outburst and C restrained deadpan across the set, tiered on the landing panel, with optional contrast that deliberately lowers one axis<br>• **Visual Typesetting**: 10 blue-white text templates, explicit dialogue ownership and abstract supporting-character staging |
+| [`whalechan-image-comic`](skills/whalechan-image-comic/) | **Multi-Panel Comedy Comics**<br>Freezes 2N concise ideas, uses an independent sub-agent to rank and select N, and makes one comic per selected idea (N defaults to 5). | • **One User Gate**: Show the N-idea table, image total and role allocation ➔ Confirm once ➔ Generate and verify<br>• **Five Comedy Directions**: Reversal, exposure, escalation, recognition and character gag, compared without creative admission thresholds or repeated candidate pools<br>• **Multi-Panel Grammar**: For N≥3, cover 1-, 2- and 4-panel layouts by narrative need; N=1/2 relaxes coverage<br>• **Three Exaggeration Tiers**: Use 3A/1B/1C for N=5; other counts approach 60%/20%/20% by content. A is manga impact, B comic outburst and C restrained deadpan, tiered on the landing panel, with optional contrast that deliberately lowers one axis<br>• **Visual Typesetting**: 10 blue-white text templates, explicit dialogue ownership and abstract supporting-character staging |
 
-Both Skills show the image total and planned sub-agent count before execution: at Gate 2 for character images and at the single confirmation for comics. After confirmation, they default to parallel generation with up to 10 sub-agents, limited by available runtime slots, provider capacity and ready images. Explicit serial requests are supported; the main agent handles generation when delegation is unavailable. Parallel execution does not increase the confirmed image count or candidate budget.
+Character uses Gate 2 and up to 10 generation workers. Comic uses one confirmation and independent role caps: planning 5, selection 2, generation 5 (Codex 3), collection 2, delivery 1; the batch ceiling is 10. Runtime/provider capacity can lower dispatch. Comic planning requires an independent selector; after completed selection, confirmed serial or no-delegation generation can use the main agent. Parallel execution does not increase the confirmed image count or candidate budget.
 
 <br>
 
@@ -335,11 +335,11 @@ Example result:
 **Execution Workflow**:
 
 - The Agent analyzes the source event, humor, tone, participants, and the source's native comedy direction, preserving an identifiable fact anchor;
-- The comedy engine generates one fixed pool of ten ideas, compares all 45 pairs and selects five by match results and documented tie decisions;
-- It plans one image per idea, covering 1/2/4-panel layouts across the five unless explicitly overridden; repeated dialogue and payoffs receive a separate creative review;
-- **One confirmation**: Displays the five-idea information table, image total, worker assignments and per-image three-call budget, then waits for permission to generate;
-- After confirmation, freezes and executes the plan; workers use separate staging paths and the coordinator alone writes the run manifest;
-- Each comic independently undergoes text, character consistency, composition, and visual punchline QA;
+- The author freezes 2N concise candidates (default N=5); a different real sub-agent ranks all candidates with brief reasons and a set explanation, then the author completes the first N visual plans;
+- It plans one image per selected idea. For N≥3, cover 1/2/4 panels; N=5 uses 3A/1B/1C, other counts approach that ratio. Explicit overrides apply; planning includes dialogue/payoff comparison;
+- **One confirmation**: Displays the N-idea information table, image total, worker assignments and per-image three-call budget, then waits for permission to generate;
+- After confirmation, freezes the plan and uses the preflight-locked image tool. Generation workers own image journals; collection/delivery workers merge records under locks;
+- Each candidate receives one visual QA; a collection worker reviews one contact sheet per source, with at most one repair round and one focused recheck within the original budget;
 - Final deliverables are archived under `artifacts/whalechan-image-comic/<run-name>/`.
 
 > [!TIP]

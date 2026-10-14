@@ -1,6 +1,6 @@
 # Drawing-only prompts — v16
 
-For v17/v18/v19 a planning sub-agent authors the selected N-image visual plan after independent selection (frozen v17/v18 retain five). Generation workers assemble frozen fields; main coordinates only. The v16 drawing contract is unchanged.
+For v19 a planning sub-agent authors the selected N-image visual plan after independent selection. Frozen v17/v18 retain their five-image tournament selection. Generation workers assemble frozen fields; main coordinates only. The v16 drawing contract is unchanged.
 
 Write the visual plan during the existing planning pass, before the single confirmation. The builder assembles these fields directly; do not add another LLM rewrite, review agent or confirmation. Keep analysis, selection reasons, approval and QA records internal. Every sentence sent to the image model should guide a visible result.
 

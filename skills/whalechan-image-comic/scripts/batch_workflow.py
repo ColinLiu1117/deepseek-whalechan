@@ -1,4 +1,4 @@
-"""Reusable v18 batch and image operations. Provider calls and visual judgments stay with workers."""
+"""Reusable v18/v19 batch and image operations. Provider calls and visual judgments stay with workers."""
 from __future__ import annotations
 import json
 import re
@@ -283,7 +283,7 @@ class BatchWorkflow:
 
     def image(self, args):
         run, assignment, manifest = self.m.load_run(args.run_dir)
-        self.require(assignment["schema_version"] in {18, 19}, "Combined image commands require v18")
+        self.require(assignment["schema_version"] in {18, 19}, "Combined image commands require v18/v19")
         batch_path = self.policy.batch_path(self.m, manifest, assignment)
         tool = assignment["execution"]["tool"]
         task = self.owned(batch_path, args.task_id, args.owner, "generation", run)
@@ -389,7 +389,7 @@ class BatchWorkflow:
 
     def collection(self, args):
         run, assignment, manifest = self.m.load_run(args.run_dir)
-        self.require(assignment["schema_version"] in {18, 19}, "Combined collection commands require v18")
+        self.require(assignment["schema_version"] in {18, 19}, "Combined collection commands require v18/v19")
         batch_path = self.policy.batch_path(self.m, manifest, assignment)
         self.owned(batch_path, args.task_id, args.owner, "collection", run)
         group = manifest["collection"]

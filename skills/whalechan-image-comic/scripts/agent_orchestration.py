@@ -110,7 +110,7 @@ class Orchestration:
             raise self.m.RunError("Missing frozen run path")
         for run, assignment, manifest in runs:
             if assignment["schema_version"] not in {17, 18, 19} or assignment["execution"] != policy:
-                raise self.m.RunError("Task run must share the approved v17 batch execution")
+                raise self.m.RunError("Task run must share the approved v17/v18/v19 batch execution")
             if task["role"] in {"collection", "delivery"} and task.get("recovery_evidence"):
                 return True  # Resume the existing sheet/receipt, never repeat its visual judgment.
             if task["role"] == "generation":

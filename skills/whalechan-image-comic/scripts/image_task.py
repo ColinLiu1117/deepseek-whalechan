@@ -1,4 +1,4 @@
-"""Exclusive per-image journals for v17; shared manifests are serial projections."""
+"""Exclusive per-image journals for v17–v19; shared manifests are serial projections."""
 from __future__ import annotations
 import copy
 from contextlib import ExitStack
@@ -20,7 +20,7 @@ class ImageTasks:
 
     def load(self, args):
         run, assignment, manifest = self.m.load_run(args.run_dir)
-        self.require(assignment["schema_version"] in {17, 18, 19}, "Image tasks require v17")
+        self.require(assignment["schema_version"] in {17, 18, 19}, "Image tasks require v17/v18/v19")
         self.require(manifest["status"] == "in_progress", "Run is closed")
         self.m.state_for(manifest, args.image)
         return run, assignment, manifest
@@ -233,7 +233,7 @@ class ImageTasks:
         run = Path(args.run_dir).resolve()
         with self.locked(run / ".manifest.lock"), ExitStack() as stack:
             run, assignment, manifest = self.m.load_run(str(run))
-            self.require(assignment["schema_version"] in {17, 18, 19}, "Task merge requires v17")
+            self.require(assignment["schema_version"] in {17, 18, 19}, "Task merge requires v17/v18/v19")
             for image in sorted(manifest["images"]):
                 stack.enter_context(self.locked(self.path(run, image).with_suffix(".lock")))
             self.merge_locked(run, assignment, manifest)

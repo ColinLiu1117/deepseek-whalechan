@@ -6,7 +6,7 @@ Contents: [Ownership](#ownership) · [Criteria](#criteria) · [Candidate](#candi
 
 For v18/v19 use image-task start/ingest/review-start/submit and collection-task prepare/submit from batch-commands.md. Keep all fourteen actual checks and required form evidence. Scripts fill mechanical metadata only; never default checked declarations or PASS. Service errors pause the locked tool; visual failures alone allow same-tool retries.
 
-For v17 use the role/task commands in `agent-orchestration.md`: the same generation worker performs the single-image lifecycle, collection workers make and review sheets, and delivery workers promote/finalize/export. The coordinator handles no content or visual work. The direct prepare-candidate/record-candidate examples below are the frozen v15/v16 path; v17 calls the same validators through image-task prepare/review.
+For v17 use the role/task commands in `agent-orchestration.md`: the same generation worker performs the single-image lifecycle, collection workers make and review sheets, and delivery workers promote/finalize/export. The coordinator handles no content or visual work. The direct prepare-candidate/record-candidate examples in historical-recovery.md are the frozen v15/v16 path; v17 calls the same validators through image-task prepare/review.
 
 Review each returned candidate once, at its original resolution, by one designated reviewer. For frozen v15/v16 a worker may render and review, or the coordinator may be the sole reviewer; never repeat the same candidate's visual review at handoff. The coordinator checks files and records through scripts, not by opening the picture again. Keep manifest mutations serial: coordinator-owned for frozen v15/v16, designated collection/delivery-worker-owned for v17. Only the two visual decisions below authorize image-producing retries.
 
@@ -29,21 +29,9 @@ For measured compositions retain candidate-bound H1 landmark measurement and ove
 
 ## Candidate
 
-The command examples in this section apply to frozen v15/v16. For v17 use image-task begin/prepare/review-start/review/finish from agent-orchestration.md; the same compact report and QA rules apply.
+Frozen v15/v16 preparation and recording commands are in [historical-recovery.md](historical-recovery.md#candidate-commands--v15v16). For v17 use image-task begin/prepare/review-start/review/finish from agent-orchestration.md; the same compact report and QA rules apply.
 
-Build the initial request using `build-prompt.py --run-dir <run> --image <id> --write-request`. Use its exact prompt and ordered role-scoped references; follow `provider-routing.md`. Before an authorized image call, record `manage-run.py mark-stage --run-dir <run> --image <id> --event generation_started`.
-
-Preserve every returned image immediately in unique staging. The coordinator runs one command to archive it, count the consumed slot, copy the prompt, hash and validate the image:
-
-```bash
-python3 scripts/manage-run.py prepare-candidate --run-dir <run> --image <id> \
-  --candidate <returned.png> --prompt-file <prompt.txt> \
-  --provider codex --model gpt-image --transport builtin
-```
-
-CLI Codex uses `--transport cli --provider-audit <audit.json>`. Other providers omit transport. Never call an image API inside this preparation command. A technical failure keeps the returned bytes and consumed slot, marks `technical_blocked`, and authorizes no new image. Missing files or record errors are reported, not converted into visual defects. Use `block-image --run-dir <run> --image <id> --reason <details>` to terminate an unresolved technical blocker. Mechanical record corrections may reuse the same image; do not repeat visual inspection or manufacture a PASS.
-
-When preparation returns `awaiting_review`, the designated reviewer opens the archived candidate, records `mark-stage --event single_review_started`, and writes one compact report:
+For v19 and frozen v18, the generation worker uses image-task start, ingest, review-start and submit from [batch-commands.md](batch-commands.md#image). Ingest preserves and counts the returned bytes and performs automatic checks. Record review-start when opening the archived candidate, then fill the returned compact report:
 
 ```json
 {
@@ -61,22 +49,13 @@ When preparation returns `awaiting_review`, the designated reviewer opens the ar
 }
 ```
 
-This example shows structure, not default acceptance. Use one ordered observation per actual panel. A core defect is `{check, detail}`; FAIL requires at least one and a specific `targeted_retry`. A PASS requires exact transcription and no core defects. Measured PASS uses the existing measurement evidence fields from `qa-rubric.md`. Candidate SHA-256 may be omitted; the manager supplies it, or verifies it when provided.
+This example shows structure, not default acceptance. Use one ordered observation per actual panel. A core defect is `{check, detail}`; FAIL requires at least one and a specific `targeted_retry`. A PASS requires exact transcription and no core defects. Measured PASS uses the shared measurement evidence fields from [form-evidence.md](form-evidence.md). Candidate SHA-256 may be omitted; the manager supplies it, or verifies it when provided.
 
-Record without another visual review:
-
-```bash
-python3 scripts/manage-run.py record-candidate --run-dir <run> --image <id> \
-  --candidate <archived.png> --prompt-file <prompt.txt> \
-  --automatic-json <automatic.json> --visual-json <review.json> \
-  --provider codex --model gpt-image --transport builtin
-```
-
-The prepared receipt is authoritative for provider metadata and automatic QA. A FAIL with core defects returns to `pending` only while fewer than three images have been produced. A PASS becomes `awaiting_collection`. Never promote it yet. The coordinator builds a targeted retry from the frozen idea and the recorded defects; do not replace its core premise. Prompt or QA JSON formatting errors alone never authorize a new image.
+Submit the compact report with image-task submit from [batch-commands.md](batch-commands.md#image). Its receipt records the verdict and eligible same-tool retry or collection transition. The original three-call budget applies.
 
 ## Collection
 
-When all N tasks are awaiting collection or terminal, run:
+For v18/v19 use collection-task prepare/submit from [batch-commands.md](batch-commands.md#collection), which merges journals and creates/reuses the sheet. For the frozen direct-command path, when all N tasks are awaiting collection or terminal, run:
 
 ```bash
 python3 scripts/build-review-sheet.py --run-dir <run>
@@ -99,11 +78,11 @@ Send the sheet and index together for one set review. Inspect only distinctness 
 }
 ```
 
-`images` names only tasks to repair, not every image mentioned for comparison. Record with `manage-run.py record-collection-review --run-dir <run> --review-json <json>`.
+`images` names only tasks to repair, not every image mentioned for comparison. For v18/v19 record through collection-task submit. Frozen direct-command runs use `manage-run.py record-collection-review --run-dir <run> --review-json <json>`.
 
 On first collection failure, only named images with unused slots reopen. Repair them within their frozen plans; each new candidate gets one single-image review. Single-image failures can use the remaining shared budget inside this one repair round. Then build the updated N-slot sheet and submit one focused collection recheck. Keep unchanged candidates as visual context. A recheck cannot name new repair targets or start another collection round. Failed targets become `collection_failed`; exhausted or technically blocked tasks remain missing. If no repair is possible, close the collection without another visual call.
 
-When the collection is complete, run `promote` for each `collection_accepted` task. The manager revalidates data and hashes without another LLM image inspection. Then `finalize`, using `--allow-partial` for terminal shortfalls, and export the gallery. Do not fill gaps with rejected pictures or restore an earlier set-rejected candidate as a final.
+For v18/v19 the delivery worker runs batch-deliver from [batch-commands.md](batch-commands.md#delivery). In frozen direct-command runs, when the collection is complete, run `promote` for each `collection_accepted` task. The manager revalidates data and hashes without another LLM image inspection. Then `finalize`, using `--allow-partial` for terminal shortfalls, and export the gallery. Do not fill gaps with rejected pictures or restore an earlier set-rejected candidate as a final.
 
 ## Failure
 
@@ -115,6 +94,6 @@ When the collection is complete, run `promote` for each `collection_accepted` ta
 
 ## Timing
 
-`manifest.events` records generation/review starts, receipt saving, automatic-check completion, single-review recording, sheet creation, collection-review recording, promotion and finalization. The receipt timestamp is when `prepare-candidate` receives the saved output, not backend GPU completion time. Pair it with provider/session timestamps when separating transport delay. Record starts through `mark-stage`; never backfill invented timestamps. Scripts enforce stored decisions, not the truthfulness or real-world count of LLM image inspections.
+`manifest.events` records generation/review starts, receipt saving, automatic-check completion, single-review recording, sheet creation, collection-review recording, promotion and finalization. The receipt timestamp is when `prepare-candidate` receives the saved output, not backend GPU completion time. Pair it with provider/session timestamps when separating transport delay. Record current review starts through image-task review-start; frozen v15/v16 use `mark-stage`; never backfill invented timestamps. Scripts enforce stored decisions, not the truthfulness or real-world count of LLM image inspections.
 
 Frozen assignments v11/v13/v14 keep their original QA 9/10 and recovery behavior. Frozen v15 retains its original prompt contract and this QA 11 workflow. New assignments use v19 and QA 11; never migrate approval histories or old PASS results merely to change policy.

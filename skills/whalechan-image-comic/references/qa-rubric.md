@@ -1,6 +1,6 @@
-# Frozen QA 9/10 rubric and measurement evidence
+# Frozen QA 9/10 rubric
 
-For assignments v15/v16/v17/v18/v19 / QA 11 use `review-workflow.md`; the strict visual verdict rules below apply only to frozen v11/v13/v14 runs. The measured `form_evidence` example also supplies the measurement structure used by QA 11.
+For assignments v15/v16/v17/v18/v19 / QA 11 use `review-workflow.md`; the strict visual verdict rules below apply only to frozen v11/v13/v14 runs. Shared H1 measurement instructions and the evidence object are in [form-evidence.md](form-evidence.md). The full legacy report below retains its original shape.
 
 Reject when any applicable legacy gate fails. Inspect the original-resolution candidate, including small text and panel edges.
 

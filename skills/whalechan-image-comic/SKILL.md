@@ -29,7 +29,8 @@ Role references:
 - `references/asset-index.md` to select bundled references, `references/form-authority.json` for form targets, and `references/asset-catalog.json` for paths and hashes.
 - `references/provider-routing.md` before any provider call.
 - `references/review-workflow.md` for new-run single-image QA, tolerances, contact sheets, collection repair and timing.
-- `references/qa-rubric.md` only for frozen QA 9/10 recovery or measured proportion evidence.
+- `references/form-evidence.md` for shared H1 measurement evidence.
+- `references/historical-recovery.md` when continuing a frozen run; `references/qa-rubric.md` for frozen QA 9/10 verdicts.
 - `references/gallery.md` before exporting the completed task's preview gallery.
 
 ## Choose the language

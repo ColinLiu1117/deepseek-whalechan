@@ -28,8 +28,6 @@ Use for a single theft of meaning, blunt declaration, identity claim, selective 
 
 Use top/bottom for normal reading → stolen reading or permission → self-serving consequence. Use left/right for direct comparison, mutual roasting, outer performance → inner truth, or simultaneous status reversal. Left/right also suits front → truth exposure and situation → recognition. Panel 2 must change, sharpen or escalate the meaning of panel 1; continuation, undeclared repetition, or a new pose alone is a failure.
 
-If the whole-canvas candidate fails cross-panel coherence and exactly two provider slots remain, generate the two panels separately and compose locally. Record both components. Do not use this rescue after a second provider image has already consumed a slot.
-
 ## Four panels
 
 Use a `2×2` grid only when four distinct beats are needed. Shape the beats from the proposal's direction. These are examples, not templates:
@@ -43,12 +41,11 @@ Use a `2×2` grid only when four distinct beats are needed. Shape the beats from
 
 Do not turn four panels into four paragraphs or four status snapshots. Keep each beat visually distinct. If any panel has no unique narrative function, use fewer panels.
 
-Because every task has only three image-producing calls, never rescue a failed four-panel image by generating four new panels. Retry the complete canvas. Local four-panel composition is permitted only from already-existing inputs that consume no new provider calls.
-
 ## Prompt panel blocks
 
 Describe each panel with: shot and intentional crop, the frozen free-text action, visible fact anchor, exact text, transition purpose, and new information. State the reading direction and final visual proof. For whole-canvas generation, preserve permanent identity, frozen style, outfit, palette, proportion, torso length, and limb thickness across panels, with no accidental crop.
 
-## Local composition
+## Historical composition
 
+For frozen QA9/10 component generation and local composition, use [historical-recovery.md](historical-recovery.md#panel-component-recovery--v11v13v14-only). QA11 generation and repairs operate on complete canvases through [review-workflow.md](review-workflow.md).
 Use `scripts/compose-panels.py` only for existing panel images. Pass the frozen `--resolution-mode`, `--aspect-ratio`, and explicit `--width`/`--height` when applicable. In automatic mode it derives the canvas width from the first existing panel and computes the frozen ratio. It normalizes each panel with cover cropping, places white gutters, and outputs an exact canvas without stretching the completed montage. It does not add text.

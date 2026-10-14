@@ -1,4 +1,4 @@
-"""Single-review candidate and contact-sheet lifecycle for assignment v15."""
+"""Single-review candidate and contact-sheet lifecycle for QA11 assignments v15–v19."""
 from __future__ import annotations
 
 import importlib.util
@@ -19,7 +19,7 @@ class ReviewWorkflow:
 
     def load(self, args):
         run, assignment, manifest = self.m.load_run(args.run_dir)
-        self.require(assignment["schema_version"] in {15, 16, 17, 18, 19}, "This command requires assignment v15/v16")
+        self.require(assignment["schema_version"] in {15, 16, 17, 18, 19}, "This command requires assignment v15/v16/v17/v18/v19")
         self.require(manifest["status"] == "in_progress", "Run is not open")
         return run, assignment, manifest
 
@@ -73,7 +73,7 @@ class ReviewWorkflow:
     def prepare(self, args):
         run, assignment, manifest = self.load(args)
         self.require(assignment["schema_version"] not in {17, 18, 19} or getattr(self.m, "task_local", False),
-                     "Use image-task for v17 single-image mutations")
+                     "Use image-task for v17/v18/v19 single-image mutations")
         state = self.m.state_for(manifest, args.image)
         self.require(state["status"] == "pending", "Image is not ready for generation")
         self.require(len(state["attempts"]) < 3, "Per-image candidate budget is exhausted")
@@ -326,7 +326,7 @@ class ReviewWorkflow:
     def block(self, args):
         run, assignment, manifest = self.load(args)
         self.require(assignment["schema_version"] not in {17, 18, 19} or getattr(self.m, "task_local", False),
-                     "Use image-task for v17 single-image mutations")
+                     "Use image-task for v17/v18/v19 single-image mutations")
         state = self.m.state_for(manifest, args.image)
         self.require(state["status"] not in {"passed", "technical_blocked", "exhausted", "collection_failed"},
                      "Task is already terminal")
@@ -339,7 +339,7 @@ class ReviewWorkflow:
     def mark(self, args):
         run, assignment, manifest = self.load(args)
         self.require(assignment["schema_version"] not in {17, 18, 19} or getattr(self.m, "task_local", False),
-                     "Use image-task for v17 single-image mutations")
+                     "Use image-task for v17/v18/v19 single-image mutations")
         state = self.m.state_for(manifest, args.image)
         expected = "pending" if args.event == "generation_started" else "awaiting_review"
         self.require(state["status"] == expected, "Event does not match task state")

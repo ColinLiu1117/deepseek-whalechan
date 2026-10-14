@@ -366,7 +366,7 @@ def selection_markdown(summary: dict[str, Any], language: str = "zh") -> str:
 
 def planning_draft(value: dict[str, Any], label: str = "Planning draft") -> dict[str, Any]:
     if value.get("schema_version") not in {18, ASSIGNMENT_SCHEMA_VERSION}:
-        raise RunError(f"{label} must use schema_version {ASSIGNMENT_SCHEMA_VERSION}")
+        raise RunError(f"{label} must use schema_version {ASSIGNMENT_SCHEMA_VERSION} or 18")
     return value
 
 
@@ -606,7 +606,7 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
         if value["schema_version"] in {18, 19}:
             extension_module("provider_policy").validate(execution.get("tool"))
         if plan != {"coordinator": "main", "allocation": "dynamic"}:
-            raise RunError("v17 worker_plan requires dynamic allocation")
+            raise RunError("v17/v18/v19 worker_plan requires dynamic allocation")
     else:
         workers = plan.get("workers")
         capacity = plan.get("max_parallelism")
@@ -643,7 +643,7 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
         payload.update(tie_breaks=value.get("tie_breaks", []), panel_policy=policy,
                        execution=execution, input=value["input"])
     if tier_policy is not None:
-        # Only v14 binds the tier policy, so historical v13 confirmation hashes stay unchanged.
+        # v14 and later bind the tier policy, so historical v13 confirmation hashes stay unchanged.
         payload["exaggeration_policy"] = tier_policy
     if value.get("schema_version") in {15, 16, 17, 18, 19}:
         payload["review_workflow"] = {"version": 1, "candidate_reviews": 1,
@@ -1717,7 +1717,7 @@ def validate_assignment(path: Path, require_approval: bool = True) -> dict[str, 
     presets, performance_levels = expression_presets()
     tiers = exaggeration_tiers()
     if assignment.get("schema_version") not in {18, ASSIGNMENT_SCHEMA_VERSION}:
-        raise RunError(f"schema_version must be {ASSIGNMENT_SCHEMA_VERSION}")
+        raise RunError(f"schema_version must be {ASSIGNMENT_SCHEMA_VERSION} or 18")
     run_name = text(assignment.get("run_name"), "run_name")
     if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", run_name):
         raise RunError("run_name must be lowercase kebab-case")
@@ -1954,7 +1954,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     if assignment["schema_version"] in {15, 16, 17, 18, 19} and (
         manifest.get("review_workflow_version") != 1 or not isinstance(manifest.get("collection"), dict)
     ):
-        raise RunError("v15/v16 requires its collection review workflow")
+        raise RunError("QA11 assignments v15–v19 require their collection review workflow")
     if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         raise RunError(f"Manifest schema_version must be {MANIFEST_SCHEMA_VERSION}")
     _assets, _forms, current_hash = catalog()
@@ -2416,7 +2416,7 @@ def resolve_transport(args: argparse.Namespace, audit_path: Path | None) -> str 
 def record_image(args: argparse.Namespace, component: bool) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
     if assignment["schema_version"] in {17, 18, 19}:
-        raise RunError("Use image-task review for v17")
+        raise RunError("Use image-task review for v17/v18/v19")
     if assignment["schema_version"] in {15, 16, 17, 18, 19}:
         if component:
             raise RunError("QA 11 accepts complete candidates only")
@@ -2739,7 +2739,7 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
 def cmd_record_error(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, _assignment, manifest = load_run(args.run_dir)
     if _assignment["schema_version"] in {17, 18, 19}:
-        raise RunError("Use image-task error for v17")
+        raise RunError("Use image-task error for v17/v18/v19")
     if manifest.get("status") != "in_progress":
         raise RunError("Run is not open")
     state = state_for(manifest, args.image)
@@ -2909,7 +2909,7 @@ def parser() -> argparse.ArgumentParser:
     batch.add_argument("--assignment", action="append", help="Confirmed assignment; repeat for each source")
     batch.add_argument("--draft", action="append", help="Planning draft before the confirmation; repeat for each source")
     batch.set_defaults(handler=cmd_validate_batch)
-    plan = commands.add_parser("plan-execution", help="Frozen single-pool execution helper; new v17 tasks use plan-roles")
+    plan = commands.add_parser("plan-execution", help="Frozen single-pool execution helper; v17–v19 tasks use plan-roles")
     plan.add_argument("--ready-images", type=int, required=True)
     plan.add_argument("--worker-slots", type=int, required=True)
     plan.add_argument("--provider-limit", type=int, required=True)

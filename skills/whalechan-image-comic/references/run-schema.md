@@ -99,25 +99,7 @@ The confirmation projection additionally includes target_images, source_id, auth
 
 ## Historical tournament v13–v18
 
-The following section applies only to frozen tournament contracts; new v19 records use the independent selection above.
-
-Freeze one pool of ten candidates before comparing them. Record exactly 45 unordered pairs, each once; no self-pairs or unknown IDs:
-
-```json
-{
-  "duels": [
-    {"a": "idea_01", "b": "idea_02", "winner": "idea_01", "reason": "The moving refrigerator shows the permission error before any explanation is needed."},
-    {"a": "idea_01", "b": "idea_03", "winner": null, "reason": "Both give equally immediate visual consequences, with different emotional payoffs."}
-  ],
-  "tie_breaks": [
-    {"ideas": ["idea_03", "idea_06"], "reason": "With equal total and head-to-head points, the access joke adds a clearer contrast to the already selected ownership joke."}
-  ]
-}
-```
-
-This fragment shows record shapes, not a complete tournament. A winner must be one of the pair or `null` for a draw. Each idea plays nine matches. Award 2 points for a win, 1 to each drawn idea and 0 for a loss. Compare source fidelity, laugh strength, visual contribution, concise dialogue and character specificity; explain actual content rather than assigning unsupported absolute quality scores.
-
-Run `rank-ideas --draft <file>` to compute standings and `ranked_ideas` from `creative_pool`, `duels` and `tie_breaks` before completing the proposal. The script computes `tournament_results`; do not author a second score table. Sort by total points, then points from matches within the entire equal-total group. For every subgroup still tied, supply one `tie_breaks` record with the exact tied IDs in final order and a concrete comparative reason. If no ties remain, use `[]`. Do not use ID or input position to decide the order. `ranked_ideas` must equal the first five of this computed ranking. Keep all ten candidates and all comparisons, including losses; never extend the pool because relative winners seem weak.
+Frozen tournament records and ranking commands are documented in [historical-recovery.md](historical-recovery.md#historical-tournament-v13v18).
 
 ## Comedy directions
 
@@ -167,7 +149,7 @@ Author the selected N options in ranking order. These are information rows, not 
 }
 ```
 
-Each `premise`, `scene` and `direction` matches its pool idea; `twist` equals that idea's `punchline`, preserving the candidate that won. `is_native` is boolean and equals whether the idea direction matches the non-null source direction. No native or character count is forced. `exaggeration` is `A`, `B` or `C`; `contrast` is `null` or `{axes, lowered_to}` and must match the image's contrast. `twist` describes any comic landing, not necessarily a reversal. For v19 key_lines must exactly preserve the frozen candidate; content changes require an explicit new planning revision. Frozen older contracts keep their original wording rules.
+Each `premise`, `scene` and `direction` matches its pool idea; `twist` equals that idea's `punchline`, preserving the candidate that won. `is_native` is boolean and equals whether the idea direction matches the non-null source direction. No native or character count is forced. `exaggeration` is `A`, `B` or `C`; `contrast` is `null` or `{axes, lowered_to}` and must match the image's contrast. `twist` describes any comic landing, not necessarily a reversal. This persisted field name is retained for schema and confirmation-hash compatibility; author its value as the selected direction’s comic landing. For v19 key_lines must exactly preserve the frozen candidate; content changes require an explicit new planning revision. Frozen older contracts keep their original wording rules.
 
 New plans record `proportion` on every option using the same preset/custom object as an image: `{"mode": "preset", "preset": "semi-chibi"}` by default, or e.g. `{"mode": "custom", "target_head_ratio": 3.0}`. Preset targets and intervals come from the catalog; custom intervals default to target ± 0.15 with the lower bound above 1.0. All N options must record it if any does. The proposal already participates in the confirmation hash, so changing a planned proportion invalidates that confirmation. Completed images must normalize to the same proportion as their corresponding options. Historical records with no option-level proportions keep their original hash and recovery contract; do not retrofit their approval history.
 

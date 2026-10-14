@@ -53,3 +53,7 @@ Display the returned Markdown. The helper inspects references and returns normal
 After the actual Gate 2 reply, save `confirmation.status: confirmed`, its reply, timestamp and returned `summary_sha256`. Set `budget.confirmed_over_24: true` only when the user approved the displayed ceiling above 24. Then expand images using those requirements. See `assignment-schema.md` for the contract.
 
 Validation, initialization and frozen-run loading recheck the approval chain, configuration counts and locked fields. Reference identities, bytes and roles are bound, while storage paths may change when copied into the run. These checks establish record consistency, not whether a human actually replied or whether the expansion is creatively faithful. The agent must verify those facts from the conversation and review; direct provider calls must not bypass either gate.
+
+## Expansion consistency review
+
+The batch review referenced by SKILL.md and provider-routing.md is the existing post-Gate-2 expansion check: compare every generated image assignment with its selected proposal, configuration count, locked requirements, references and confirmed budget. For multiple runs, also reconcile their approved total and worker allocations. Complete this check during expansion before initialization and worker dispatch. It uses the existing validation and approval chain; it adds no separate reviewer, artifact or user gate.

@@ -74,6 +74,8 @@ Give the run a kebab-case English name and every image a unique snake_case Engli
 
 After Gate 2 and successful preparation/initialization, **create the confirmed number of sub-agents using the runtime's delegation tool**, reduced only for current capacity. Follow the dispatch and result-collection procedure in `references/provider-routing.md`; writing a parallelism field alone does not start workers. Reuse available workers for remaining images. The main agent alone writes the manifest and promotes finals. Each worker handles one candidate for one image at a time; retries and fallback for that image wait for the coordinator's record. Do not launch generation workers during planning or before the required batch review.
 
+The required batch review above is the existing [expansion consistency review](references/proposal-selection.md#expansion-consistency-review), completed during assignment expansion.
+
 ## Preview gallery
 
 Before final delivery, export the finalized run with `python3 scripts/export-gallery.py --run-dir <run> --language <zh|en>` and link the returned `gallery` HTML path. For a multi-source batch, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Include all proposals, final images and recorded attempts. A gallery is a read-only snapshot, not new QA or permission to generate. If setup failures leave a run open, resume it before exporting. Export errors do not require regeneration. See `references/gallery.md`.

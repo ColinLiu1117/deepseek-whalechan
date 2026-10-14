@@ -259,9 +259,9 @@ class RunReader:
         counts = {item["choice"]: item["count"] for item in assignment.get("selection", {}).get("choices", [])}
         proposals = []
         assigned = set()
-        tournament = COMIC and "worker_plan" in assignment
+        ranked_comic = COMIC and "worker_plan" in assignment
         for index, option in enumerate(options, 1):
-            choice = str(index) if tournament else option["choice"]
+            choice = str(index) if ranked_comic else option["choice"]
             specs = [spec for spec in assignment["images"]
                      if (spec.get("idea_id") == option.get("idea_id") if COMIC
                          else spec.get("proposal_choice") == option["choice"])]
@@ -269,8 +269,8 @@ class RunReader:
             proposals.append({"choice": choice, "title": option["title"],
                               "scene": option.get("scene", ""),
                               "detail": option.get("twist", option.get("action_expression", "")),
-                              "selected": option["idea_id"] in assignment.get("ranked_ideas", []) if tournament else choice in counts,
-                              "planned": 1 if tournament else counts.get(choice, 0),
+                              "selected": option["idea_id"] in assignment.get("ranked_ideas", []) if ranked_comic else choice in counts,
+                              "planned": 1 if ranked_comic else counts.get(choice, 0),
                               "images": [self.image(spec) for spec in specs]})
         if assigned != set(self.manifest["images"]):
             raise GalleryError(f"Unlinked proposal images: {self.run.name}")

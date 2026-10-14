@@ -45,7 +45,7 @@ class BatchWorkflow:
         path = Path(args.batch).resolve()
         spec = self.m.read_json(Path(args.spec))
         version = spec.get("schema_version", 19)
-        self.require((type(version) is int), "Batch version must be 19")
+        self.require(type(version) is int and version == 19, "Batch version must be 19")
         with self.locked(path.with_suffix(".lock")):
             self.require(not path.exists(), "Batch exists; use status/resume")
             sources = spec.get("sources", [])

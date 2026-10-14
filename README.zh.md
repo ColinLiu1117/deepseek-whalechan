@@ -376,10 +376,7 @@ python3 skills/whalechan-image-comic/scripts/validate-image.py candidate.png --r
 # 4. 测量图像中的骨骼头身比并输出覆盖图
 python3 skills/whalechan-image-comic/scripts/measure-form.py candidate.png --output-overlay overlay.png
 
-# 5. 本地多格分镜无损拼版
-python3 skills/whalechan-image-comic/scripts/compose-panels.py --layout top-bottom --panels p1.png p2.png --output comic.png
-
-# 6. 使用 Gemini Nano Banana API 单独生成候选图
+# 5. 使用 Gemini Nano Banana API 单独生成候选图
 python3 skills/whalechan-image-comic/scripts/generate-nanobanana.py --request request.json --output output.png
 ```
 

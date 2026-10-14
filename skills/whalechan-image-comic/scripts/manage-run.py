@@ -208,12 +208,6 @@ def markdown_cell(value: str) -> str:
     return value.replace("\\", "\\\\").replace("|", "\\|").replace("\r", " ").replace("\n", "<br>")
 
 
-def selection_markdown(summary: dict[str, Any], language: str = "zh") -> str:
-    return plan_markdown({**({"schema_version": 19, "target_images": summary["image_count"]}),
-                          "proposal": {"options": summary["options"]},
-                          "panel_policy": summary["panel_policy"]}, summary, language)
-
-
 def planning_draft(value: dict[str, Any], label: str = "Planning draft") -> dict[str, Any]:
     if value.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
         raise RunError(f"{label} must use schema_version {ASSIGNMENT_SCHEMA_VERSION}")

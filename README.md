@@ -376,10 +376,7 @@ python3 skills/whalechan-image-comic/scripts/validate-image.py candidate.png --r
 # 4. Measure skeletal head-to-body ratio and output diagnostic overlay
 python3 skills/whalechan-image-comic/scripts/measure-form.py candidate.png --output-overlay overlay.png
 
-# 5. Local multi-panel layout lossless composition
-python3 skills/whalechan-image-comic/scripts/compose-panels.py --layout top-bottom --panels p1.png p2.png --output comic.png
-
-# 6. Generate candidate image directly via Gemini Nano Banana API
+# 5. Generate candidate image directly via Gemini Nano Banana API
 python3 skills/whalechan-image-comic/scripts/generate-nanobanana.py --request request.json --output output.png
 ```
 

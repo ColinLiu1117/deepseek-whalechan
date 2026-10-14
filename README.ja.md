@@ -375,10 +375,7 @@ python3 skills/whalechan-image-comic/scripts/validate-image.py candidate.png --r
 # 4. 骨格から頭身比を計測し、診断用オーバーレイを出力する
 python3 skills/whalechan-image-comic/scripts/measure-form.py candidate.png --output-overlay overlay.png
 
-# 5. ローカルで複数コマのレイアウトを可逆的に合成する
-python3 skills/whalechan-image-comic/scripts/compose-panels.py --layout top-bottom --panels p1.png p2.png --output comic.png
-
-# 6. Gemini Nano Banana API で候補画像を直接生成する
+# 5. Gemini Nano Banana API で候補画像を直接生成する
 python3 skills/whalechan-image-comic/scripts/generate-nanobanana.py --request request.json --output output.png
 ```
 

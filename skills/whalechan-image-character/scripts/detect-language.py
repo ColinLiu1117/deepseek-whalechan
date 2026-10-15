@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import unicodedata
 
 KANA = re.compile(r"[぀-ヿ]")
 HANGUL = re.compile(r"[가-힯]")
@@ -50,20 +51,22 @@ def claude_messages(root: Path, since: datetime):
     for path in root.glob("*/*.jsonl"):
         if datetime.fromtimestamp(path.stat().st_mtime, timezone.utc) < since:
             continue
-        for line in path.open(encoding="utf-8", errors="replace"):
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if record.get("type") != "user" or record.get("isMeta") or record.get("isSidechain"):
-                continue
-            stamp = parse_time(record.get("timestamp"))
-            content = (record.get("message") or {}).get("content")
-            parts = [content] if isinstance(content, str) else [
-                item.get("text", "") for item in content or [] if isinstance(item, dict) and item.get("type") == "text"]
-            for part in parts:
-                if stamp and stamp >= since and (text := typed(part)):
-                    yield "claude-code", stamp, text
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if record.get("type") != "user" or record.get("isMeta") or record.get("isSidechain"):
+                    continue
+                stamp = parse_time(record.get("timestamp"))
+                content = (record.get("message") or {}).get("content")
+                parts = [content] if isinstance(content, str) else [
+                    item.get("text", "") for item in content or [] if isinstance(item, dict) and item.get("type") == "text"]
+                for part in parts:
+                    if stamp and stamp >= since and (text := typed(part)):
+                        yield "claude-code", str(path), stamp, text
+
 
 
 def codex_messages(root: Path, since: datetime):
@@ -71,25 +74,31 @@ def codex_messages(root: Path, since: datetime):
         if datetime.fromtimestamp(path.stat().st_mtime, timezone.utc) < since:
             continue
         interactive = True
-        for line in path.open(encoding="utf-8", errors="replace"):
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            payload = record.get("payload") or {}
-            if record.get("type") == "session_meta":
-                # `codex exec` sessions carry prompts written by tools such as generate-codex.py.
-                interactive = payload.get("source") != "exec"
-            if not interactive or record.get("type") != "response_item" or payload.get("role") != "user":
-                continue
-            stamp = parse_time(record.get("timestamp"))
-            for item in payload.get("content") or []:
-                if stamp and stamp >= since and item.get("type") == "input_text" and (text := typed(item.get("text", ""))):
-                    yield "codex", stamp, text
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                payload = record.get("payload") or {}
+                if record.get("type") == "session_meta":
+                    # `codex exec` sessions carry prompts written by tools such as generate-codex.py.
+                    source = payload.get("source")
+                    interactive = source != "exec" and not isinstance(source, dict)
+                if not interactive or record.get("type") != "response_item" or payload.get("role") != "user":
+                    continue
+                stamp = parse_time(record.get("timestamp"))
+                for item in payload.get("content") or []:
+                    if stamp and stamp >= since and item.get("type") == "input_text" and (text := typed(item.get("text", ""))):
+                        yield "codex", str(path), stamp, text
+
 
 
 def classify(text: str) -> str | None:
     clean = NOISE.sub(" ", text)
+    clean = "\n".join(line for line in clean.splitlines() if not line.lstrip().startswith(">"))
+    if len(clean.strip()) < 3 or clean.strip().lower() in {"okay", "yes", "sure", "thanks", "continue"}:
+        return None
     if KANA.search(clean):
         return "ja"
     if HANGUL.search(clean):
@@ -103,6 +112,8 @@ def classify(text: str) -> str | None:
         return "cyrillic"
     if len(LATIN.findall(clean)) >= 3:
         return "latin"
+    if sum(unicodedata.category(char).startswith("L") for char in clean) >= 3:
+        return "other"
     return None
 
 
@@ -114,30 +125,41 @@ def detect(hours: float, home: Path, samples: int) -> dict:
     for agent, root in stores.items():
         if not root.is_dir():
             continue
-        for source, stamp, text in readers[agent](root, since):
-            # Sub-agent threads repeat the parent's request; count each typed message once.
-            key = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        for source, session, stamp, text in readers[agent](root, since):
+            # Deduplicate repeated transport records, not later messages with the same wording.
+            key = (session, stamp, hashlib.sha256(text.encode("utf-8")).hexdigest())
             if key in seen:
                 continue
             seen.add(key)
             if (script := classify(text)):
-                rows.append({"agent": source, "time": stamp, "script": script, "text": text})
+                rows.append({"agent": source, "session": session, "time": stamp, "script": script, "text": text})
     counts = Counter(row["script"] for row in rows)
     agents = Counter(row["agent"] for row in rows)
     leading = counts.most_common(1)[0][0] if counts else None
     rows.sort(key=lambda row: row["time"], reverse=True)
+    sessions = {}
+    for row in rows:
+        session = sessions.setdefault(row["session"], {"session": row["session"], "agent": row["agent"],
+            "last_user_message": row["time"].isoformat(), "by_script": {}, "latest": []})
+        script = row["script"]
+        session["by_script"][script] = session["by_script"].get(script, 0) + 1
+        if len(session["latest"]) < samples:
+            session["latest"].append({"script": script, "excerpt": row["text"][:240]})
+    if sessions:
+        leading = max(next(iter(sessions.values()))["by_script"], key=next(iter(sessions.values()))["by_script"].get)
     return {
+        "sessions": list(sessions.values()),
         "window_hours": hours,
         "stores": {agent: root.is_dir() for agent, root in stores.items()},
         "messages": len(rows),
         "by_agent": dict(agents),
         "by_script": dict(counts.most_common()),
         "leading": leading,
-        "suggested_tag": {"latin": None, "cyrillic": None}.get(leading, leading),
+        "suggested_tag": {"latin": None, "cyrillic": None, "other": None}.get(leading, leading),
         "latest": [{"agent": row["agent"], "time": row["time"].isoformat(), "script": row["script"],
                     "excerpt": row["text"][:80]} for row in rows[:samples]],
         "note": "Latin or Cyrillic script does not identify the language; read the excerpts. "
-                "The current session outweighs history when they disagree.",
+                "Use current-session expression first; otherwise inspect the newest meaningful session, not global counts. Quoted source material may still require agent exclusion.",
     }
 
 

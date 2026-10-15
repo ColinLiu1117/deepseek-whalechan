@@ -6,7 +6,7 @@ Use two user decisions: choose directions, then confirm the displayed quantities
 
 For an open theme (`proposal.mode: explore`), review five materially different proposals A–E. For precisely specified scenes (`direct`), present those scenes without forcing five alternatives; `proposal.request` preserves the user instruction supporting this choice. Identity and all explicit user constraints apply to every option. A–E are identifiers, not rankings or instructions to rotate styles.
 
-Display the output of `render-proposal` as a Markdown table, not a code block. Headers and questions here are the `--language zh` rendering; `--language en` renders them in English, and other communication languages translate the `en` rendering (see SKILL.md). Write the cells in the communication language and keep exact visible text unchanged:
+Display the output of `render-proposal` as a Markdown table, not a code block. Load the complete `gate` locale in the saved communication language; keep all counts and exact text unchanged. Write the cells in the communication language and keep exact visible text unchanged:
 
 | 选择 | 方案 | 核心场景 | 动作与表情 | 构图 | 视觉配置／文字 | 推荐程度与理由 |
 |---|---|---|---|---|---|---|
@@ -39,13 +39,13 @@ After Gate 2, expand only the approved configuration counts. Each image links to
 Keep revisioned drafts under `artifacts/whalechan-image-character/<run-name>-planning/`, unless the user specifies a destination. Gate 1 needs only `proposal`:
 
 ```bash
-python3 scripts/manage-run.py render-proposal --draft <draft.json> --language <zh|en>
+python3 scripts/manage-run.py render-proposal --draft <draft.json>
 ```
 
 After the actual selection, save its `proposal_sha256`, the reply and choices. Add `run_name`, `scope`, `execution` and `budget`, then run:
 
 ```bash
-python3 scripts/manage-run.py summarize-selection --draft <draft.json> --language <zh|en>
+python3 scripts/manage-run.py summarize-selection --draft <draft.json>
 ```
 
 Display the returned Markdown. The helper inspects references and returns normalized configurations with content hashes: preserve these in the next draft so changed bytes are detected. Neither helper writes a file, creates consent, initializes a run or calls a provider. A draft needs no `images` or visual QA.

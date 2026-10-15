@@ -23,15 +23,16 @@ Workflow: propose → **Gate 1: select directions** → **Gate 2: confirm scope 
 
 ## Choose the language
 
-Infer the session language from what the user typed in this session and in local agent sessions from the last 24 hours, whichever agent runs this Skill; do not take it from the agent's defaults, system locale or the reference material. Run `python3 scripts/detect-language.py` for the history: it reads Claude Code and Codex CLI records, skips injected and tool-written text, and reports message counts by script with recent excerpts. When this session and the history disagree, this session wins; read the excerpts before deciding a Latin-script language. When no history is available, use this session alone. An explicit user instruction ("reply in English", "文字用日语") overrides the inferred language for the scope it names: communication, visible text, or both.
+Read `references/language-policy.md` before planning. Resolve one task `language`: explicit user instruction → meaningful current-session expression → newest meaningful local session within 24 hours → ask when uncertain. Use `scripts/detect-language.py` for historical evidence, not as an automatic verdict; recent sessions take precedence over aggregate counts.
 
-- **Communication:** write every user-facing message, proposal table, gate summary, question and final report in the communication language. `render-proposal` and `summarize-selection` take `--language zh|en`; use `zh` for Chinese, `en` for English, and translate the `en` rendering for any other language, keeping every option, count, setting, budget, worker count and exact visible text unchanged. Export the gallery with `--language zh` for a Chinese session and `--language en` otherwise; the page can switch between Chinese and English. Confirmation hashes cover the structured record, not the Markdown.
-- **Visible text:** text stays off by default. When text is requested, keep wording the user supplied exactly as given; for wording you propose, use the session language unless the user names another. Record the result as BCP-47 tags in `text.languages` and confirm the exact wording at Gate 2.
-- **Internal:** provider prompts stay in English with exact visible text inserted verbatim; run and image names stay English identifiers.
+Save the normalized BCP-47 tag, actual resolution evidence and any explicit scoped overrides. Use it for communication, image lettering, HTML UI, drawing prompts and visible run/image titles. Preserve exact locked wording and necessary technical tokens. Keep internal IDs and filenames in English. Propagate the saved language to workers and resume from it; never redetect during execution.
+
+Prepare required plan/prompt locale sections before confirmation; use the offline gallery language selector for UI only. Keep generated content in its recorded language. See the language policy for custom dictionaries, display titles, scoped overrides and legacy compatibility.
+
 
 ## Resolve the request
 
-Resolve the request field by field while planning; build the complete schema v6 assignment only after Gate 2. Use the user's explicit instructions first, then references only for their declared roles, then canonical defaults for unresolved fields. Do not let a reference silently control unrelated dimensions.
+Resolve the request field by field while planning; build the complete schema v7 assignment only after Gate 2. Use the user's explicit instructions first, then references only for their declared roles, then canonical defaults for unresolved fields. Do not let a reference silently control unrelated dimensions.
 
 Defaults:
 
@@ -45,7 +46,7 @@ The user may explicitly request any style, action, outfit, solid/custom/transpar
 
 Input screenshots, chat logs, and dialogue supply subject matter only. They do not authorize copying UI, visible source text, avatars, brands, or visual style unless the user explicitly assigns those roles.
 
-Give the run a kebab-case English name and every image a unique snake_case English name. When one request contains several images, freeze a complete image-level configuration for each one rather than asking workers to inherit unstated choices.
+Give the run an English kebab-case `run_name` and every image a unique English snake_case `name`. Write `run_title` and each image `title` in the resolved titles language. When one request contains several images, freeze a complete image-level configuration for each one rather than asking workers to inherit unstated choices.
 
 ## Obtain both user decisions
 
@@ -56,7 +57,7 @@ Give the run a kebab-case English name and every image a unique snake_case Engli
 
 ## Execute the confirmed assignment
 
-1. Write the schema v6 assignment with both actual decision records described in `references/assignment-schema.md`, then validate and initialize it:
+1. Write the schema v7 assignment with both actual decision records described in `references/assignment-schema.md`, then validate and initialize it:
 
    ```bash
    python3 scripts/manage-run.py validate-assignment --assignment <assignment.json>
@@ -78,7 +79,7 @@ The required batch review above is the existing [expansion consistency review](r
 
 ## Preview gallery
 
-Before final delivery, export the finalized run with `python3 scripts/export-gallery.py --run-dir <run> --language <zh|en>` and link the returned `gallery` HTML path. For a multi-source batch, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Include all proposals, final images and recorded attempts. A gallery is a read-only snapshot, not new QA or permission to generate. If setup failures leave a run open, resume it before exporting. Export errors do not require regeneration. See `references/gallery.md`.
+Before final delivery, export the finalized run with `python3 scripts/export-gallery.py --run-dir <run>` and link the returned `gallery` HTML path. For a multi-source batch, keep each independent source group in its own run, with consecutive screenshots together in `input.content`; after all runs finalize, export one gallery using repeated `--run-dir` and an explicit `--output`. Include all proposals, final images and recorded attempts. A gallery is a read-only snapshot, not new QA or permission to generate. If setup failures leave a run open, resume it before exporting. Export errors do not require regeneration. See `references/gallery.md`.
 
 ## Hard stops
 

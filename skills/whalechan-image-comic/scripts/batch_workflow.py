@@ -23,7 +23,7 @@ class BatchWorkflow:
 
     def state(self, path):
         value = self.m.read_json(Path(path))
-        self.require(value.get("schema_version") == 19, "Batch schema_version must be 19")
+        self.require(value.get("schema_version") in self.m.SUPPORTED_ASSIGNMENT_VERSIONS, "Batch schema_version must be 19")
         self.policy.validate(value["execution"].get("tool"))
         return value
 
@@ -34,9 +34,11 @@ class BatchWorkflow:
                 batch = self.state(path)
                 self.require(batch["execution"] == assignment["execution"], "Batch execution mismatch")
             else:
-                batch = {"schema_version": 19, "execution": assignment["execution"], "sources": [assignment["run_name"]],
+                batch = {"schema_version": assignment["schema_version"], "execution": assignment["execution"], "sources": [assignment["run_name"]],
                          "tasks": {}, "workers": {}, "events": [], "runs": {},
                          "status": "preflight_required"}
+                if assignment["schema_version"] == 20:
+                    batch.update(self.m.language_policy().contract(assignment))
                 batch["runs"][assignment["run_name"]] = str(run)
                 self.m.write_json(path, batch)
         manifest["batch_file"] = str(path)
@@ -44,8 +46,8 @@ class BatchWorkflow:
     def prepare(self, args):
         path = Path(args.batch).resolve()
         spec = self.m.read_json(Path(args.spec))
-        version = spec.get("schema_version", 19)
-        self.require(type(version) is int and version == 19, "Batch version must be 19")
+        version = spec.get("schema_version", self.m.ASSIGNMENT_SCHEMA_VERSION)
+        self.require(type(version) is int and version in self.m.SUPPORTED_ASSIGNMENT_VERSIONS, "Batch version must be 19")
         with self.locked(path.with_suffix(".lock")):
             self.require(not path.exists(), "Batch exists; use status/resume")
             sources = spec.get("sources", [])
@@ -74,12 +76,16 @@ class BatchWorkflow:
             execution = self.roles.execution({**spec["execution"], "tool": preflight["tool"],
                 "planning_mode": self.roles.PRIORITY_MODE})
             language = spec.get("language")
-            self.require(language in {"zh", "en"}, "Set resolved communication language zh or en")
+            if version == 20:
+                self.m.language_policy().contract(spec)
+            else:
+                self.require(language in {"zh", "en"}, "Legacy communication language must be zh or en")
             batch = {"schema_version": version, "execution": execution, "sources": [s["id"] for s in inventory],
                      "inventory": inventory, "language": language, "preflight": preflight,
                      "status": "planning", "tasks": {}, "workers": {}, "events": [], "runs": {},
-                     "language_evidence": spec.get("language_evidence") or
-                         self.m.extension_module("detect-language").detect(24, Path.home(), 5)}
+                     "language_evidence": spec.get("language_evidence") or (spec.get("language_resolution") if spec.get("language_resolution", {}).get("source") != "recent-session" and spec.get("language_resolution") else self.m.extension_module("detect-language").detect(24, Path.home(), 5))}
+            if version == 20:
+                batch.update(self.m.language_policy().contract(spec))
             for source in inventory:
                 self.enqueue(batch, "concepts-" + source["id"], "planning", source["id"],
                     {"stage": "concepts", "source": source,
@@ -127,8 +133,10 @@ class BatchWorkflow:
             normalized = path.parent / (source + "-normalized.json")
             self.m.write_json(normalized, draft)
             origin = next(x for x in batch["inventory"] if x["id"] == source)
-            self.require(draft["schema_version"] == 19 and draft["source_id"] == source and
+            self.require(draft["schema_version"] == batch["schema_version"] and draft["source_id"] == source and
                          draft["target_images"] == origin["target_images"], "Draft source/count differs")
+            if batch["schema_version"] == 20:
+                self.require(all(draft.get(k) == batch.get(k) for k in ("language", "language_overrides", "language_resolution")), "Draft language differs from the batch")
             self.require(draft.get("exaggeration_policy") == origin.get("exaggeration_policy"),
                          "Draft must preserve the source tier policy")
             if origin["files"]:
@@ -154,12 +162,19 @@ class BatchWorkflow:
         target = path.parent / "proposal.json"
         self.m.write_json(target, proposal)
         rendered = path.parent / "proposal.md"
-        question = self.m.PLAN_TEXT[batch["language"]]["question"]
+        words = None
+        if batch["schema_version"] == 20:
+            first = self.m.read_json(Path(drafts[0]["path"]))
+            lp = self.m.language_policy()
+            words = lp.locale(first, lp.effective(first, "communication"), "plan")
+        question = words["question"] if words else self.m.PLAN_TEXT[batch["language"]]["question"]
         tables = [self.m.plan_markdown(self.m.read_json(Path(d["path"])), language=batch["language"]).replace(question, "")
                   for d in drafts]
         count = sum(self.m.target_images(self.m.read_json(Path(d["path"]))) for d in drafts)
         total = (f"总计：{count}张；最多{count * 3}次出图。各来源共用上述角色上限。" if batch["language"] == "zh"
                  else f"Total: {count} images; maximum {count * 3} calls. Role limits are shared across sources.")
+        if words:
+            total = words["totals"].format(n=count, calls=count * 3)
         rendered.write_text("\n\n".join(tables) + "\n\n" + total + "\n\n" + question + "\n")
         with self.locked(path.with_suffix(".lock")):
             batch = self.state(path)
@@ -260,8 +275,9 @@ class BatchWorkflow:
         if stage:
             refs = {"concepts": ["comedy-engine", "proposal-selection"],
                     "selection": ["proposal-selection"], "detail": ["prompt-design", "run-schema"]}[stage]
-        return {"task": task, "batch": str(Path(args.batch).resolve()), "tool": batch["execution"]["tool"],
-                "skill": str(self.m.SKILL_ROOT), "references": [str(self.m.SKILL_ROOT / "references" / (r + ".md")) for r in refs],
+        return {"language_contract": {k: batch[k] for k in self.m.language_policy().FIELDS if k in batch},
+                "schema_version": batch["schema_version"], "task": task, "batch": str(Path(args.batch).resolve()), "tool": batch["execution"]["tool"],
+                "skill": str(self.m.SKILL_ROOT), "references": [str(self.m.SKILL_ROOT / "references" / (r + ".md")) for r in refs + ["language-policy"]],
                 "next_action": "execute-" + (stage or role),
                 **({"submission_template": {"input": None, "creative_pool": []},
                     "candidate_count": 2 * task["inputs"]["source"]["target_images"]} if stage == "concepts" else {}),
@@ -532,6 +548,9 @@ class BatchWorkflow:
             binding_path = path.parent / "delivery-inputs.json"
             binding = {"output": str(output), "outcomes": outcomes,
                        "assignments": {run: self.m.sha256(Path(run) / "assignment.json") for run in runs}}
+            locales = self.m.read_json(Path(args.locales)) if getattr(args, "locales", None) else None
+            if locales is not None:
+                binding["locales_sha256"] = self.m.contract_hash(locales)
             if binding_path.exists():
                 self.require(self.m.read_json(binding_path) == binding, "Delivery inputs/output changed")
             else:
@@ -547,7 +566,7 @@ class BatchWorkflow:
                     gallery = str(output / "index.html")
                 else:
                     exported = self.m.extension_module("export-gallery").export_gallery(runs, output,
-                        batch.get("language", "zh"))
+                        None if batch["schema_version"] == 20 else batch.get("language", "zh"), locales)
                     gallery = exported["gallery"]
                 delivery = {"gallery": gallery, "outcomes": outcomes, "passed": len(final_paths),
                             "expected": len(outcomes)}
@@ -558,7 +577,7 @@ class BatchWorkflow:
             for filename, group in zip(runs, data["groups"]):
                 _, frozen, manifest = self.m.load_run(filename)
                 expected = {key: value["status"] for key, value in manifest["images"].items()}
-                self.require(group["title"] == frozen["run_name"] and group.get("task_outcomes") == expected,
+                self.require(group["title"] == frozen.get("run_title", frozen["run_name"]) and group.get("task_outcomes") == expected,
                              "Gallery belongs to different run outcomes")
                 self.require(group["passed"] == sum(v == "passed" for v in expected.values()), "Gallery count mismatch")
             assets = set()
@@ -588,6 +607,25 @@ class BatchWorkflow:
                         counts = {k: ":".join(str(row[k][t]) for t in "ABC") for k in ("planned", "delivered", "missing")}
                         handle.write((f"- {row['run']}：目标 3:1:1；计划 {counts['planned']}；交付 {counts['delivered']}；缺项 {counts['missing']}。\n" if batch.get("language", "zh") == "zh" else
                             f"- {row['run']}: target 3:1:1; planned {counts['planned']}; delivered {counts['delivered']}; missing {counts['missing']}.\n"))
+            if batch["schema_version"] == 20:
+                lp = self.m.language_policy()
+                first = self.m.read_json(Path(runs[0]) / "assignment.json")
+                words = lp.locale(first, lp.effective(first, "communication"), "plan")
+                titles = {}
+                for run in runs:
+                    saved = self.m.read_json(Path(run) / "assignment.json")
+                    titles[saved["run_name"]] = saved["run_title"]
+                    for image in saved["images"]:
+                        titles[(str(Path(run)), image["id"])] = image["title"]
+                lines = ["# " + batch["run_title"], ""]
+                for row in outcomes:
+                    title = titles.get((row["run"], row["image"]), row["image"])
+                    lines.append(f"- [{title}]({row['final']})" if row["final"] else f"- {title}: {words['not_produced']}")
+                lines += ["", words["delivery_tiers"]]
+                for row in tier_distributions:
+                    counts = {k: ":".join(str(row[k][t]) for t in "ABC") for k in ("planned", "delivered", "missing")}
+                    lines.append(words["delivery_row"].format(run=titles.get(row["run"], row["run"]), **counts))
+                index.write_text("\n".join(lines) + "\n")
             delivery["index"] = str(index)
             self.m.write_json(receipt_file, delivery)
             result = self.receipt(path, args.task_id, args.owner,
@@ -706,6 +744,7 @@ class BatchWorkflow:
                 p.add_argument("--user-reply", required=True)
                 p.add_argument("--evidence", required=True)
             elif name == "batch-deliver":
+                p.add_argument("--locales")
                 p.add_argument("--output")
                 p.add_argument("--task-id", required=True)
                 p.add_argument("--owner", required=True)

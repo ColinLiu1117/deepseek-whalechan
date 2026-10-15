@@ -20,7 +20,7 @@ class SelectionContractTests(fixtures.FixtureCase):
             self.assertFalse((self.root / "runs").exists())
         old = self.assignment()
         old["schema_version"] = 4
-        with self.assertRaisesRegex(manage.RunError, "schema_version must be 6"):
+        with self.assertRaisesRegex(manage.RunError, "schema_version must be 7"):
             self.initialize(old)
         self.assertFalse((self.root / "runs").exists())
 

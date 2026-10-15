@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import hashlib
 import json
 from pathlib import Path
@@ -13,20 +14,9 @@ from datetime import datetime, timezone
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 COMIC = SKILL_ROOT.name == "whalechan-image-comic"
-LANGUAGES = ("zh", "en")
-# The page renders these from structured records; the CLI uses them to report warnings.
-PICTURE_TEXT = {"zh": {"candidate": "{label} 候选", "source": "输入原图 {label}", "reference": "{label}", "final": "{label}"},
-                "en": {"candidate": "{label} candidate", "source": "Input image {label}", "reference": "{label}", "final": "{label}"}}
-RECORD_TEXT = {"zh": {"visual_qa": "验收", "automatic_qa": "自动验收", "prompt": "提示词"},
-               "en": {"visual_qa": "visual QA", "automatic_qa": "automatic QA", "prompt": "prompt"}}
-WARNING_TEXT = {
-    "zh": {"image_missing": "{subject}：图片文件缺失", "record_missing": "{subject} {record}：记录缺失",
-           "final_ambiguous": "{subject}：多个候选与成品哈希相同，无法唯一确定提示词；请查看生成过程",
-           "final_unrecorded": "{subject}：成品来源记录缺失"},
-    "en": {"image_missing": "{subject}: image file missing", "record_missing": "{subject} {record}: record missing",
-           "final_ambiguous": "{subject}: several candidates match the final's hash, so its prompt cannot be identified; see the generation history",
-           "final_unrecorded": "{subject}: the final's source record is missing"},
-}
+SPEC = importlib.util.spec_from_file_location("gallery_language", Path(__file__).with_name("language_policy.py"))
+language_policy = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(language_policy)
 
 
 class GalleryError(ValueError):
@@ -53,19 +43,18 @@ def tier_info(spec):
     labels = ({axis["id"]: {"zh": axis["label_zh"], "en": axis["label"]} for axis in read_json(tiers_path)["axes"]}
               if tiers_path.is_file() else {})
     return {"tier": tier, "lowered_to": contrast["lowered_to"],
-            "axes": [labels.get(axis, {"zh": axis, "en": axis}) for axis in contrast["axes"]]}
+            "axes": [{"id": axis, **labels.get(axis, {"zh": axis, "en": axis})} for axis in contrast["axes"]]}
 
 
 def picture_name(kind, label, language):
-    return PICTURE_TEXT[language][kind].format(label=label)
+    return language_policy.locale({}, language, "gallery")["pictures"][kind].format(label=label)
 
 
-def warning_text(warning, language):
+def localized_warning(warning, words):
     subject = warning["subject"]
     if isinstance(subject, dict):
-        subject = picture_name(subject["kind"], subject["label"], language)
-    return WARNING_TEXT[language][warning["code"]].format(
-        subject=subject, record=RECORD_TEXT[language].get(warning.get("record"), ""))
+        subject = words["pictures"][subject["kind"]].format(label=subject["label"])
+    return words["warnings"][warning["code"]].format(subject=subject, record=words["records"].get(warning.get("record"), ""))
 
 
 def as_text(value):
@@ -81,7 +70,7 @@ class RunReader:
         self.warnings = []
         self.assignment = read_json(run / "assignment.json")
         self.manifest = read_json(run / "manifest.json")
-        if self.assignment.get("schema_version") != (19 if COMIC else 6):
+        if self.assignment.get("schema_version") not in ((19, 20) if COMIC else (6, 7)):
             raise GalleryError(f"Unsupported assignment schema: {run.name}")
         if self.manifest.get("schema_version") != (1 if COMIC else 3):
             raise GalleryError(f"Unsupported manifest schema: {run.name}")
@@ -189,7 +178,7 @@ class RunReader:
         origin = matches[0] if len(matches) == 1 else None
         if final and not origin:
             self.warnings.append({"code": "final_ambiguous" if matches else "final_unrecorded", "subject": spec["id"]})
-        return {"id": spec["id"], "name": spec.get("name", spec["id"]),
+        return {"id": spec["id"], "title": spec.get("title"), "name": spec.get("title", spec.get("name", spec["id"])),
                 "note": spec.get("execution_note", ""), "status": state.get("status"),
                 "tier": tier_info(spec) if COMIC else None,
                 "final": final, "final_sha256": state.get("final_sha256"),
@@ -293,7 +282,7 @@ class RunReader:
                 references.append({**picture, "roles": ref.get("roles", [])})
         request, originals, analysis = self.sources()
         images = [image for proposal in proposals for image in proposal["images"]]
-        group = {"title": assignment["run_name"], "status": self.manifest["status"],
+        group = {"title": assignment.get("run_title", assignment["run_name"]), "status": self.manifest["status"],
                 "date": self.manifest.get("finalized_at", self.manifest.get("completed_at")),
                 "request": request, "originals": originals, "analysis": analysis,
                 "references": references, "proposals": proposals,
@@ -319,12 +308,15 @@ class RunReader:
         return group
 
 
-def export_gallery(run_dirs, output=None, language="zh"):
+def export_gallery(run_dirs, output=None, language=None, locales=None):
     runs = [Path(path).resolve() for path in run_dirs]
     if not runs or len(set(runs)) != len(runs):
         raise GalleryError("Supply distinct run directories")
     if len(runs) > 1 and output is None:
         raise GalleryError("Batch export requires --output")
+    assignments = [read_json(run / "assignment.json") for run in runs]
+    language = language or (language_policy.effective(assignments[0], "interface") if assignments[0].get("language") else "zh")
+    strings, names, directions = language_policy.gallery_locales(assignments + [{"language": language}], locales)
     destination = Path(output).resolve() if output else runs[0] / "gallery"
     base = destination
     number = 2
@@ -337,7 +329,9 @@ def export_gallery(run_dirs, output=None, language="zh"):
         assets.mkdir()
         groups = [RunReader(run, assets).build() for run in runs]
         data = {"skill": "comic" if COMIC else "character", "language": language, "groups": groups,
-                "exported_at": datetime.now(timezone.utc).isoformat()}
+                "exported_at": datetime.now(timezone.utc).isoformat(),
+                "locales": strings, "locale_names": names, "locale_directions": directions,
+                "gallery_id": hashlib.sha256(str(destination).encode()).hexdigest()}
         template_root = SKILL_ROOT / "assets" / "gallery"
         template = (template_root / "index.html").read_text(encoding="utf-8")
         payload = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c").replace(
@@ -345,14 +339,14 @@ def export_gallery(run_dirs, output=None, language="zh"):
         # Insert data last: user text is never interpreted as HTML or a template token.
         html = template.replace("/* GALLERY_CSS */", (template_root / "gallery.css").read_text(encoding="utf-8"))
         html = html.replace("/* GALLERY_JS */", (template_root / "gallery.js").read_text(encoding="utf-8"))
-        html = html.replace('<html lang="zh-CN">', f'<html lang="{"zh-CN" if language == "zh" else "en"}">')
+        html = html.replace('<html lang="zh-CN">', f'<html lang="{language_policy.tag(language)}" dir="{directions[language_policy.tag(language)]}">')
         html = html.replace("GALLERY_DATA", payload)
         (destination / "index.html").write_text(html, encoding="utf-8")
     except Exception:
         shutil.rmtree(destination)
         raise
     return {"gallery": str(destination / "index.html"), "groups": len(groups),
-            "warnings": {str(index + 1): [warning_text(item, language) for item in group["warnings"]]
+            "warnings": {str(index + 1): [localized_warning(item, strings[language_policy.tag(language)]) for item in group["warnings"]]
                          for index, group in enumerate(groups) if group["warnings"]}}
 
 
@@ -360,11 +354,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", action="append", required=True)
     parser.add_argument("--output")
-    parser.add_argument("--language", choices=LANGUAGES, default="zh",
-                        help="Initial page language; the page can switch between Chinese and English")
+    parser.add_argument("--locales", help="JSON locale packs keyed by BCP-47 tag")
+    parser.add_argument("--language",
+                        help="Initial page language; defaults to the saved task interface language")
     args = parser.parse_args()
     try:
-        print(json.dumps(export_gallery(args.run_dir, args.output, args.language), ensure_ascii=False, indent=2))
+        print(json.dumps(export_gallery(args.run_dir, args.output, args.language, read_json(Path(args.locales)) if args.locales else None), ensure_ascii=False, indent=2))
     except (GalleryError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         print(json.dumps({"error": str(error)}, ensure_ascii=False), file=sys.stderr)
         return 1

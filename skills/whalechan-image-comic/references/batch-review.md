@@ -2,7 +2,7 @@
 
 For current tasks, assign this existing comparison to a planning sub-agent after source drafts are ready; main only relays its results. It does not add a new review gate. Final collections are handled by collection sub-agents.
 
-Run this design comparison before the first image call in a multi-source batch. For v19 final images, use only the per-source contact-sheet review in `review-workflow.md`, not another cross-source visual review. Keep the review beside the batch assignments; do not rewrite frozen history.
+Run this design comparison before the first image call in a multi-source batch. For v20 final images, use only the per-source contact-sheet review in `review-workflow.md`, not another cross-source visual review. Keep the review beside the batch assignments; do not rewrite frozen history.
 
 ## Compare sources, not slots
 
@@ -35,6 +35,6 @@ Perform this agent review before displaying the complete plan for the single use
 
 Scripts cannot establish humor or independent visual inspection from prose fields. Record what was actually inspected and leave pending work pending. Compare final images with their sources as well as with each other; a perfectly rendered wrong interpretation still fails.
 
-For v19 the planning worker submits the actual cross-source observation and warning dispositions to batch-proposal in the ordered source list. The command verifies/computes structural data but never substitutes for creative comparison. Use collection-task for the existing final per-source review; do not add another cross-source visual pass.
+For v20 the planning worker submits the actual cross-source observation and warning dispositions to batch-proposal in the ordered source list. The command verifies/computes structural data but never substitutes for creative comparison. Use collection-task for the existing final per-source review; do not add another cross-source visual pass.
 
 For mixed N, compare all available rows; a shorter source has no missing-position defect. Review each source against its own confirmed count.

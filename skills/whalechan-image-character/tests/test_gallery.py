@@ -241,6 +241,8 @@ class GalleryTests(unittest.TestCase):
         (installed / "scripts").mkdir(parents=True)
         shutil.copyfile(ROOT / "scripts/export-gallery.py", installed / "scripts/export-gallery.py")
         shutil.copytree(ROOT / "assets/gallery", installed / "assets/gallery")
+        shutil.copytree(ROOT / "assets/locales", installed / "assets/locales")
+        shutil.copyfile(ROOT / "scripts/language_policy.py", installed / "scripts/language_policy.py")
         result = subprocess.run([sys.executable, str(installed / "scripts/export-gallery.py"),
                                  "--run-dir", str(self.run)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

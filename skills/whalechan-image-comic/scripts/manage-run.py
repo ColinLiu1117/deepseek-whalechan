@@ -31,7 +31,8 @@ FORMS = set(FORM_ORDER)
 ASSET_CATALOG_SCHEMA_VERSION = 3
 EXPRESSION_PRESETS_SCHEMA_VERSION = 2
 EXAGGERATION_TIERS_SCHEMA_VERSION = 1
-ASSIGNMENT_SCHEMA_VERSION = 19
+ASSIGNMENT_SCHEMA_VERSION = 20
+SUPPORTED_ASSIGNMENT_VERSIONS = (19, 20)
 QA_CONTRACT_VERSION = 11
 MANIFEST_SCHEMA_VERSION = 1
 INPUT_TYPES = ("text", "image", "screenshot", "chat-log", "dialogue", "other")
@@ -53,8 +54,7 @@ DIRECTION_CARRIERS = {
     "recognition": ("situation", "recognition"),
     "character": ("trait", "trigger"),
 }
-# User-facing renderings; the agent translates the English one for other session languages.
-UI_LANGUAGES = ("zh", "en")
+# Legacy UI renderings; new assignments use saved locale packs.
 DIRECTION_LABELS = {
     "zh": {"reversal": "反转", "exposure": "暴露", "escalation": "升级",
            "recognition": "共鸣", "character": "角色梗"},
@@ -172,6 +172,23 @@ def resolve_warnings(found: list[dict[str, Any]], dispositions: Any, label: str)
                            f"{{\"code\": \"{warning['code']}\", \"reason\": <source-grounded reason>}}")
 
 
+def language_policy():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("task_language_policy", Path(__file__).with_name("language_policy.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def language_contract(value, images=True):
+    if value.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+        return {}
+    try:
+        return language_policy().validate(value, comic=True, images=images)
+    except ValueError as error:
+        raise RunError(str(error)) from error
+
+
 def selection_summary(value):
     return plan_summary(value)
 
@@ -209,7 +226,7 @@ def markdown_cell(value: str) -> str:
 
 
 def planning_draft(value: dict[str, Any], label: str = "Planning draft") -> dict[str, Any]:
-    if value.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+    if value.get("schema_version") not in SUPPORTED_ASSIGNMENT_VERSIONS:
         raise RunError(f"{label} must use schema_version {ASSIGNMENT_SCHEMA_VERSION}")
     return value
 
@@ -241,6 +258,7 @@ def priority_results(value):
 
 def plan_summary(value: dict[str, Any]) -> dict[str, Any]:
     planning_draft(value)
+    language_contract(value)
     ranking = priority_results(value)
     n = target_images(value)
     selected = [item["idea_id"] for item in ranking[:n]]
@@ -383,6 +401,10 @@ def worker_summary(value: dict[str, Any], selected: list[str], ranking: list[dic
     keys = ("proposal", "creative_pool", "ranked_ideas", "selection_reason", "worker_plan",
             "target_images", "source_id", "author_agent_ids", "concept_task_id", "pool_sha256", "selection_review")
     payload = {key: value[key] for key in keys}
+    if value.get("schema_version") == 20:
+        payload["language_contract"] = language_contract(value)
+        payload["image_titles"] = [i["title"] for i in value["images"]]
+        payload["prompt_templates"] = language_policy().locale(value, language_policy().effective(value, "prompt"), "prompt")
     payload.update(panel_policy=policy, execution=execution, input=value["input"])
     payload["exaggeration_policy"] = tier_policy
     payload["review_workflow"] = {"version": 1, "candidate_reviews": 1,
@@ -445,6 +467,9 @@ def proportion_line(proportions: list[dict[str, Any]], language: str) -> str:
 
 def plan_markdown(value: dict[str, Any], summary: dict[str, Any] | None = None, language: str = "zh") -> str:
     summary = summary or plan_summary(value)
+    if value.get("schema_version") == 20:
+        return extension_module("localized_plan").render(__import__("types").SimpleNamespace(**globals()), value, summary)
+    language = language or "zh"
     words = dict(PLAN_TEXT[language])
     n = target_images(value)
     words["totals"] = f"总计 {n} 张；最多 {3*n} 次出图。" if language == "zh" else f"{n} images; at most {3*n} image-producing calls."
@@ -1352,8 +1377,9 @@ def validate_assignment(path: Path, require_approval: bool = True) -> dict[str, 
     assets, form_profiles, catalog_hash = catalog()
     presets, performance_levels = expression_presets()
     tiers = exaggeration_tiers()
-    if assignment.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+    if assignment.get("schema_version") not in SUPPORTED_ASSIGNMENT_VERSIONS:
         raise RunError(f"schema_version must be {ASSIGNMENT_SCHEMA_VERSION}")
+    language_contract(assignment)
     run_name = text(assignment.get("run_name"), "run_name")
     if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", run_name):
         raise RunError("run_name must be lowercase kebab-case")
@@ -1401,7 +1427,7 @@ def validate_assignment(path: Path, require_approval: bool = True) -> dict[str, 
         label = f"images[{index - 1}]"
         if not isinstance(image, dict):
             raise RunError(f"{label} must be an object")
-        unknown = set(image) - IMAGE_FIELDS
+        unknown = set(image) - (IMAGE_FIELDS | {"title"})
         if unknown:
             raise RunError(f"{label} has unsupported fields: {', '.join(sorted(unknown))}")
         if "qa_contract_version" in image and image["qa_contract_version"] != QA_CONTRACT_VERSION:
@@ -1583,7 +1609,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     run_dir = Path(value).resolve()
     assignment = read_json(run_dir / "assignment.json")
     manifest = read_json(run_dir / "manifest.json")
-    if assignment.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+    if assignment.get("schema_version") not in SUPPORTED_ASSIGNMENT_VERSIONS:
         raise RunError(f"Run assignment schema_version must be {ASSIGNMENT_SCHEMA_VERSION}")
     if (manifest.get("review_workflow_version") != 1 or not isinstance(manifest.get("collection"), dict)):
         raise RunError("QA11 requires its collection review workflow")
@@ -1600,7 +1626,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
     if set(manifest.get("images", {})) != {item.get("id") for item in images}:
         raise RunError("Manifest images must match the frozen assignment")
     for image in images:
-        if not isinstance(image, dict) or set(image) - IMAGE_FIELDS:
+        if not isinstance(image, dict) or set(image) - (IMAGE_FIELDS | {"title"}):
             raise RunError("Frozen image specification has unsupported fields")
         if image.get("qa_contract_version") != QA_CONTRACT_VERSION:
             raise RunError(f"Frozen image qa_contract_version must be {QA_CONTRACT_VERSION}")
@@ -1828,6 +1854,12 @@ def resolve_transport(args: argparse.Namespace, audit_path: Path | None) -> str 
 
 
 def creative_markdown(assignment: dict[str, Any]) -> str:
+    if assignment.get("schema_version") == 20:
+        policy = language_policy()
+        words = policy.locale(assignment, policy.effective(assignment, "communication"), "plan")
+        return (plan_markdown(assignment) + "\n" + words["source_anchor"] + ": " + assignment["input"]["fact_anchor"]
+                + "\n\n" + words["selection_record"] + "\n```json\n"
+                + json.dumps(assignment["selection_review"], ensure_ascii=False, indent=2) + "\n```\n")
     lines = [f"# {assignment['run_name']}", "", f"Fact anchor: {assignment['input']['fact_anchor']}", ""]
     lines.extend(["## Confirmed plan", "", plan_markdown(assignment), "```json",
                   json.dumps(assignment["confirmation"], ensure_ascii=False, indent=2), "```", ""])
@@ -2102,8 +2134,8 @@ def parser() -> argparse.ArgumentParser:
                           ("summarize-selection", cmd_summarize_selection)):
         command = commands.add_parser(name)
         command.add_argument("--draft", required=True)
-        command.add_argument("--language", choices=UI_LANGUAGES, default="zh",
-                                 help="Language of the rendered Markdown; translate the en rendering for others")
+        command.add_argument("--language", default=None,
+                                 help="Legacy rendering language; new assignments use their saved communication language")
         command.set_defaults(handler=handler)
     validate = commands.add_parser("validate-assignment")
     validate.add_argument("--assignment", required=True)

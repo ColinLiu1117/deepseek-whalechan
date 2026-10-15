@@ -169,7 +169,7 @@ class FixtureCase(unittest.TestCase):
     def raw_assignment(self, images: list[dict]) -> dict:
         estimated = len(images) * 8
         return {
-            "schema_version": manage_run.ASSIGNMENT_SCHEMA_VERSION,
+            "schema_version": 6,  # Legacy contract fixtures; v7 has dedicated language tests.
             "input": {"type": "text", "content": "test"},
             "run_name": "test-run",
             "image_count": len(images),

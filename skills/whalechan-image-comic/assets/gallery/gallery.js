@@ -6,110 +6,13 @@ const largeImage = document.getElementById("large-image");
 const stage = document.getElementById("image-stage");
 const info = document.getElementById("lightbox-info");
 const viewerMain = document.getElementById("lightbox-main");
-const STRINGS = {
-  zh: {
-    htmlLang: "zh-CN", toggle: "EN", toggleLabel: "Switch to English",
-    footer: "Whale-chan · 每个灵感，都有迹可循。",
-    lightbox: "图片预览", fit: "适应", imageDetails: "图片详情",
-    closeLabel: "关闭预览", previous: "上一张 (←)", next: "下一张 (→)",
-    zoomIn: "放大 (+)", zoomOut: "缩小 (−)", zoomToggle: "适应窗口 ↔ 100% (Z)",
-    compare: "对照原图", compareTitle: "对照输入原图 (S)", detailsTitle: "图片详情 (I)", closeTitle: "关闭 (Esc)",
-    collection: "当前集合", sourceInput: "输入原图",
-    viewerHint: "滚轮缩放 · 拖动平移 · 单击 适应↔100% · ← → 切换 · S 对照原图 · I 详情 · Esc 关闭",
-    notRecorded: "未记录",
-    roles: {candidate: "整图候选"},
-    refRoles: {identity: "角色身份", style: "画风", proportion: "比例", typography: "文字样式", composition: "构图", costume: "服装", background: "背景", pose_action: "动作"},
-    pictures: {candidate: "{label} 候选", source: "输入原图 {label}", reference: "{label}", final: "{label}"},
-    reference: "参考图",
-    records: {visual_qa: "验收", automatic_qa: "自动验收", prompt: "提示词"},
-    warnings: {image_missing: "{subject}：图片文件缺失", record_missing: "{subject} {record}：记录缺失",
-               final_ambiguous: "{subject}：多个候选与成品哈希相同，无法唯一确定提示词；请查看生成过程",
-               final_unrecorded: "{subject}：成品来源记录缺失"},
-    prompt: "实际生图提示词", copyPrompt: "复制提示词", copied: "已复制", selectToCopy: "已选中，请按 ⌘C / Ctrl+C 复制",
-    originUnknown: "成品来源未能唯一确认，请查看生成过程。",
-    collectionQA: "集合审阅与返工记录", minorIssues: "已接受的轻微瑕疵", outcomes: "任务状态与计时",
-    qa: "验收记录", qaLine: "自动检查：{automatic} · 视觉检查：{visual}", failUnknown: "失败原因未记录", retry: "修正建议：{retry}",
-    imageMissing: "图片文件缺失", noFinal: "尚无通过验收的成品", enlarge: "放大 {label}",
-    passed: "已通过", failed: "未通过", notProduced: "未产出", calls: "产图 {n} 次",
-    tier: "档位 {tier}", tierContrast: "档位 {tier}（{axes}→{lowered}）", axisJoin: "、",
-    history: "生成过程 · {calls} 次产图 · {errors} 次接口错误", noAttempts: "没有产图记录", final: "成品",
-    sameAsFinal: "与成品哈希相同，但来源记录不唯一；不指定某次提示词为成品来源。",
-    noImageErrors: "无图错误记录 · {n}", imageN: "图片 {n}",
-    verdictPass: "通过", verdictFail: "未通过", verdictNone: "验收未记录", finalTwin: "成品同图 · 来源不唯一",
-    noImages: "没有可展示的图片，记录见下方。", proposalRecords: "方案与记录",
-    filterLabel: "漫画筛选", filterFinals: "已通过成品", filterAttempts: "尝试版本", filterAll: "全部",
-    shownImages: "漫画 · {n} 张", viewHistory: "查看此创意的生成过程", showAllIdeas: "返回全部创意",
-    ideaHistory: "生成过程：{title}", noFinalImages: "暂无通过成品。", noAttemptImages: "没有可展示的尝试版本。",
-    viewAttempts: "查看尝试版本", finalOriginAmbiguous: "成品来源记录不唯一；生成过程保留全部同图记录。",
-    selectedProposal: "入选方案", unselectedProposal: "未入选方案",
-    imageSummary: "{name} · {calls} 次出图 · {errors} 次无图错误", attemptMissing: "{id}：图片文件缺失",
-    startingPoint: "创作起点",
-    groupStats: "{passed} / {planned} 张已通过 · 产图 {calls} 次 · {errors} 次接口错误 · {date}",
-    request: "用户原始要求", noRequest: "未记录用户原始文字要求。",
-    analysis: "素材转述 · 非用户原话", references: "角色与视觉参考图 · {n} 张", recordNotes: "记录提示 · {n}",
-    expand: "展开全文", collapse: "收起",
-    allImages: "全部图片 · {n}", proposalsWorks: "方案与作品 · {n}", grid: "▦ 网格", list: "☰ 列表",
-    notGenerated: "未生成", proposalPassed: "{passed} / {planned} 张已通过",
-    titleComic: "鲸鱼娘 · 漫画图册", titleCharacter: "鲸鱼娘 · 角色图册",
-    statSources: "素材 / 主题", statFinals: "交付成品", statCalls: "产图次数",
-    tabsLabel: "素材组或创作主题", tabsHeading: "素材组 · {n}", switchGroups: "切换",
-    tabMeta: "{passed}/{planned} 已通过 · 产图 {calls} 次", groupPager: "切换素材组",
-    inputOrReference: "输入素材或视觉参考图",
-  },
-  en: {
-    htmlLang: "en", toggle: "中文", toggleLabel: "切换到中文",
-    footer: "Whale-chan · Every idea leaves a trail.",
-    lightbox: "Image preview", fit: "Fit", imageDetails: "Details",
-    closeLabel: "Close preview", previous: "Previous (←)", next: "Next (→)",
-    zoomIn: "Zoom in (+)", zoomOut: "Zoom out (−)", zoomToggle: "Fit window ↔ 100% (Z)",
-    compare: "Compare source", compareTitle: "Show the input image alongside (S)", detailsTitle: "Image details (I)", closeTitle: "Close (Esc)",
-    collection: "Current collection", sourceInput: "Input image",
-    viewerHint: "Scroll to zoom · drag to pan · click for fit↔100% · ← → browse · S source · I details · Esc close",
-    notRecorded: "Not recorded",
-    roles: {candidate: "Full-canvas candidate"},
-    refRoles: {identity: "Identity", style: "Style", proportion: "Proportion", typography: "Typography", composition: "Composition", costume: "Costume", background: "Background", pose_action: "Pose & action"},
-    pictures: {candidate: "{label} candidate", source: "Input image {label}", reference: "{label}", final: "{label}"},
-    reference: "Reference",
-    records: {visual_qa: "visual QA", automatic_qa: "automatic QA", prompt: "prompt"},
-    warnings: {image_missing: "{subject}: image file missing", record_missing: "{subject} {record}: record missing",
-               final_ambiguous: "{subject}: several candidates match the final's hash, so its prompt cannot be identified; see the generation history",
-               final_unrecorded: "{subject}: the final's source record is missing"},
-    prompt: "Prompt sent to the provider", copyPrompt: "Copy prompt", copied: "Copied", selectToCopy: "Selected — press ⌘C / Ctrl+C to copy",
-    originUnknown: "The final's source attempt could not be identified uniquely; see the generation history.",
-    qa: "QA record", qaLine: "Automatic: {automatic} · Visual: {visual}", failUnknown: "Failure reason not recorded", retry: "Suggested fix: {retry}",
-    imageMissing: "Image file missing", noFinal: "No passing final yet", enlarge: "Enlarge {label}",
-    passed: "Passed", failed: "Failed", notProduced: "Not produced", calls: "{n} image call(s)",
-    tier: "Tier {tier}", tierContrast: "Tier {tier} ({axes}→{lowered})", axisJoin: ", ",
-    history: "Generation history · {calls} image call(s) · {errors} provider error(s)", noAttempts: "No image-producing attempts", final: "Final",
-    sameAsFinal: "Same hash as the final, but its source is ambiguous; no prompt is credited as the final's source.",
-    noImageErrors: "Errors without images · {n}", imageN: "Image {n}",
-    verdictPass: "Passed", verdictFail: "Failed", verdictNone: "QA not recorded", finalTwin: "Same as final · source ambiguous",
-    noImages: "No images to show; see the records below.", proposalRecords: "Proposals and records",
-    filterLabel: "Filter comics", filterFinals: "Passed finals", filterAttempts: "Attempts", filterAll: "All",
-    shownImages: "Comics · {n} images", viewHistory: "View this idea’s generation history", showAllIdeas: "Back to all ideas",
-    ideaHistory: "Generation history: {title}", noFinalImages: "No passing finals yet.", noAttemptImages: "No attempt images to show.",
-    viewAttempts: "View attempts", finalOriginAmbiguous: "The final’s source record is ambiguous; all matching records remain in its history.",
-    selectedProposal: "Selected", unselectedProposal: "Not selected",
-    imageSummary: "{name} · {calls} image call(s) · {errors} error(s) without images", attemptMissing: "{id}: image file missing",
-    startingPoint: "STARTING POINT",
-    groupStats: "{passed} / {planned} passed · {calls} image call(s) · {errors} provider error(s) · {date}",
-    request: "Original request", noRequest: "No written request was recorded.",
-    collectionQA: "Collection reviews and repairs", minorIssues: "Accepted minor issues", outcomes: "Task outcomes and timing",
-    analysis: "Source transcription · not the user's words", references: "Character and visual references · {n}", recordNotes: "Record notes · {n}",
-    expand: "Show all", collapse: "Show less",
-    allImages: "All images · {n}", proposalsWorks: "Proposals and works · {n}", grid: "▦ Grid", list: "☰ List",
-    notGenerated: "Not generated", proposalPassed: "{passed} / {planned} passed",
-    titleComic: "Whale-chan · Comic Gallery", titleCharacter: "Whale-chan · Character Gallery",
-    statSources: "Sources / themes", statFinals: "Finals delivered", statCalls: "Image calls",
-    tabsLabel: "Source groups or themes", tabsHeading: "Sources · {n}", switchGroups: "switch",
-    tabMeta: "{passed}/{planned} passed · {calls} call(s)", groupPager: "Switch source group",
-    inputOrReference: "Input material or visual reference",
-  },
-};
+const STRINGS = data.locales;
+const languageKey = "whalechan-gallery-language:" + data.gallery_id;
 function storedLanguage() {
-  try { return localStorage.getItem("whalechan-gallery-language"); } catch { return null; }
+  try { return localStorage.getItem(languageKey); } catch { return null; }
 }
-let language = [storedLanguage(), data.language].find(value => value in STRINGS) || "zh";
+const initialLanguage = data.language === "zh" ? "zh-Hans" : data.language;
+let language = [storedLanguage(), initialLanguage].find(value => value in STRINGS) || "zh-Hans";
 let activeGroup = 0, view = "grid", currentGroup = null, currentPictures = [], currentIndex = 0, opener;
 const comicFilters = new Map();
 function t(key, values = {}) {
@@ -131,7 +34,7 @@ function tierText(tier) {
   if (!tier) return "";
   if (!tier.axes) return t("tier", {tier: tier.tier});
   return t("tierContrast", {tier: tier.tier, lowered: tier.lowered_to,
-                            axes: tier.axes.map(axis => axis[language] || axis.en).join(t("axisJoin"))});
+                            axes: tier.axes.map(axis => STRINGS[language].axes[axis.id] || axis[language] || axis.en).join(t("axisJoin"))});
 }
 function roleName(role) { return STRINGS[language].roles[role] || role; }
 function el(tag, className, text) {
@@ -302,7 +205,7 @@ function comicCollections(group) {
   group.proposals.forEach(proposal => proposal.images.forEach(image => contexts.set(image.id, {proposal, image})));
   function contextualize(entry) {
     const {proposal, image} = contexts.get(entry.image_id);
-    return {...entry, image_name: image.name, proposal_title: proposal.title,
+    return {...entry, image_name: image.name, proposal_title: image.title || proposal.title,
                   scene: proposal.scene, detail: proposal.detail, note: image.note, tier: image.tier,
                   attempt: entry.attempt_index == null ? image.origin : image.attempts[entry.attempt_index],
                   attempts: image.attempts, errors: image.errors};
@@ -424,7 +327,7 @@ function renderGroup(group, panel) {
     records.append(warnings);
   }
   if (group.selection_review) {
-    const selection = details(language === "zh" ? "创意优先级与选择说明" : "Idea priority and selection");
+    const selection = details(t("selection"));
     selection.append(el("p", "", group.selection_review.selection_reason));
     const ranking = el("ol");
     group.selection_review.ranking.forEach(item => ranking.append(el("li", "", `${item.idea_id}: ${item.reason}`)));
@@ -519,16 +422,24 @@ function selectGroup(index, fromUser = false) {
   if (fromUser && panel.getBoundingClientRect().top < 0) panel.scrollIntoView({block: "start"});
 }
 function renderStatic() {
-  document.documentElement.lang = t("htmlLang");
+  document.documentElement.lang = language;
+  document.documentElement.dir = data.locale_directions[language];
   document.querySelectorAll("[data-i18n]").forEach(node => { node.textContent = t(node.dataset.i18n); });
   document.querySelectorAll("[data-i18n-title]").forEach(node => { node.title = t(node.dataset.i18nTitle); });
   document.querySelectorAll("[data-i18n-label]").forEach(node => { node.setAttribute("aria-label", t(node.dataset.i18nLabel)); });
   const toggle = document.getElementById("language-toggle");
-  toggle.textContent = t("toggle");
-  toggle.setAttribute("aria-label", t("toggleLabel"));
+  toggle.replaceChildren();
+  for (const code of Object.keys(STRINGS)) {
+    const option = document.createElement("option");
+    option.value = code; option.textContent = data.locale_names[code];
+    option.selected = code === language; toggle.append(option);
+  }
+  toggle.value = language;
+  toggle.setAttribute("aria-label", t("languageLabel"));
   dialog.setAttribute("aria-label", t("lightbox"));
   document.getElementById("close-lightbox").setAttribute("aria-label", t("closeLabel"));
   document.getElementById("page-title").textContent = data.skill === "comic" ? t("titleComic") : t("titleCharacter");
+  document.title = document.getElementById("page-title").textContent;
   const stats = document.getElementById("page-stats");
   stats.replaceChildren();
   for (const [label, value] of [[t("statSources"), data.groups.length], [t("statFinals"), data.groups.reduce((sum, group) => sum + group.passed, 0)], [t("statCalls"), data.groups.reduce((sum, group) => sum + group.calls, 0)]]) {
@@ -567,9 +478,9 @@ function renderApp() {
   });
   app.append(tabList, panel); selectGroup(activeGroup);
 }
-document.getElementById("language-toggle").onclick = () => {
-  language = language === "zh" ? "en" : "zh";
-  try { localStorage.setItem("whalechan-gallery-language", language); } catch {}
+document.getElementById("language-toggle").onchange = event => {
+  language = event.target.value;
+  try { localStorage.setItem(languageKey, language); } catch {}
   renderApp();
 };
 document.addEventListener("keydown", event => {

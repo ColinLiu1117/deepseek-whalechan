@@ -1,12 +1,12 @@
 # Drawing-only prompts — drawing contract
 
-For v19 a planning sub-agent authors the selected N-image visual plan after independent selection. Generation workers assemble frozen fields; main coordinates only.
+For v20 a planning sub-agent authors the selected N-image visual plan after independent selection. Generation workers assemble frozen fields; main coordinates only.
 
 Write the visual plan during the existing planning pass, before the single confirmation. The builder assembles these fields directly; do not add another LLM rewrite, review agent or confirmation. Keep analysis, selection reasons, approval and QA records internal. Every sentence sent to the image model should guide a visible result.
 
 Allocate each source's tier mix during detail planning: exactly 3A/1B/1C for new five-image sets; other N approach 60%/20%/20% by content. Translate each image's assigned tier into visible performance. Keep the batch ratio in internal plans and confirmation summaries; the API prompt contains the individual drawing descriptions.
 
-Write drawing prose in English and visible dialogue in its resolved language. The rendered plan quotes the drawing fields: translate its scene cells faithfully into the communication language when presenting them, preserving all locked details and exact dialogue. This is presentation within planning, not another rewrite of the image prompt.
+Write drawing prose in the resolved prompt language and visible dialogue in the resolved visible-text language. For differing communication/prompt languages, provide localized proposal `display_staging` during planning. The rendered plan quotes the drawing fields: translate its scene cells faithfully into the communication language when presenting them, preserving all locked details and exact dialogue. This is presentation within planning, not another rewrite of the image prompt.
 
 ## Author the drawing
 
@@ -37,4 +37,4 @@ For an authorized retry, save a separate prompt with the same drawing skeleton a
 
 No fixed character limit applies. Track length and first-pass performance separately.
 
-For v19 image-task start assembles the already authored frozen request; do not rewrite an initial prompt at dispatch. Supply a targeted drawing-only retry file only after a recorded eligible core defect. Tool state, task IDs, budgets, timestamps and review codes remain outside API drawing text.
+For v20 image-task start assembles the already authored frozen request; do not rewrite an initial prompt at dispatch. Supply a targeted drawing-only retry file only after a recorded eligible core defect. Tool state, task IDs, budgets, timestamps and review codes remain outside API drawing text.

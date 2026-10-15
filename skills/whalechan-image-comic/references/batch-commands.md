@@ -1,4 +1,4 @@
-# Fixed batch commands — v19
+# Fixed batch commands — v20
 
 Contents: [Boundary](#boundary) · [Prepare](#prepare) · [Plan](#plan) · [Start](#start) · [Image](#image) · [Collection](#collection) · [Delivery](#delivery) · [Recovery](#recovery) · [Timing](#timing)
 
@@ -8,7 +8,7 @@ Use these commands rather than authoring temporary bookkeeping/recovery/gallery/
 
 Main dispatches and communicates. Planning workers own prepare/proposal/start; generation workers own image commands and the actual tool call; collection workers own collection commands; delivery workers own export/verification. Main can read status/task packets. Reuse role guidance in existing workers; reload when context was lost.
 
-Use v19 for new assignments.  QA stays 11; drawing-only prompts and budgets are unchanged. Command success is not visual approval. Paths and runtime outputs belong under the batch artifact directory.
+Use v20 for new assignments.  QA stays 11; drawing-only prompts and budgets are unchanged. Command success is not visual approval. Paths and runtime outputs belong under the batch artifact directory.
 
 ## Prepare
 
@@ -21,7 +21,9 @@ Author spec.json from actual inputs and the observed tool list:
     {"id": "source-b", "target_images": 2, "text": "Actual supplied text"}
   ],
   "execution": {"batch_id": "batch-01"},
-  "language": "zh",
+  "language": "zh-Hans",
+  "run_title": "本次漫画创作",
+  "language_resolution": {"source": "current-session", "reason": "用户当前使用简体中文"},
   "availability": {
     "builtin": {
       "available": true,
@@ -32,7 +34,7 @@ Author spec.json from actual inputs and the observed tool list:
 }
 ~~~
 
-Author source grouping; consecutive images of one source share its paths list. Resolve language from the user's session. The command gathers recent language-history evidence once; provide language_evidence when already gathered or explicitly set by the user. A planning worker compares that evidence with the current session.
+Author source grouping; consecutive images of one source share its paths list. Resolve language from the user's session. The resolved language record is required; the command gathers language-history evidence only when not already supplied. Provide language_evidence when current-session/explicit evidence was sufficient or historical evidence was already gathered. A planning worker compares that evidence with the current session.
 
 Outside Codex, availability.codex_cli=true requests a local CLI login check. Inside Codex, supply builtin tool-list evidence; never launch nested Codex. Optional requests lists existing request JSONs for early capability validation. External preflight checks credentials without printing values.
 
@@ -46,7 +48,7 @@ This creates source inventory, planning tasks and common execution policy. It pr
 
 batch-prepare defaults to schema_version=19; each source defaults target_images to 5. N must be a positive integer, independently per source. Use the common returned execution in every draft and a unique run_name per source.
 
-New v19 inventory explicitly records exaggeration_policy={"mode":"target-ratio","ratio":{"A":3,"B":1,"C":1}}. Source specs may instead supply a user-override with the actual user_instruction. All three planning task packets include this policy in inputs.source; authors/selectors read it before their content work. The detail draft must copy it unchanged. N=5 requires exact 3:1:1; other N use agent allocation close to 60%/20%/20%, with three-tier coverage for N>=3.
+New v20 inventory explicitly records exaggeration_policy={"mode":"target-ratio","ratio":{"A":3,"B":1,"C":1}}. Source specs may instead supply a user-override with the actual user_instruction. All three planning task packets include this policy in inputs.source; authors/selectors read it before their content work. The detail draft must copy it unchanged. N=5 requires exact 3:1:1; other N use agent allocation close to 60%/20%/20%, with three-tier coverage for N>=3.
 
 Claim the concepts-<source> task as its real author. Read task-packet; write input plus exactly 2N concise creative_pool records, without proposal/images/winners. Submit:
 
@@ -71,7 +73,7 @@ python3 scripts/manage-run.py planning-task selection-submit --batch <batch.json
   --task-id selection-<source> --owner <independent-reviewer> --input-json <ranking.json>
 ~~~
 
-The script supplies review_method, source/N/hash, reviewer/task identity and selected IDs. It freezes the decision and enqueues detail-<source> for the original author. Merge the returned frozen selection file unchanged into a schema v19 draft, author only selected N options/images, then submit:
+The script supplies review_method, source/N/hash, reviewer/task identity and selected IDs. It freezes the decision and enqueues detail-<source> for the original author. Merge the returned frozen selection file unchanged into a schema v20 draft, author only selected N options/images, then submit:
 
 ~~~bash
 python3 scripts/manage-run.py planning-task detail-submit --batch <batch.json> \
@@ -98,7 +100,7 @@ python3 scripts/manage-run.py batch-proposal --batch <batch.json> \
   --review-json <cross-source-review.json>
 ~~~
 
-Draft order must match sources. This checks source binding, normalizes/validates schemas and rankings, builds requests, checks the locked tool against every request, and writes proposal.md/proposal.json. v19 requires completed detail receipts and matching output hashes.
+Draft order must match sources. This checks source binding, normalizes/validates schemas and rankings, builds requests, checks the locked tool against every request, and writes proposal.md/proposal.json. v20 requires completed detail receipts and matching output hashes.
 
 Inspect structural warnings and explain dispositions in the cross-source review before showing the plan. A warning-free matrix is not creative approval. Main relays the tables, total, budget, role caps, observed capacity and tool through the existing single user confirmation.
 
@@ -218,6 +220,6 @@ Optional sleep input: {"intervals":[["ISO start with timezone","ISO end with tim
 
 Separate role/task duration, request preparation, generation-to-ingest, archive, automatic checks, review setup and visual review/recording. Stage unions overlap; worker time is not user waiting. Generation-to-ingest includes tool/transport/agent latency, not GPU time. Pair session tool timestamps with events for precise provider waiting.
 
-For v19 timing-summary additionally reports concepts, selection, detail and their queue residence. Role totals and stage slices overlap; do not add them together. Record cross-source review as its existing planning task to retain that duration. Exclude provided sleep intervals; use real session timestamps for user waiting.
+For v20 timing-summary additionally reports concepts, selection, detail and their queue residence. Role totals and stage slices overlap; do not add them together. Record cross-source review as its existing planning task to retain that duration. Exclude provided sleep intervals; use real session timestamps for user waiting.
 
 For target-ratio runs, batch-deliver includes tier_distributions in its result and delivery.json, and planned/delivered/missing A:B:C counts in delivery-index.md. Count each final once; retries are not additional allocated images. Report shortfalls under the existing budget and collection rules.

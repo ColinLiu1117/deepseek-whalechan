@@ -4,7 +4,7 @@ Contents: [Ownership](#ownership) · [Criteria](#criteria) · [Candidate](#candi
 
 ## Ownership
 
-For v19 use image-task start/ingest/review-start/submit and collection-task prepare/submit from batch-commands.md. Keep all fourteen actual checks and required form evidence. Scripts fill mechanical metadata only; never default checked declarations or PASS. Service errors pause the locked tool; visual failures alone allow same-tool retries.
+For v20 use image-task start/ingest/review-start/submit and collection-task prepare/submit from batch-commands.md. Keep all fourteen actual checks and required form evidence. Scripts fill mechanical metadata only; never default checked declarations or PASS. Service errors pause the locked tool; visual failures alone allow same-tool retries.
 
 Review each returned candidate once, at its original resolution, by one designated reviewer. The coordinator checks files and records through scripts, not by opening the picture again. Keep manifest mutations serial: designated collection/delivery-worker-owned. Only the two visual decisions below authorize image-producing retries.
 
@@ -15,7 +15,7 @@ Local edits produce new candidates and consume slots. Inspect their whole canvas
 
 ## Criteria
 
-For v19, inspect against the authored panel actions, `visual_description`, exact dialogue and explicit user locks. Preset names and unused effect menus are planning aids, not additional pixel requirements. Nonessential details left open during planning remain open during QA.
+For v20, inspect against the authored panel actions, `visual_description`, exact dialogue and explicit user locks. Preset names and unused effect menus are planning aids, not additional pixel requirements. Nonessential details left open during planning remain open during QA.
 
 Keep J1 joke, K1 source anchor, I1 identity, C1 cast/performance, P1 panels, T1 lettering/ownership, A1 anatomy, V1 visual/expression, S1 style, O1 costume, B1 background, X1 action, E1 tier and H1 proportion. `checked` explicitly attests that the reviewer inspected each category; scripts cannot inspect pixels or prove this assertion.
 
@@ -57,7 +57,7 @@ Use collection-task prepare/submit from [batch-commands.md](batch-commands.md#co
 python3 scripts/build-review-sheet.py --run-dir <run>
 ```
 
-For v19 the script uses ceil(sqrt(N)) columns and ceil(N/columns) rows, preserving all N numbered slots and multi-digit labels. N=5 remains 3×2. Complete images fit without cropping; missing tasks remain gray at their original positions. If a large sheet cannot be meaningfully reviewed at the tool's pixel limit, report that technical limit; do not silently reduce N or add review rounds. `index.json` maps positions to image IDs, premises, exact lines, attempt IDs and hashes. The original candidates remain unchanged. Sheet creation is local and consumes no image budget. If no candidates remain, the script records a skipped collection and no visual call is needed.
+For v20 the script uses ceil(sqrt(N)) columns and ceil(N/columns) rows, preserving all N numbered slots and multi-digit labels. N=5 remains 3×2. Complete images fit without cropping; missing tasks remain gray at their original positions. If a large sheet cannot be meaningfully reviewed at the tool's pixel limit, report that technical limit; do not silently reduce N or add review rounds. `index.json` maps positions to image IDs, premises, exact lines, attempt IDs and hashes. The original candidates remain unchanged. Sheet creation is local and consumes no image budget. If no candidates remain, the script records a skipped collection and no visual call is needed.
 
 Send the sheet and index together for one set review. Inspect only distinctness of ideas/payoffs, identity/style consistency and overall readability/tone. Do not recheck tiny mouths, sweat counts, exact glyphs or other already reviewed single-image details. Small-scale uncertainty is not a core failure.
 
@@ -74,11 +74,11 @@ Send the sheet and index together for one set review. Inspect only distinctness 
 }
 ```
 
-`images` names only tasks to repair, not every image mentioned for comparison. For v19 record through collection-task submit.
+`images` names only tasks to repair, not every image mentioned for comparison. For v20 record through collection-task submit.
 
 On first collection failure, only named images with unused slots reopen. Repair them within their frozen plans; each new candidate gets one single-image review. Single-image failures can use the remaining shared budget inside this one repair round. Then build the updated N-slot sheet and submit one focused collection recheck. Keep unchanged candidates as visual context. A recheck cannot name new repair targets or start another collection round. Failed targets become `collection_failed`; exhausted or technically blocked tasks remain missing. If no repair is possible, close the collection without another visual call.
 
-For v19 the delivery worker runs batch-deliver from [batch-commands.md](batch-commands.md#delivery). Its promotion stage runs `promote` for each `collection_accepted` task. The manager revalidates data and hashes without another LLM image inspection. Then `finalize`, using `--allow-partial` for terminal shortfalls, and export the gallery. Do not fill gaps with rejected pictures or restore an earlier set-rejected candidate as a final.
+For v20 the delivery worker runs batch-deliver from [batch-commands.md](batch-commands.md#delivery). Its promotion stage runs `promote` for each `collection_accepted` task. The manager revalidates data and hashes without another LLM image inspection. Then `finalize`, using `--allow-partial` for terminal shortfalls, and export the gallery. Do not fill gaps with rejected pictures or restore an earlier set-rejected candidate as a final.
 
 ## Failure
 

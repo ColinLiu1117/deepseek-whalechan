@@ -110,7 +110,7 @@ class Orchestration:
         if len(runs) != len(paths):
             raise self.m.RunError("Missing frozen run path")
         for run, assignment, manifest in runs:
-            if assignment["schema_version"] != self.m.ASSIGNMENT_SCHEMA_VERSION or assignment["execution"] != policy:
+            if assignment["schema_version"] not in self.m.SUPPORTED_ASSIGNMENT_VERSIONS or assignment["execution"] != policy:
                 raise self.m.RunError("Task run must share the approved batch execution")
             if task["role"] in {"collection", "delivery"} and task.get("recovery_evidence"):
                 return True  # Resume the existing sheet/receipt, never repeat its visual judgment.
@@ -173,7 +173,7 @@ class Orchestration:
                     raise self.m.RunError("Provide unique ordered sources")
             else:
                 state = self.m.read_json(path)
-                if state.get("schema_version") != self.m.ASSIGNMENT_SCHEMA_VERSION:
+                if state.get("schema_version") not in self.m.SUPPORTED_ASSIGNMENT_VERSIONS:
                     raise self.m.RunError("Batch schema_version must match the current assignment schema")
                 if execution(state["execution"]) != state["execution"]:
                     raise self.m.RunError("Batch execution must contain the complete current role policy")

@@ -1,14 +1,20 @@
-# Assignment schema v6
+# Assignment schema v7
 
-Schema v6 stores the complete confirmed result of field-by-field resolution. `mode` records whether a value came from the canonical default or a custom request; consumers must not re-merge defaults or reinterpret references. Only the current schema is accepted.
+Schema v7 stores the complete confirmed result of field-by-field resolution. `mode` records whether a value came from the canonical default or a custom request; consumers must not re-merge defaults or reinterpret references. New runs require v7; existing v6 runs retain their original contract.
 
-Assignments use v6.
+Assignments use v7.
+
+See `language-policy.md` for required language records, locale packs, display titles and legacy compatibility.
 
 ## Root object
 
 ```json
 {
-  "schema_version": 6,
+  "schema_version": 7,
+  "language": "en",
+  "language_overrides": {"visible_text": "zh-Hans"},
+  "language_resolution": {"source": "explicit", "reason": "Example: English task with explicitly requested Chinese lettering"},
+  "run_title": "Whale-chan illustration",
   "proposal": {},
   "selection": {},
   "scope": {"configurations": []},
@@ -113,6 +119,7 @@ After Gate 2, expand exactly each configuration's count. Every image requires `p
 ```json
 {
   "name": "gentle_wave",
+  "title": "A gentle wave",
   "proposal_choice": "A",
   "configuration_id": "wave",
   "execution_note": "Execute the selected greeting scene with the approved gentle expression",
@@ -164,7 +171,7 @@ After Gate 2, expand exactly each configuration's count. Every image requires `p
 }
 ```
 
-Schema v6 input is strict: all fields shown above are explicit, including nullable `text` and `counterpart`, empty `props`/`objects`, complete modes, the canonical identity reference, output intent, execution, and budget. Unknown fields are rejected.
+Schema v7 input is strict: all fields shown above are explicit, including nullable `text` and `counterpart`, empty `props`/`objects`, complete modes, the canonical identity reference, output intent, execution, and budget. Unknown fields are rejected.
 
 `style.mode` and `costume.mode` are `canonical` or `custom`. Their descriptions are always the resolved requirements. A custom style may replace canonical linework, rendering, and palette; a custom costume may replace every canonical garment and ornament. Neither changes permanent identity unless the user revises the assignment.
 

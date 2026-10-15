@@ -24,7 +24,8 @@ PROVIDERS = ["codex", "openai", "nano-banana", "seedream"]
 FORM_ORDER = ("standard", "compact", "semi-chibi", "chibi", "super-deformed")
 FORMS = set(FORM_ORDER)
 CATALOG_SCHEMA_VERSION = 4
-ASSIGNMENT_SCHEMA_VERSION = 6
+ASSIGNMENT_SCHEMA_VERSION = 7
+SUPPORTED_ASSIGNMENT_VERSIONS = (6, 7)
 MANIFEST_SCHEMA_VERSION = 3
 AUTOMATIC_QA_SCHEMA_VERSION = 2
 INPUT_TYPES = {"text", "screenshot", "chat-log", "dialogue"}
@@ -725,8 +726,8 @@ def plan_execution(ready_images: int, worker_slots: int, provider_limit: int,
     })
 
 
-def execution_markdown(execution: dict[str, Any], language: str = "zh") -> str:
-    words = GATE_TEXT[language]
+def execution_markdown(execution: dict[str, Any], language: str = "zh", words=None) -> str:
+    words = words or GATE_TEXT[language or "zh"]
     count = execution.get("subagent_count")
     if count == 0:
         return words["serial_execution"]
@@ -1275,7 +1276,25 @@ def requirement_contract(requirements: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def language_policy():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("task_language_policy", Path(__file__).with_name("language_policy.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def language_contract(value, images=True):
+    if value.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+        return {}
+    try:
+        return language_policy().validate(value, comic=False, images=images)
+    except ValueError as error:
+        raise RunError(str(error)) from error
+
+
 def selection_summary(value: dict[str, Any], path: Path) -> dict[str, Any]:
+    language_contract(value, images=False)
     choices = selected_choices(value)
     scope = value.get("scope")
     if not isinstance(scope, dict) or set(scope) != {"configurations"}:
@@ -1319,6 +1338,8 @@ def selection_summary(value: dict[str, Any], path: Path) -> dict[str, Any]:
         "budget": {key: budget[key] for key in ("per_image_candidates", "per_provider_candidates", "run_candidates")},
         "configurations": [{**config, "requirements": requirement_contract(config["requirements"])} for config in normalized],
     }
+    if value.get("schema_version") == 7:
+        contract["language_contract"] = language_contract(value, images=False)
     return {"choices": choices, "proposal_count": len(choices), "image_count": total,
             "configurations": normalized, "execution": execution, "budget": budget,
             "run_name": run_name, "adjustments": value["selection"]["adjustments"],
@@ -1360,8 +1381,7 @@ def markdown_cell(value: str) -> str:
     return value.replace("\\", "\\\\").replace("|", "\\|").replace("\r", " ").replace("\n", "<br>")
 
 
-# User-facing renderings; the agent translates the English one for other session languages.
-UI_LANGUAGES = ("zh", "en")
+# Legacy UI renderings; new assignments use saved locale packs.
 GATE_TEXT = {
     "zh": {
         "proposal_header": "| 选择 | 方案 | 核心场景 | 动作与表情 | 构图 | 视觉配置／文字 | 推荐程度与理由 |",
@@ -1419,8 +1439,8 @@ GATE_TEXT = {
 }
 
 
-def proposal_markdown(proposal: dict[str, Any], language: str = "zh") -> str:
-    words = GATE_TEXT[language]
+def proposal_markdown(proposal: dict[str, Any], language: str = "zh", words=None) -> str:
+    words = words or GATE_TEXT[language or "zh"]
     options = proposal_options(proposal)
     lines = [words["proposal_header"], "|---|---|---|---|---|---|---|"]
     for choice, row in options.items():
@@ -1433,8 +1453,8 @@ def proposal_markdown(proposal: dict[str, Any], language: str = "zh") -> str:
     return "\n".join(lines) + "\n"
 
 
-def selection_markdown(summary: dict[str, Any], language: str = "zh") -> str:
-    words = GATE_TEXT[language]
+def selection_markdown(summary: dict[str, Any], language: str = "zh", words=None) -> str:
+    words = words or GATE_TEXT[language or "zh"]
     colon, semicolon, bar = words["colon"], words["semicolon"], words["bar"]
     lines = [words["selected"].format(proposals=summary["proposal_count"], images=summary["image_count"]), ""]
     for row in summary["choices"]:
@@ -1447,9 +1467,9 @@ def selection_markdown(summary: dict[str, Any], language: str = "zh") -> str:
                       "", f"- {words['subject']}{colon}" + markdown_cell(semicolon.join(req[field] for field in ("subject", "action", "composition"))),
                       f"- {words['variation']}{colon}" + markdown_cell(config["variation"])])
         for field in ("style", "costume", "background"):
-            lines.append(f"- {words['fields'][field]}{colon}" + markdown_cell(req[field]["description"]))
+            lines.append(f"- {words['fields'][field]}{colon}" + markdown_cell(words.get("canonical_" + field, req[field]["description"]) if req[field]["mode"] == "canonical" else req[field]["description"]))
         proportion = req["proportion"]
-        lines.append(words["proportion"].format(preset=proportion["preset"] or words["custom"],
+        lines.append(words["proportion"].format(preset=words.get("forms", {}).get(proportion["preset"], proportion["preset"] or words["custom"]),
                                                 target=proportion["target_head_ratio"], range=proportion["acceptance_range"]))
         for field in sorted(OPTIONAL_SCOPE_FIELDS & req.keys()):
             lines.append(f"- {words['fields'][field]}{colon}" + markdown_cell(str(req[field])))
@@ -1477,27 +1497,35 @@ def selection_markdown(summary: dict[str, Any], language: str = "zh") -> str:
                                              per_provider=budget["per_provider_candidates"])])
     if budget["run_candidates"] > NORMAL_RUN_CANDIDATES:
         lines.append(words["raised"])
-    lines.extend([words["route"], execution_markdown(execution, language),
+    lines.extend([words["route"], execution_markdown(execution, language, words),
                   words["location"].format(run=summary["run_name"]), "", words["question"]])
     return "\n".join(lines) + "\n"
 
 
 def cmd_render_proposal(args: argparse.Namespace) -> dict[str, Any]:
-    proposal = read_json(Path(args.draft).resolve()).get("proposal")
-    return {"markdown": proposal_markdown(proposal, getattr(args, "language", "zh")),
+    value = read_json(Path(args.draft).resolve())
+    proposal = value.get("proposal")
+    words = language_policy().locale(value, language_policy().effective(value, "communication"), "gate") if value.get("schema_version") == 7 else None
+    return {"markdown": proposal_markdown(proposal, getattr(args, "language", "zh"), words),
             "proposal_sha256": contract_hash(proposal)}
 
 
 def cmd_summarize_selection(args: argparse.Namespace) -> dict[str, Any]:
     path = Path(args.draft).resolve()
-    summary = selection_summary(read_json(path), path)
-    return {**summary, "markdown": selection_markdown(summary, getattr(args, "language", "zh"))}
+    value = read_json(path)
+    summary = selection_summary(value, path)
+    words = language_policy().locale(value, language_policy().effective(value, "communication"), "gate") if value.get("schema_version") == 7 else None
+    markdown = selection_markdown(summary, getattr(args, "language", "zh"), words)
+    if words:
+        markdown = "# " + value["run_title"] + "\n\n" + words["language"].format(language=value["language"], overrides=language_policy().overrides_text(value, words)) + "\n\n" + markdown
+    return {**summary, "markdown": markdown}
 
 
 def validate_assignment(path: Path) -> dict[str, Any]:
     assignment = read_json(path)
     catalog, catalog_sha256 = load_catalog()
-    if assignment.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+    language_contract(assignment)
+    if assignment.get("schema_version") not in SUPPORTED_ASSIGNMENT_VERSIONS:
         raise RunError(f"assignment schema_version must be {ASSIGNMENT_SCHEMA_VERSION}")
     require_fields(
         assignment,
@@ -1506,7 +1534,7 @@ def validate_assignment(path: Path) -> dict[str, Any]:
     )
     require_only_fields(
         assignment,
-        {"schema_version", "proposal", "selection", "scope", "confirmation", "input", "run_name", "image_count", "images", "execution", "budget"},
+        {"schema_version", "proposal", "selection", "scope", "confirmation", "input", "run_name", "image_count", "images", "execution", "budget"} | language_policy().FIELDS,
         "assignment",
     )
 
@@ -1560,7 +1588,7 @@ def validate_assignment(path: Path) -> dict[str, Any]:
             {
                 "name", "subject", "expression", "action", "composition", "props", "objects",
                 "style", "costume", "background", "text", "proportion", "references", "output",
-                "counterpart", "pairwise_minimum_head_ratio_gap",
+                "counterpart", "pairwise_minimum_head_ratio_gap", "title",
                 "proposal_choice", "configuration_id", "execution_note",
             },
             label,
@@ -1677,8 +1705,9 @@ def validate_frozen_assignment_structure(assignment: dict[str, Any]) -> None:
         "execution", "budget", "reference_catalog", "source_assignment", "run_dir", "frozen_at",
     }
     require_fields(assignment, root_fields, "frozen assignment")
-    require_only_fields(assignment, root_fields, "frozen assignment")
-    if assignment["schema_version"] != ASSIGNMENT_SCHEMA_VERSION:
+    language_contract(assignment)
+    require_only_fields(assignment, root_fields | language_policy().FIELDS, "frozen assignment")
+    if assignment["schema_version"] not in SUPPORTED_ASSIGNMENT_VERSIONS:
         raise RunError(f"Frozen assignment schema_version must be {ASSIGNMENT_SCHEMA_VERSION}")
     images = assignment["images"]
     if not isinstance(images, list) or not images or assignment["image_count"] != len(images):
@@ -1723,7 +1752,7 @@ def validate_frozen_assignment_structure(assignment: dict[str, Any]) -> None:
         label = f"frozen assignment images[{index}]"
         if not isinstance(image, dict):
             raise RunError(f"{label} must be an object")
-        allowed_image_fields = image_fields | {"pairwise_minimum_head_ratio_gap"}
+        allowed_image_fields = image_fields | {"pairwise_minimum_head_ratio_gap", "title"}
         require_fields(image, image_fields, label)
         require_only_fields(image, allowed_image_fields, label)
         if image["counterpart"] is not None and "pairwise_minimum_head_ratio_gap" not in image:
@@ -2432,8 +2461,8 @@ def parser() -> argparse.ArgumentParser:
     for name, handler in (("render-proposal", cmd_render_proposal), ("summarize-selection", cmd_summarize_selection)):
         command = commands.add_parser(name, help="Display a user gate without approving or initializing")
         command.add_argument("--draft", required=True)
-        command.add_argument("--language", choices=UI_LANGUAGES, default="zh",
-                             help="Language of the rendered Markdown; translate the en rendering for others")
+        command.add_argument("--language", default=None,
+                             help="Legacy rendering language; new assignments use their saved communication language")
         command.set_defaults(func=handler)
 
     plan = commands.add_parser("plan-execution", help="Resolve observed capacity before Gate 2; no workers are started")

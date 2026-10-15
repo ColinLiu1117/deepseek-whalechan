@@ -1,14 +1,20 @@
-# Run schema v19
+# Run schema v20
 
-New assignments use v19, independent role limits and exclusive image-task journals. Retain QA 11 and the drawing-only visual contract. See agent-orchestration.md for task commands and ownership.
+New assignments use v20, independent role limits and exclusive image-task journals. Retain QA 11 and the drawing-only visual contract. See agent-orchestration.md for task commands and ownership.
 
 Contents: [Root](#root-contract) · [Selection](#independent-priority-selection) · [Directions](#comedy-directions) · [Confirmation](#final-plan-and-one-user-gate) · [Images](#image-fragment) · [Exaggeration](#exaggeration-tiers) · [Output](#output-size-and-aspect-ratio) · [Text](#visible-text) · [Dialogue](#participant-and-dialogue-contract) · [Preflight](#preflight-and-prompt-construction) · [Visual fields](#custom-visual-fields) · [References](#typed-references) · [Execution](#execution)
+
+See `language-policy.md` for required language records, locale packs, display titles and v19 compatibility.
 
 ## Root contract
 
 ```json
 {
-  "schema_version": 19,
+  "schema_version": 20,
+  "language": "en",
+  "language_overrides": {"visible_text": "zh-Hans"},
+  "language_resolution": {"source": "explicit", "reason": "Example: English task with explicitly requested Chinese lettering"},
+  "run_title": "Whale-chan illustration",
   "source_id": "source-a",
   "target_images": 5,
   "author_agent_ids": ["actual-author-agent-id"],
@@ -91,7 +97,7 @@ selection-submit accepts the semantic fields below; scripts fill identities and 
 
 This illustrates shape only. ranking must contain all 2N candidates exactly once, ordered by comprehensive priority, with no extra score fields. Optional attention_points records risks for detail work. The reviewer must be a different real sub-agent from every author, never main. Selection commands bind the real task owner; merely authoring a different string is not proof of delegation.
 
-The script derives ranked_ideas from ranking[:N]. N proposal.options and N images follow that exact order. Pool, ranking, source and candidate key_lines stay frozen while the author expands selected drawings. No extra candidate pool, early elimination to fewer than N, low-score regeneration or default re-ranking. v19 rejects duels, tie_breaks and tournament_results. N=1/2 relaxes coverage while aiming close to the tier target; N>=3 retains independent panel/tier coverage. The new ratio policy additionally fixes 3:1:1 when N=5.
+The script derives ranked_ideas from ranking[:N]. N proposal.options and N images follow that exact order. Pool, ranking, source and candidate key_lines stay frozen while the author expands selected drawings. No extra candidate pool, early elimination to fewer than N, low-score regeneration or default re-ranking. v20 rejects duels, tie_breaks and tournament_results. N=1/2 relaxes coverage while aiming close to the tier target; N>=3 retains independent panel/tier coverage. The new ratio policy additionally fixes 3:1:1 when N=5.
 
 The confirmation projection additionally includes target_images, source_id, author_agent_ids, concept_task_id, pool_sha256 and the complete selection_review instead of duels/tie_breaks. It retains the existing visual_plan, tool, role policy and QA11 bindings. Subsequent generation task owners remain dynamic.
 
@@ -143,7 +149,7 @@ Author the selected N options in ranking order. These are information rows, not 
 }
 ```
 
-Each `premise`, `scene` and `direction` matches its pool idea; `twist` equals that idea's `punchline`, preserving the candidate that won. `is_native` is boolean and equals whether the idea direction matches the non-null source direction. No native or character count is forced. `exaggeration` is `A`, `B` or `C`; `contrast` is `null` or `{axes, lowered_to}` and must match the image's contrast. `twist` describes any comic landing, not necessarily a reversal. For v19 key_lines must exactly preserve the frozen candidate; content changes require an explicit new planning revision.
+Each `premise`, `scene` and `direction` matches its pool idea; `twist` equals that idea's `punchline`, preserving the candidate that won. `is_native` is boolean and equals whether the idea direction matches the non-null source direction. No native or character count is forced. `exaggeration` is `A`, `B` or `C`; `contrast` is `null` or `{axes, lowered_to}` and must match the image's contrast. `twist` describes any comic landing, not necessarily a reversal. For v20 key_lines must exactly preserve the frozen candidate; content changes require an explicit new planning revision.
 
 New plans record `proportion` on every option using the same preset/custom object as an image: `{"mode": "preset", "preset": "semi-chibi"}` by default, or e.g. `{"mode": "custom", "target_head_ratio": 3.0}`. Preset targets and intervals come from the catalog; custom intervals default to target ± 0.15 with the lower bound above 1.0. All N options must record it if any does. The proposal already participates in the confirmation hash, so changing a planned proportion invalidates that confirmation. Completed images must normalize to the same proportion as their corresponding options.
 
@@ -161,9 +167,9 @@ Show the table, N images per source, combined batch total, worker allocation and
 }
 ```
 
-Hash canonical JSON using SHA-256 (`ensure_ascii=False`, sorted keys, separators `,` and `:`). For v19 the plan hash additionally binds the fixed review workflow version, one candidate inspection, minor tolerance, one collection repair round and the two allowed regeneration sources. The plan hash binds input, proposal, creative_pool, ranked_ideas, selection_reason, worker_plan, panel_policy, exaggeration_policy, execution and the independent-selection provenance described above. An edit to any bound content invalidates the old confirmation. Redisplay the revised plan and obtain a real reply; never refresh a stored confirmation hash yourself. Scripts check consistency, not whether a quoted reply actually happened or meant approval.
+Hash canonical JSON using SHA-256 (`ensure_ascii=False`, sorted keys, separators `,` and `:`). For v20 the plan hash additionally binds the fixed review workflow version, one candidate inspection, minor tolerance, one collection repair round and the two allowed regeneration sources. The plan hash binds input, proposal, creative_pool, ranked_ideas, selection_reason, worker_plan, panel_policy, exaggeration_policy, execution and the independent-selection provenance described above. An edit to any bound content invalidates the old confirmation. Redisplay the revised plan and obtain a real reply; never refresh a stored confirmation hash yourself. Scripts check consistency, not whether a quoted reply actually happened or meant approval.
 
-For v19 the same hash also binds `visual_plan`: normalized drawing settings, proportion, ordered reference roles/instructions/content hashes, framing, panel actions, visible expressions, exact text with its speaker/carrier/position, cast and landing effects. Runtime paths, timestamps and generated IDs are excluded. Full images are required before confirmation; normalization and reference copying preserve this projection. Idea links, panel counts, tiers, contrasts, proportions and exact wording must still match the selected options. No old confirmation can authorize changed visual content.
+For v20 the same hash also binds `visual_plan`: normalized drawing settings, proportion, ordered reference roles/instructions/content hashes, framing, panel actions, visible expressions, exact text with its speaker/carrier/position, cast and landing effects. Runtime paths, timestamps and generated IDs are excluded. Full images are required before confirmation; normalization and reference copying preserve this projection. Idea links, panel counts, tiers, contrasts, proportions and exact wording must still match the selected options. No old confirmation can authorize changed visual content.
 
 N tasks allow at most 3N image calls, three per task. See `proposal-selection.md` for the single user gate.
 
@@ -172,6 +178,7 @@ N tasks allow at most 3N image calls, three per task. See `proposal-selection.md
 ```json
 {
   "name": "refrigerator_permission",
+  "title": "Refrigerator permission",
   "idea_id": "idea_01",
   "source_rank": 1,
   "execution": 1,
@@ -274,7 +281,7 @@ N tasks allow at most 3N image calls, three per task. See `proposal-selection.md
 }
 ```
 
-Missing optional render fields normalize to the defaults shown above. `rhythm` defaults to `null`; when declared it is `{"type": "triple" | "pause" | "callback" | "deadpan", "panel": <landing panel>, "reason": "why the punchline needs it"}`. When a set of two or more images has rhythm on more than half of them, `validate-assignment` requires a `{"code": "rhythm_majority", "reason": "..."}` entry in the root `warning_dispositions`. `idea_id`, `execution_note`, `lettering_description`, `proportion_check`, `core_text`, `text_style`, `text_style_reason`, `dialogue_plan`, `cast_plan`, `action_plan` and `expression_plan` are required. See `review-workflow.md` for the compact QA JSON and collection records. For v19, composition is optional; supplied shot/staging fields describe necessary shared framing. Every expression requires a nonempty `visual_description`, and every dialogue entry requires a nonempty `placement`. `proportion_check` is `measured` or `visible-only`, chosen from the planned shot. Action and expression plans contain exactly one consecutive entry per panel. Speaker and cast decisions are never inferred from missing fields. Normalized images carry `qa_contract_version: 11`. Every QA record is checked against the complete frozen image specification.
+Missing optional render fields normalize to the defaults shown above. `rhythm` defaults to `null`; when declared it is `{"type": "triple" | "pause" | "callback" | "deadpan", "panel": <landing panel>, "reason": "why the punchline needs it"}`. When a set of two or more images has rhythm on more than half of them, `validate-assignment` requires a `{"code": "rhythm_majority", "reason": "..."}` entry in the root `warning_dispositions`. `idea_id`, `execution_note`, `lettering_description`, `proportion_check`, `core_text`, `text_style`, `text_style_reason`, `dialogue_plan`, `cast_plan`, `action_plan` and `expression_plan` are required. See `review-workflow.md` for the compact QA JSON and collection records. For v20, composition is optional; supplied shot/staging fields describe necessary shared framing. Every expression requires a nonempty `visual_description`, and every dialogue entry requires a nonempty `placement`. `proportion_check` is `measured` or `visible-only`, chosen from the planned shot. Action and expression plans contain exactly one consecutive entry per panel. Speaker and cast decisions are never inferred from missing fields. Normalized images carry `qa_contract_version: 11`. Every QA record is checked against the complete frozen image specification.
 
 ## Exaggeration tiers
 
@@ -315,7 +322,7 @@ Normalization adds `"recommended": null` for a non-default automatic ratio. An e
 }
 ```
 
-The normalized ratio is `16:9`. When both ratio and explicit resolution are supplied, they must agree exactly. Width and height are positive integers. Provider adapters may reject an otherwise valid output contract with `capability` when that provider cannot guarantee the requested ratio or exact pixels; v19 checks compatibility before confirmation and pauses on later errors. Exact output dimensions remain binding.
+The normalized ratio is `16:9`. When both ratio and explicit resolution are supplied, they must agree exactly. Width and height are positive integers. Provider adapters may reject an otherwise valid output contract with `capability` when that provider cannot guarantee the requested ratio or exact pixels; v20 checks compatibility before confirmation and pauses on later errors. Exact output dimensions remain binding.
 
 ## Visible text
 
@@ -398,7 +405,7 @@ References may be bundled or user supplied. Allowed roles are `identity`, `style
 
 ## Execution
 
-Use the exact dynamic worker_plan and normalized execution shape in the root example. All sources in one batch share the same batch_id, role_limits, batch_limit and strategy. Role limits are independent and do not multiply by the number of sources. v19 defaults are planning 5, selection 2, generation 5 / Codex 3, collection 2 and delivery 1. Limits are positive integers at most 10; batch_limit is at most 10. Runtime constraints can only lower actual dispatch.
+Use the exact dynamic worker_plan and normalized execution shape in the root example. All sources in one batch share the same batch_id, role_limits, batch_limit and strategy. Role limits are independent and do not multiply by the number of sources. v20 defaults are planning 5, selection 2, generation 5 / Codex 3, collection 2 and delivery 1. Limits are positive integers at most 10; batch_limit is at most 10. Runtime constraints can only lower actual dispatch.
 
 The confirmation binds execution policy. Resident IDs, task ownership, queue timestamps and changing available slots belong in the batch queue, outside the frozen hash. Initial effective_parallelism/effective_subagent_count in the manifest record initialization only; consult batch events for current activity, not those initial observations.
 
@@ -408,4 +415,4 @@ Claim unique image ownership before beginning a call. Record begin before invoki
 
 Use agent-orchestration.md for queue/worker receipts, task dependencies, CLI examples and capacity degradation.
 
-For v19 the confirmation binds execution.tool (provider, transport, model, on_error=pause). Preflight evidence/timestamps live in the batch, outside this semantic projection. The manifest batch_file points to the shared queue, whose execution must match. Batch status distinguishes planning, initializing, preflight_required, ready, paused and complete. Paused is not a finalized shortfall. Batch lock precedes run/image locks for claim, begin and error; never acquire a batch lock while holding a run/image lock. Combination commands release local locks before writing queue receipts. See batch-commands.md.
+For v20 the confirmation binds execution.tool (provider, transport, model, on_error=pause). Preflight evidence/timestamps live in the batch, outside this semantic projection. The manifest batch_file points to the shared queue, whose execution must match. Batch status distinguishes planning, initializing, preflight_required, ready, paused and complete. Paused is not a finalized shortfall. Batch lock precedes run/image locks for claim, begin and error; never acquire a batch lock while holding a run/image lock. Combination commands release local locks before writing queue receipts. See batch-commands.md.

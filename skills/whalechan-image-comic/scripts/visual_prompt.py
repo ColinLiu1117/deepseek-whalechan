@@ -108,6 +108,9 @@ class VisualPrompt:
         return result
 
     def render(self, assignment, image):
+        if assignment.get("schema_version") == 20:
+            policy = self.m.language_policy()
+            return self.render_localized(assignment, image, policy.locale(assignment, policy.effective(assignment, "prompt"), "prompt"))
         p = self.spec(assignment, image)
         layouts = {"single": "one panel", "left-right": "two panels side by side, read left to right",
                    "top-bottom": "two stacked panels, read top to bottom",
@@ -177,3 +180,59 @@ class VisualPrompt:
                              + json.dumps(item["text"], ensure_ascii=False))
         lines.append("Only the quoted text is visible; other surfaces have no writing.")
         return "\n\n".join(lines) + "\n"
+
+
+    def render_localized(self, assignment, image, messages):
+        t = lambda key, **values: messages[key].format(**values)
+        speakers = {p['id']: p['role'] for p in assignment['input']['participants']}
+        speakers.update({key: messages[key] for key in ('whalechan', 'narrator', 'device')})
+        p = self.spec(assignment, image)
+        layouts = {'single': t('layout_single'), 'left-right': t('layout_left_right'), 'top-bottom': t('layout_top_bottom'), '2x2': t('layout_grid')}
+        style = t('canonical_style') if p['style']['mode'] == 'canonical' else p['style']['description']
+        costume = t('canonical_costume') if p['costume']['mode'] == 'canonical' else p['costume']['description']
+        background = p['background']['description']
+        if p['background']['origin'] == 'tier' and background == self.m.exaggeration_tiers()['tiers'][image['exaggeration']]['default_background']:
+            background = {'A': t('background_a'), 'B': t('background_b'), 'C': t('background_c')}[image['exaggeration']]
+        lines = [t('image_header', v0=p['output']['aspect_ratio'], v1=layouts[p['layout']]) + (t('gutters') if p['panel_count'] > 1 else '') + t('appearance', v0=style, v1=background, v2=p['lettering'])]
+        lines.append(t('identity', v0=costume, v1=p['proportion']['target_head_ratio']))
+        if any((c['representation'] in {'physical', 'avatar'} for c in p['cast'])):
+            lines.append(t('supporting'))
+        roles = {'identity': t('identity_role'), 'style': t('rendering'), 'costume': t('clothing'), 'proportion': t('proportion_role'), 'typography': t('typography_role'), 'pose_action': t('action_role'), 'composition': t('framing'), 'background': t('setting')}
+        for n, ref in enumerate(p['references'], 1):
+            detail = ref['instruction']
+            if detail == 'Preserve only the declared canonical Whale-chan roles; never copy its facial expression':
+                detail = None
+            lines.append(t('reference', v0=n, v1=', '.join((roles[r] for r in ref['roles']))) + (t('extra', v0=detail) if detail else ''))
+        framing = ' '.join((v for v in p['composition'].values() if v))
+        if framing:
+            lines.append(framing)
+        for action, expression in zip(p['actions'], p['expressions'], strict=True):
+            panel = action['panel']
+            lines.append(t('panel', v0=panel, v1=action['action'], v2=expression['visual_description']))
+            for member in p['cast']:
+                if panel not in member['panels']:
+                    continue
+                form = {'physical': t('physical'), 'avatar': t('avatar'), 'offscreen': t('offscreen')}[member['representation']]
+                lines.append(t('cast', v0=speakers[member['participant']], v1=form) + (t('extra', v0=member['staging']) if member['staging'] else ''))
+            if panel == p['landing_panel']:
+                lines.extend(p['effects'])
+            for item in p['dialogue']:
+                if item['panel'] != panel:
+                    continue
+                delivery = item['delivery']
+                if delivery == 'label':
+                    target = t('label', v0=item['prop'])
+                    if item['speaker'] != 'narrator':
+                        target += t('written_by', v0=speakers[item['speaker']])
+                elif delivery == 'sfx':
+                    target = t('sfx')
+                elif delivery == 'caption':
+                    target = t('caption')
+                    if item['speaker'] != 'narrator':
+                        target += t('voice', v0=speakers[item['speaker']])
+                else:
+                    speaker = t('device_description') if item['speaker'] == 'device' else speakers[item['speaker']]
+                    target = t('balloon', v0=t(delivery), v1=speaker)
+                lines.append(t('exact_text', v0=target, v1=item['placement']) + json.dumps(item['text'], ensure_ascii=False))
+        lines.append(t('no_other_text'))
+        return '\n\n'.join(lines) + '\n'

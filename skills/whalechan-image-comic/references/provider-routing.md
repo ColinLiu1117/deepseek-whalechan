@@ -88,10 +88,10 @@ For current assignments, the prompt contains only the authored drawing descripti
 
 Record credentials neither in stdout nor in the run. Provider errors without images consume no candidate slot; any viewable returned image consumes one.
 
-## v19 worker execution
+## v20 worker execution
 
 Use independent role limits and image-task commands from `agent-orchestration.md`. Default generation capacity is 3 for Codex and 5 for general providers, reduced by known provider limits and runtime slots. Defaults are not a claim about backend capacity. Do not reduce unknown capacity to one automatically.
 
-One generation worker owns an image through automatic checks, single-image QA and permitted retries. It writes only its image journal. Record no-image errors with image-task error; returned images consume budget even if automatic/audit checks fail. Use the version-specific tool policy above; v19 forbids changing the selected tool. The coordinator only dispatches tasks and reports status; it does not inspect images or write detailed QA. Collection/delivery workers perform serial manifest reconciliation.
+One generation worker owns an image through automatic checks, single-image QA and permitted retries. It writes only its image journal. Record no-image errors with image-task error; returned images consume budget even if automatic/audit checks fail. Use the version-specific tool policy above; v20 forbids changing the selected tool. The coordinator only dispatches tasks and reports status; it does not inspect images or write detailed QA. Collection/delivery workers perform serial manifest reconciliation.
 
 Delegate a separate ready image to each generation worker. Never use concurrent calls inside one agent as evidence of provider concurrency. On explicit capacity/rate-limit failures, report the evidence and reduce new dispatch; do not interrupt successful in-flight image calls solely to rebalance roles.

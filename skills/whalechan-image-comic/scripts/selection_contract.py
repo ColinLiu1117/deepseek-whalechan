@@ -99,7 +99,7 @@ class PlanningTasks:
         role = "selection" if stage == "selection" else "planning"
         with w.locked(path.with_suffix(".lock")):
             batch = w.state(path)
-            w.require(batch.get("schema_version") == 19, "Planning tasks require v19")
+            w.require(batch.get("schema_version") in m.SUPPORTED_ASSIGNMENT_VERSIONS, "Planning tasks require v19")
             task = batch["tasks"].get(args.task_id)
             w.require(task and task["role"] == role and task["inputs"].get("stage") == stage and
                       task["owner"] == args.owner and task["status"] in {"running", "complete"},
@@ -122,6 +122,10 @@ class PlanningTasks:
                 value = {key: supplied[key] for key in ("input", "creative_pool")}
                 value.update(source_id=source["id"], target_images=source["target_images"],
                     author_agent_ids=task.get("contributors", [args.owner]), concept_task_id=task["id"])
+                if batch["schema_version"] == 20:
+                    lp = m.language_policy()
+                    w.require(lp.tag(value["input"].get("language")) == lp.effective(batch, "visible_text"), "Concept lettering language differs from batch")
+                    value.update({k: batch[k] for k in ("language", "language_overrides", "language_resolution") if k in batch})
                 if source["files"]:
                     content = value["input"].get("content")
                     content = content if isinstance(content, list) else [content]
@@ -177,7 +181,9 @@ class PlanningTasks:
                 w.require(all(supplied.get(k) == frozen[k] for k in
                     (*POOL_FIELDS, "pool_sha256", "execution", "selection_review", "ranked_ideas", "selection_reason")),
                     "Detailed plans must preserve frozen candidates and selection")
-                w.require(supplied.get("schema_version") == 19, "Detail requires schema v19")
+                if batch["schema_version"] == 20:
+                    w.require(all(supplied.get(k) == batch.get(k) for k in ("language", "language_overrides", "language_resolution")), "Detailed language differs from batch")
+                w.require(supplied.get("schema_version") == batch["schema_version"], "Detail requires schema v19")
                 source_policy = m.normalize_tier_policy(source.get("exaggeration_policy"))
                 w.require(supplied.get("exaggeration_policy") == source_policy,
                           "Detail must preserve the source tier policy from its task packet")

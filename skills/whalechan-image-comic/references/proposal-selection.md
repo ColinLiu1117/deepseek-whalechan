@@ -4,7 +4,7 @@ Complete creative planning before the single generation gate: freeze 2N concise 
 
 ## Display the complete plan
 
-Show one eight-column Markdown table per source, with N rows (the following is an N=5 example). The headers, distribution line and question below are the `--language zh` rendering; `--language en` renders them in English, and other communication languages translate the `en` rendering (see SKILL.md). Write the cells in the communication language and keep the exact visible text unchanged:
+Show one eight-column Markdown table per source, with N rows (the following is an N=5 example). Render headers, distribution and confirmation with the saved communication-language `plan` locale. Write the cells in the communication language and keep the exact visible text unchanged:
 
 | 序号 | 创意 | 方向 | 格数 | 档位 | 场景／分镜 | 关键台词 | 入选理由 |
 |---|---|---|---|---|---|---|---|
@@ -20,7 +20,7 @@ Show one eight-column Markdown table per source, with N rows (the following is a
 
 > 本次目标头身比：2.8 头身（半 Q 版，semi-chibi），适用于全部 5 张。
 
-Numbers identify rows, not mechanisms, layouts or tiers. Name the actual comedy direction; optionally mark a native-direction idea with “（原）” and explain the marker. Use the fixed labels `A-日漫冲击`, `B-漫画爆发`, `C-克制冷幽默` in both the tier column and distribution line (`A-Manga impact`, `B-Comic outburst`, `C-Restrained deadpan` in English). Write a declared contrast after the descriptive label, such as “A-日漫冲击（脸→C）”. The helper computes the distribution line and marks each coverage policy as satisfied or user-overridden. Do not impose native/character quotas. Keep cells concise, escape pipes and use `<br>` for line breaks.
+Numbers identify rows, not mechanisms, layouts or tiers. Name the actual comedy direction; optionally mark a native-direction idea with “（原）” and explain the marker. Use localized equivalents of the descriptive labels `A-日漫冲击`, `B-漫画爆发`, `C-克制冷幽默` in both the tier column and distribution line (`A-Manga impact`, `B-Comic outburst`, `C-Restrained deadpan` in English). Write a declared contrast after the descriptive label, such as “A-日漫冲击（脸→C）”. The helper computes the distribution line and marks each coverage policy as satisfied or user-overridden. Do not impose native/character quotas. Keep cells concise, escape pipes and use `<br>` for line breaks.
 
 Show the target head-to-body ratio immediately below the distribution line and before image totals, never as another table column. Record `proportion` in every new `proposal.options` entry before rendering, including the default `{"mode": "preset", "preset": "semi-chibi"}`. Resolve targets from the preset catalog or the explicit custom ratio. When all N match, show one shared target; otherwise group table row numbers by target, for example “第 1、3、5 张为 2.8 头身（半 Q 版，semi-chibi）；第 2、4 张为 2.5 头身（Q 版，chibi）”. Custom ratios read “3.0 头身（自定义）”. These are planned targets, not measurements of generated images.
 
@@ -46,19 +46,19 @@ Use the current schema and the helper commands in `run-schema.md`. Save drafts u
 Render the plan with either read-only helper:
 
 ```bash
-python3 scripts/manage-run.py render-proposal --draft <draft.json> --language <zh|en>
-python3 scripts/manage-run.py summarize-selection --draft <draft.json> --language <zh|en>
+python3 scripts/manage-run.py render-proposal --draft <draft.json>
+python3 scripts/manage-run.py summarize-selection --draft <draft.json>
 ```
 
-`summarize-selection` is an alias of `render-proposal`; both return the complete table, counts, budget, worker allocation, question and `summary_sha256`. Display the Markdown directly, not inside a code block. After the real reply, save `confirmation` with `status: confirmed`, the actual `user_reply` and the returned `summary_sha256`, binding the count, worker allocation and normalized execution settings. Use `worker_plan`, `panel_policy` and `exaggeration_policy` as specified in `run-schema.md`; full v19 `images` records must exist before this display. The scene/staging cells come from their panel actions and expression descriptions; the confirmation also binds the visual projection used by the prompt builder. See `prompt-design.md`. Hashes are audit metadata, not user-facing text. Helpers render and validate records; they cannot approve on the user's behalf.
+`summarize-selection` is an alias of `render-proposal`; both return the complete table, counts, budget, worker allocation, question and `summary_sha256`. Display the Markdown directly, not inside a code block. After the real reply, save `confirmation` with `status: confirmed`, the actual `user_reply` and the returned `summary_sha256`, binding the count, worker allocation and normalized execution settings. Use `worker_plan`, `panel_policy` and `exaggeration_policy` as specified in `run-schema.md`; full v20 `images` records must exist before this display. The scene/staging cells come from their panel actions and expression descriptions; the confirmation also binds the visual projection used by the prompt builder. See `prompt-design.md`. Hashes are audit metadata, not user-facing text. Helpers render and validate records; they cannot approve on the user's behalf.
 
-Changes to creative content, quantity or approved role/batch limits require updated consent. Normal role switching and capacity changes within those limits do not. Preserve previous versions for substantive revisions. For multiple sources show one combined execution summary and bind the same actual reply to each current source plan; never multiply quotas by source count. Generation worker assignments remain dynamic; frozen author/reviewer identities and task IDs are part of v19 selection provenance and its confirmation hash.
+Changes to creative content, quantity or approved role/batch limits require updated consent. Normal role switching and capacity changes within those limits do not. Preserve previous versions for substantive revisions. For multiple sources show one combined execution summary and bind the same actual reply to each current source plan; never multiply quotas by source count. Generation worker assignments remain dynamic; frozen author/reviewer identities and task IDs are part of v20 selection provenance and its confirmation hash.
 
 Disclose the QA 11 policy in the execution summary: one candidate inspection, minor-issue tolerance, one collection contact-sheet review and at most one repair round within the same three-call budget.
 
 After confirmation, assign validation/freezing to a planning worker. Main dispatches actual sub-agents through runtime tools. Generation workers own isolated image journals and permitted retries; collection/delivery workers reconcile and mutate shared manifests serially. Follow agent-orchestration.md for capacity reductions, resident reuse, ownership and recovery.
 
-For v19 use batch-proposal to combine per-source tables, tool/capacity disclosures and budgets. Bind the actual single user reply to its returned batch summary; batch-start derives each source confirmation from the bound summaries without another question. Report structural-warning dispositions in the authored cross-source observation. Tool preflight does not authorize generation; provider selection is locked before this gate. See batch-commands.md.
+For v20 use batch-proposal to combine per-source tables, tool/capacity disclosures and budgets. Bind the actual single user reply to its returned batch summary; batch-start derives each source confirmation from the bound summaries without another question. Report structural-warning dispositions in the authored cross-source observation. Tool preflight does not authorize generation; provider selection is locked before this gate. See batch-commands.md.
 
 ## Selection handoff
 

@@ -1,8 +1,8 @@
-# Role-specific sub-agent orchestration — v19
+# Role-specific sub-agent orchestration — v20
 
 Contents: [Limits](#limits) · [Ownership](#ownership) · [Planning](#planning) · [Queue](#queue) · [Image task](#image-task) · [Collection and delivery](#collection-and-delivery) · [Recovery](#recovery)
 
-For new v19 batches use `batch-commands.md` for fixed prepare/proposal/start, image, collection and delivery operations. The low-level commands below implement ownership and interrupted-task recovery. The tool is preflight-locked and the batch pauses on errors; service errors never auto-switch or retry.
+For new v20 batches use `batch-commands.md` for fixed prepare/proposal/start, image, collection and delivery operations. The low-level commands below implement ownership and interrupted-task recovery. The tool is preflight-locked and the batch pauses on errors; service errors never auto-switch or retry.
 
 ## Limits
 
@@ -21,7 +21,7 @@ This produces independent policy and current targets (2 generation + 1 collectio
 
 Use defaults when provider capacity is unknown; label them as policy, not measured service capacity. Apply an observed lower provider limit through --provider-limit and reduce dispatch after explicit capacity/rate-limit failures. A single agent's concurrent ImageGen submissions may be serialized; assign separate agents for actual concurrency.
 
-If delegation is entirely unavailable, disclose serial main-agent fallback. For v19 this applies to execution after independently selected plans already exist; concepts/selection/detail planning requires the author and a different real selector. If that independence is unavailable, retain the planning state and report the limitation.  Temporarily occupied slots are not unavailable delegation: queue work and reuse residents. Respect explicit user serial execution.
+If delegation is entirely unavailable, disclose serial main-agent fallback. For v20 this applies to execution after independently selected plans already exist; concepts/selection/detail planning requires the author and a different real selector. If that independence is unavailable, retain the planning state and report the limitation.  Temporarily occupied slots are not unavailable delegation: queue work and reuse residents. Respect explicit user serial execution.
 
 ## Ownership
 
@@ -44,7 +44,7 @@ Start planning sub-agents before generation consent; planning never calls an ima
 
 Assign the existing cross-source comparison to a planning worker after all drafts are available. Resolve its findings in the drafts before the single consent. Bind one actual user reply to all approved source plans. Delegate validation and initialization after consent. No production run or image call precedes consent.
 
-Use v19 execution (including the locked tool) and dynamic worker_plan from run-schema.md. Bind approved role limits and batch strategy, not transient worker identities. Disclose current runtime capacity separately. Lower dispatch or recovery within approved role/batch limits does not alter the visual plan. Raising approved limits or materially changing content requires updated consent.
+Use v20 execution (including the locked tool) and dynamic worker_plan from run-schema.md. Bind approved role limits and batch strategy, not transient worker identities. Disclose current runtime capacity separately. Lower dispatch or recovery within approved role/batch limits does not alter the visual plan. Raising approved limits or materially changing content requires updated consent.
 
 ## Queue
 
@@ -106,14 +106,14 @@ python3 scripts/manage-run.py image-task review --run-dir <run> --image <image> 
   --provider codex --model <actual-model> --visual-json <review.json>
 ```
 
-A core FAIL with remaining budget returns pending. Build a targeted drawing-only retry and repeat begin/call/prepare/review without waiting for main-agent judgment. Preserve frozen premise/text locks. v19 stays on the locked tool. PASS, exhaustion or technical/safety blockage ends the image task:
+A core FAIL with remaining budget returns pending. Build a targeted drawing-only retry and repeat begin/call/prepare/review without waiting for main-agent judgment. Preserve frozen premise/text locks. v20 stays on the locked tool. PASS, exhaustion or technical/safety blockage ends the image task:
 ```bash
 python3 scripts/manage-run.py image-task finish --run-dir <run> --image <image> --owner <worker> --task-id <task>
 ```
 
 Return the journal path and complete receipt. Single-image journals are the authoritative attempt ledger. Same-image retries stay serial; all returned images consume the original maximum of three, including technical failures. Candidate/QA hashes bind evidence; malformed records permit mechanical repair, not another image or visual inspection.
 
-For a proven no-image provider failure use image-task error with provider/model/category/evidence. Preserve uncertainty as an in-flight call. For v19 pause new dispatch and wait for explicit user resume. A safety rejection stops new batch dispatch and is reported immediately. Setup-only failure may leave the run open for later authorized recovery; do not silently finalize it.
+For a proven no-image provider failure use image-task error with provider/model/category/evidence. Preserve uncertainty as an in-flight call. For v20 pause new dispatch and wait for explicit user resume. A safety rejection stops new batch dispatch and is reported immediately. Setup-only failure may leave the run open for later authorized recovery; do not silently finalize it.
 
 ## Collection and delivery
 
@@ -133,7 +133,7 @@ If an image journal already finished, recover only its missing completion receip
 
 Record queue events, actual actor IDs, local generation/review events and provider/session timestamps. Distinguish queue residence, setup, actual tool execution, QA, collection and delivery. Exclude sleep; report wall-clock and cumulative worker time separately. Scripts verify structure and transitions, not whether an LLM really inspected pixels or whether a runtime observation is truthful.
 
-## v19 planning dependencies and independent identity
+## v20 planning dependencies and independent identity
 
 Each source flows concepts (planning) -> selection (selection) -> detail (planning); completion of one source need not wait for other sources. With three slots and ready selection, target 2 planning + 1 selection; without ready selection use up to 3 planning. Limits are ceilings, not permanently reserved agents.
 

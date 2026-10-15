@@ -3,12 +3,12 @@
 After generation and QA, finalize the run and export its gallery before delivery. This uses Python 3 and the existing ImageMagick `magick` dependency, with no image API calls or frontend build step.
 
 ```bash
-python3 scripts/export-gallery.py --run-dir <completed-run> --language <zh|en>
+python3 scripts/export-gallery.py --run-dir <completed-run> --language <BCP-47>
 python3 scripts/export-gallery.py --run-dir <source-a-run> --run-dir <source-b-run> \
-  --language <zh|en> --output artifacts/whalechan-image-character/<batch-name>/gallery
+  --language <BCP-47> --output artifacts/whalechan-image-character/<batch-name>/gallery
 ```
 
-A single run defaults to `<run>/gallery/index.html`. A batch requires `--output`. Existing outputs are preserved by selecting `gallery-02`, `gallery-03`, etc. The command prints the actual HTML path and missing-record warnings as JSON. Link that path in the final delivery. `--language` sets the page's initial language (`zh` for a Chinese session, `en` otherwise; default `zh`) and the language of the printed warnings. The masthead button switches the page between Chinese and English and remembers the viewer's choice in that browser. Records stay structured; user text, prompts and proposal content are shown as recorded, never translated. Copy or zip the entire gallery directory when sharing; the HTML needs its adjacent `assets/` folder.
+A single run defaults to `<run>/gallery/index.html`. A batch requires `--output`. Existing outputs are preserved by selecting `gallery-02`, `gallery-03`, etc. The command prints the actual HTML path and missing-record warnings as JSON. Link that path in the final delivery. The saved interface language sets the initial page language; `--language` explicitly overrides it. Offer Simplified Chinese, English and the task languages. Remember a manual selection per gallery, never globally. Supply extra complete UI dictionaries with `--locales`; see `language-policy.md`. Records stay structured; user text, prompts and proposal content are shown as recorded, never translated. Copy or zip the entire gallery directory when sharing; the HTML needs its adjacent `assets/` folder.
 
 ## Organization and interaction
 
@@ -24,7 +24,7 @@ Finals are matched to recorded candidates by hash, never by assuming the last at
 
 A generation count is the number of image-producing attempts, including failed candidates. Promotion adds no calls. Errors that returned no image are counted separately. A partial run shows gaps; failed candidates never become final artwork in the gallery.
 
-The exporter reads supported records without modifying or migrating them: character assignment v6 / manifest v3, or comic assignment v19 / manifest v1 in the comic skill. It checks the assignment hash and available recorded image hashes, but does not perform or replace visual QA. Missing files appear as missing, never fabricated. Unsupported schemas, changed hashes and open runs fail export. Setup-blocked runs remain open and resumable under the existing workflow; do not finalize them just to obtain a gallery.
+The exporter reads supported records without modifying or migrating them: character assignment v7 / manifest v3, or comic assignment v19 / manifest v1 in the comic skill. It checks the assignment hash and available recorded image hashes, but does not perform or replace visual QA. Missing files appear as missing, never fabricated. Unsupported schemas, changed hashes and open runs fail export. Setup-blocked runs remain open and resumable under the existing workflow; do not finalize them just to obtain a gallery.
 
 Character screenshot inputs must name existing files, absolute or relative to the assignment file. New runs archive them as `source/original-01.*`, etc. Text requests remain text. Source interpretations are labelled separately from user wording.
 

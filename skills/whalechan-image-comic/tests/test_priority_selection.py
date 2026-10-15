@@ -124,7 +124,7 @@ class PlanningTests(unittest.TestCase):
         self.workflow = m.extension_module("batch_workflow").BatchWorkflow(m)
 
     def prepare(self, counts=(5,)):
-        spec = {"sources": [{"id": f"source-{chr(97+i)}", "text": "input", "target_images": n}
+        spec = {"schema_version": 19, "sources": [{"id": f"source-{chr(97+i)}", "text": "input", "target_images": n}
                             for i, n in enumerate(counts)], "language": "zh",
                 "execution": {"batch_id": "synthetic-v19"},
                 "availability": {"builtin": {"available": True, "evidence": "synthetic tools"}},

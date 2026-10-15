@@ -79,7 +79,7 @@ def preflight(manager, evidence, requests=(), expected=None):
 def batch_path(manager, manifest, assignment):
     path = Path(manifest["batch_file"]).resolve()
     batch = manager.read_json(path)
-    if batch.get("schema_version") != manager.ASSIGNMENT_SCHEMA_VERSION:
+    if batch.get("schema_version") not in manager.SUPPORTED_ASSIGNMENT_VERSIONS or batch["schema_version"] != assignment["schema_version"]:
         raise ValueError("Batch schema_version must match the current assignment schema")
     if batch["execution"] != assignment["execution"]:
         raise ValueError("Run and batch execution policy differ")

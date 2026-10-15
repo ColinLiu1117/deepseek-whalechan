@@ -51,7 +51,7 @@ The **DeepSeek Whale-chan** project is an open-source character specification an
 
 - 🎨 **Visual Feature Locking**: Standardized reference assets strictly locking hair gradient, whale-fin ears, forward cowlick, whale tail, and classic maid uniform;
 - 📐 **Quantified Form Proportions**: Mathematically defined proportions from 4.0-head standard portraits down to 2.1-head chibi SD forms, verified by skeletal measurement tools;
-- 🧠 **Character Mindset Engine**: Preserves the source's humor and tone through Whale-chan's language, reactions, timing, or self-serving reinterpretation;
+- 🧠 **Character Mindset Engine**: Identifies the source's own comedy direction — reversal, exposure, escalation, recognition, or character gag — and preserves its humor and tone through Whale-chan's language, reactions, and timing;
 - 🛠️ **Full-Stack Toolchain Integration**: Out-of-the-box Agent Skills and local scripts supporting multi-model routing and single-prompt delivery.
 
 <br>
@@ -109,7 +109,7 @@ Forms strictly control **body proportions and skeletal ratios**, without alterin
 | :--- | :---: | :---: | :--- |
 | `standard` | **4.0 Heads** | `3.846 ~ 4.146` | **Standard Slender Form**: Most elongated posture, natural limbs, clear torso structure. Best for standing displays, official concept sheets, and large posters. |
 | `compact` | **3.3 Heads** | `3.105 ~ 3.405` | **Compact Proportion Form**: Moderately shortened limbs, stronger dynamic tension. Best for action poses, seated interactions, and medium-range illustrations. |
-| `semi-chibi` | **2.8 Heads** | `2.689 ~ 2.989` | **Default Baseline Form**: Slightly larger head, rounded and compact torso and limbs, blending cuteness and scene adaptability. **Default output baseline for all Skills**. |
+| `semi-chibi` | **2.8 Heads** | `2.695 ~ 2.995` | **Default Baseline Form**: Slightly larger head, rounded and compact torso and limbs, blending cuteness and scene adaptability. **Default output baseline for all Skills**. |
 | `chibi` | **2.5 Heads** | `2.372 ~ 2.672` | **Chibi Cute Form**: Short torso, rounded hands and feet, expressive and exaggerated emotions. Best for gag 4-panel comics and stickers. |
 | `super-deformed` | **2.1 Heads** | `1.931 ~ 2.231` | **Extreme SD Form**: Massive head and tiny limbs, visual focus entirely on face and cowlick. Best for comedic plot twists and high-density stickers. |
 
@@ -161,7 +161,7 @@ Dedicated to generating identity-locked, well-composed, clean-background WebP il
 
 ### Multi-Panel Comedy Comic Comparison
 
-Extracting an identifiable **Fact Anchor** from technical chats, error logs, CoT traces, or user rants, and preserving the source's humor and tone through Whale-chan's actions, language, reactions, and timing. Self-serving **"Theft of Meaning"** is one possible approach when it fits the source.
+Extracting an identifiable **Fact Anchor** from technical chats, error logs, CoT traces, or user rants, and preserving the source's humor and tone through Whale-chan's actions, language, reactions, and timing. Jokes are planned in five comedy directions — reversal, exposure, escalation, recognition, and character gag — with the source's own direction considered during comparison. Self-serving **"Theft of Meaning"** is one reversal tactic when it fits the source. How hard a joke is performed is a separate A/B/C exaggeration tier, independent of its direction: A manga impact (detailed scene, concentration lines, deformed faces, drawn sound effects), B comic outburst (desk-slamming accusations, situations spiralling), C restrained deadpan (carried by the line, a glance or negative space).
 
 <p align="center">
   <img src="assets/readme/en/whalechan-comic-fat-whale-wordplay.webp" alt="Whale-chan Comic Fat Whale Wordplay" width="480">
@@ -191,8 +191,10 @@ The project provides two specialized, out-of-the-box Agent Skills under the [`sk
 
 | Skill Name | Role & Core Function | Workflow Mechanism & Technical Features |
 | :--- | :--- | :--- |
-| [`whalechan-image-character`](skills/whalechan-image-character/) | **Character Portraits & Themed Illustrations**<br>Generates high-consistency, strictly verified, identity-locked Whale-chan solo, prop, and scene illustrations. | • **Standardized Pipeline**: Assignment freeze ➔ Checklist & budget confirmation ➔ Dynamic prompt assembly ➔ Multi-backend dispatch<br>• **Dual QA System**: Deterministic image format checks, skeletal joint fitting, and native-res visual QA matrix |
-| [`whalechan-image-comic`](skills/whalechan-image-comic/) | **Multi-Panel Comedy Comics**<br>Offers five source-faithful proposals, then generates five 1/2/4-panel comics per selected proposal by default. | • **Two User Gates**: Select proposals from a seven-column table ➔ Confirm proposal and image totals ➔ Generate and verify; custom quantities or one image per proposal are supported<br>• **Multi-Panel Grammar**: Choose 1-panel, 2-panel, or 4-panel layouts by narrative need<br>• **Visual Typesetting**: 10 blue-white text templates, explicit dialogue ownership, and abstract supporting-character staging |
+| [`whalechan-image-character`](skills/whalechan-image-character/) | **Character Portraits & Themed Illustrations**<br>Generates high-consistency, strictly verified, identity-locked Whale-chan solo, prop, and scene illustrations. | • **Standardized Pipeline**: Seven-column proposal selection ➔ Scope & budget confirmation ➔ Assignment expansion & freeze ➔ Generation & QA<br>• **Dual QA System**: Deterministic image format checks, skeletal joint fitting, and native-res visual QA matrix |
+| [`whalechan-image-comic`](skills/whalechan-image-comic/) | **Multi-Panel Comedy Comics**<br>Freezes 2N concise ideas, uses an independent sub-agent to rank and select N, and makes one comic per selected idea (N defaults to 5). | • **One User Gate**: Show the N-idea table, image total and role allocation ➔ Confirm once ➔ Generate and verify<br>• **Five Comedy Directions**: Reversal, exposure, escalation, recognition and character gag, compared without creative admission thresholds or repeated candidate pools<br>• **Multi-Panel Grammar**: For N≥3, cover 1-, 2- and 4-panel layouts by narrative need; N=1/2 relaxes coverage<br>• **Three Exaggeration Tiers**: Use 3A/1B/1C for N=5; other counts approach 60%/20%/20% by content. A is manga impact, B comic outburst and C restrained deadpan, tiered on the landing panel, with optional contrast that deliberately lowers one axis<br>• **Visual Typesetting**: 10 blue-white text templates, explicit dialogue ownership and abstract supporting-character staging |
+
+Character uses Gate 2 and up to 10 generation workers. Comic uses one confirmation and independent role caps: planning 5, selection 2, generation 5 (Codex 3), collection 2, delivery 1; the batch ceiling is 10. Runtime/provider capacity can lower dispatch. Comic planning requires an independent selector; after completed selection, confirmed serial or no-delegation generation can use the main agent. Parallel execution does not increase the confirmed image count or candidate budget.
 
 <br>
 
@@ -204,8 +206,8 @@ The project provides two specialized, out-of-the-box Agent Skills under the [`sk
 git clone https://github.com/Neko3000/deepseek-whalechan.git
 cd deepseek-whalechan
 
-# (Recommended) Install image processing and validation dependencies
-pip install pillow
+# Install ImageMagick, used for image validation, measurement and panel composition
+brew install imagemagick   # macOS; use your system package manager elsewhere
 ```
 
 ### Install Skills into Agent Runtimes
@@ -232,9 +234,12 @@ mkdir -p ~/.claude/skills
 cp -R skills/* ~/.claude/skills/
 ```
 
+> [!TIP]
+> **Use Codex ImageGen from other agents**: if the Codex CLI is installed and logged in (`codex login`), the Skills running in Claude Code, Antigravity or other agents call Codex ImageGen through `codex exec` to render each image, while the current agent handles proposals, prompts, QA and delivery. Each image uses your ChatGPT plan quota. Without Codex, the Skills fall back to the external providers below.
+
 ### Configure External Image Provider Credentials (Optional)
 
-Codex's built-in ImageGen is the default image generation tool and requires no external API keys. If you wish to enable external fallback channels in predetermined order, set the corresponding environment variables:
+Codex ImageGen is the default image generation tool and requires no external API keys: Skills use it directly inside Codex, and through the local Codex CLI in other agents. If you wish to enable external fallback channels in predetermined order, set the corresponding environment variables:
 
 ```bash
 # 1. OpenAI Images API (gpt-image-2)
@@ -285,7 +290,9 @@ Example result:
 
 - The Agent parses the scene, aspect ratio, character form, composition, and specified text;
 - Locks identity traits (hair gradient, whale-fin ears, tail, maid uniform) against standard Whale-chan reference sheets;
-- Upon explicit user confirmation, Codex dispatches and falls back across ImageGen → OpenAI → Nano Banana → Seedream;
+- **Gate 1**: Show five directions in a seven-column table for an open theme; preserve precisely specified scenes without forcing alternatives. Wait for selection;
+- **Gate 2**: Show selected titles, per-proposal counts (one image by default), totals, visual settings, reference permissions, output specifications and candidate budget. Wait for permission to begin, including any ceiling above 24 candidates;
+- Expand and freeze internally after confirmation, without a third routine gate; dispatch across ImageGen → OpenAI → Nano Banana → Seedream;
 - Automatically verifies image format, aspect ratio, anatomical proportions, text accuracy, and visual quality;
 - Final deliverables are archived under `artifacts/whalechan-image-character/<run-name>/`.
 
@@ -327,22 +334,31 @@ Example result:
 
 **Execution Workflow**:
 
-- The Agent analyzes the source event, humor, tone, and participants, preserving an identifiable fact anchor;
-- The comedy engine explores distinct premises and records why ideas are selected or rejected;
-- **Gate 1**: Displays five proposals and recommendations in a seven-column Markdown table, then asks for choices and explains the generation strategy below it;
-- **Gate 2**: Lists selected proposals, counts per proposal, and proposal/image totals, then waits for confirmation; the default is five images per proposal, with custom counts or one each supported;
-- After the second confirmation, expands the selected tasks, internally plans composition, typography, speakers and cast, and generates 1/2/4-panel comics as the narrative requires; multi-source batches also undergo cross-case review;
-- Each comic independently undergoes text, character consistency, composition, and visual punchline QA;
+- The Agent analyzes the source event, humor, tone, participants, and the source's native comedy direction, preserving an identifiable fact anchor;
+- The author freezes 2N concise candidates (default N=5); a different real sub-agent ranks all candidates with brief reasons and a set explanation, then the author completes the first N visual plans;
+- It plans one image per selected idea. For N≥3, cover 1/2/4 panels; N=5 uses 3A/1B/1C, other counts approach that ratio. Explicit overrides apply; planning includes dialogue/payoff comparison;
+- **One confirmation**: Displays the N-idea information table, image total, worker assignments and per-image three-call budget, then waits for permission to generate;
+- After confirmation, freezes the plan and uses the preflight-locked image tool. Generation workers own image journals; collection/delivery workers merge records under locks;
+- Each candidate receives one visual QA; a collection worker reviews one contact sheet per source, with at most one repair round and one focused recheck within the original budget;
 - Final deliverables are archived under `artifacts/whalechan-image-comic/<run-name>/`.
 
 > [!TIP]
-> Inputs only need a clear fact, conflict, or permission boundary — no need to pre-engineer jokes. The Skill preserves the source's humor and tone through language, reactions, timing, or self-serving reinterpretation when appropriate.
+> Inputs only need a clear fact, conflict, or permission boundary — no need to pre-engineer jokes. The Skill identifies how the source is funny — reversal, exposure, escalation, recognition, or a character gag — and preserves that humor and tone rather than forcing every joke into a twist.
 
 <br>
 
 <a id="local-command-line-toolchain"></a>
 
 ## 🛠️ Local Command-Line Toolchain
+
+After generation and `finalize`, both skills deliver an ivory offline gallery with a sticky source/theme sidebar index, results grouped by proposal, grid/list views, a full-screen zoomable viewer with input-image comparison, actual prompts, candidate history and generation counts. Unselected proposals remain available as collapsed summaries.
+
+```bash
+python3 skills/whalechan-image-character/scripts/export-gallery.py --run-dir <completed-character-run>
+python3 skills/whalechan-image-comic/scripts/export-gallery.py --run-dir <comic-run-a> --run-dir <comic-run-b> --output artifacts/whalechan-image-comic/<batch-name>/gallery
+```
+
+Open the returned `index.html` directly. Share the whole directory with its adjacent `assets/`; no server or network is needed. Single runs default to `<run>/gallery/`; repeated exports use new numbered directories. See the [gallery guide](skills/whalechan-image-comic/references/gallery.md).
 
 The repository includes Python tools and unit tests that can be run directly from the command line:
 
@@ -360,10 +376,7 @@ python3 skills/whalechan-image-comic/scripts/validate-image.py candidate.png --r
 # 4. Measure skeletal head-to-body ratio and output diagnostic overlay
 python3 skills/whalechan-image-comic/scripts/measure-form.py candidate.png --output-overlay overlay.png
 
-# 5. Local multi-panel layout lossless composition
-python3 skills/whalechan-image-comic/scripts/compose-panels.py --layout top-bottom --panels p1.png p2.png --output comic.png
-
-# 6. Generate candidate image directly via Gemini Nano Banana API
+# 5. Generate candidate image directly via Gemini Nano Banana API
 python3 skills/whalechan-image-comic/scripts/generate-nanobanana.py --request request.json --output output.png
 ```
 
@@ -376,7 +389,7 @@ python3 skills/whalechan-image-comic/scripts/generate-nanobanana.py --request re
 - [x] **Character Foundation**: Full set of Whale-chan visual reference assets and SHA-256 catalog
 - [x] **Proportion Standards**: Mathematical definitions for 5 form profiles with measurement tool (`measure-form.py`)
 - [x] **Character Illustration Skill**: `whalechan-image-character` workflow with budget confirmation guards
-- [x] **Comic Creation Skill**: `whalechan-image-comic` comedy reversal engine and multi-panel layout system
+- [x] **Comic Creation Skill**: `whalechan-image-comic` five-direction comedy engine and multi-panel layout system
 - [x] **Multi-Provider Fallback**: Codex ImageGen / OpenAI / Nano Banana / Seedream routing & audit logs
 - [ ] **Interactive Web Gallery**: Web-based gallery to browse prompts, parameters, and generated assets online
 - [ ] **Smart Prompt Compiler**: Compiles natural language into standard Prompt Blocks with form-matched references

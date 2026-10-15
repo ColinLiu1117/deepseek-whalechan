@@ -41,7 +41,7 @@ When `costume.mode` is `custom`, render the frozen costume description and any `
 
 Every provider prompt must contain the permanent identity block and only the defaults still active after normalization.
 
-Permanent identity meaning:
+Express the following permanent identity meaning in the saved prompt language. This English example is semantic guidance, not a fixed-language prompt block; preserve exact user-locked visible text separately.
 
 ```text
 DeepSeek Whale-chan, one consistent ageless humanoid character: broad round face, expressive eyes, characteristic deep-ocean-blue-to-cyan curled hair when color is applicable, paired side whale-fin ears, one forward-curving ahoge, and one coherent naturally attached whale tail; two correct arms and two correct legs. Preserve the recognizable face, hair mass, fin-ear placement, ahoge silhouette, and tail construction. Follow the frozen head ratio without changing apparent age. Correct anatomy, contact, and object geometry.

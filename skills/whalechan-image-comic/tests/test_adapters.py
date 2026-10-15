@@ -48,7 +48,7 @@ AUTO_SQUARE = {
 class AdapterTests(unittest.TestCase):
     def setUp(self) -> None:
         self.references = [
-            str(SKILL_ROOT / "assets/character-references/semi-chibi/0092_enduring_release_delay_rendered_isolated.webp"),
+            str(SKILL_ROOT / "assets/character-references/semi-chibi/neutral_standing_front_isolated.webp"),
         ]
 
     def request(self, directory: str, references: list[str]) -> Path:
@@ -104,15 +104,7 @@ class AdapterTests(unittest.TestCase):
             text=True,
         )
 
-    def test_provider_order_and_explicit_size_capability(self) -> None:
-        state = {"attempts": [], "provider_errors": []}
-        fixtures.manage.provider_allowed(state, "codex")
-        with self.assertRaisesRegex(fixtures.manage.RunError, "first provider"):
-            fixtures.manage.provider_allowed(state, "openai")
-        state["provider_errors"].append({"provider": "codex", "category": "capability"})
-        fixtures.manage.provider_allowed(state, "openai")
-        with self.assertRaisesRegex(fixtures.manage.RunError, "skip"):
-            fixtures.manage.provider_allowed(state, "nano-banana")
+    def test_explicit_size_capability(self) -> None:
         explicit = {
             "format": "png",
             "aspect_ratio": "1:1",
@@ -132,6 +124,18 @@ class AdapterTests(unittest.TestCase):
                 else:
                     self.assertEqual(completed.returncode, 0, completed.stderr)
                     self.assertEqual(json.loads(completed.stdout)["size"], "1024x1024")
+
+        # The Codex adapter: precise auth markers and a three-state usable verdict.
+        codex = load_module("comic_codex", "generate-codex.py")
+        self.assertEqual(codex.classify_text("Error: not logged in to Codex"), "authentication")
+        self.assertEqual(codex.classify_text("HTTP 401 Unauthorized"), "authentication")
+        self.assertEqual(codex.classify_text("upstream failed while rendering the login page"), "service")
+        self.assertEqual(codex.classify_text("usage limit reached"), "quota")
+        self.assertIs(codex.usable_verdict(True, 2, 2), True)
+        self.assertIs(codex.usable_verdict(None, 2, 2), None)
+        self.assertIs(codex.usable_verdict(True, None, 2), None)
+        self.assertIs(codex.usable_verdict(False, None, 2), False)
+        self.assertIs(codex.usable_verdict(True, 1, 2), False)
 
 
 if __name__ == "__main__":

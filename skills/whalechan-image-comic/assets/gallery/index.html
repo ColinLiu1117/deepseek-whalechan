@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whale-chan · Preview Gallery</title>
+<style>/* GALLERY_CSS */</style>
+</head>
+<body>
+<header class="masthead"><div class="masthead-title"><span class="brand">WHALE-CHAN</span><h1 id="page-title"></h1></div><div id="page-stats" class="stats"></div><select id="language-toggle" class="language-toggle" aria-label="Language"></select></header>
+<main id="app"></main>
+<footer class="page-footer" data-i18n="footer">Whale-chan · 每个灵感，都有迹可循。</footer>
+<dialog id="lightbox" aria-label="图片预览">
+<header class="lb-top">
+<div class="lb-title"><span id="lightbox-title"></span><span id="image-position" class="lb-position" aria-live="polite"></span></div>
+<div class="lb-tools">
+<span class="lb-zoom"><button id="zoom-out" type="button" data-i18n-title="zoomOut" data-i18n-label="zoomOut">−</button><button id="size-toggle" type="button" data-i18n-title="zoomToggle">适应</button><button id="zoom-in" type="button" data-i18n-title="zoomIn" data-i18n-label="zoomIn">+</button></span>
+<button id="compare-toggle" type="button" aria-pressed="false" data-i18n="compare" data-i18n-title="compareTitle">对照原图</button>
+<button id="info-toggle" type="button" aria-expanded="false" aria-controls="lightbox-info" data-i18n="imageDetails" data-i18n-title="detailsTitle">图片详情</button>
+<button id="close-lightbox" type="button" aria-label="关闭预览" data-i18n-title="closeTitle">✕</button>
+</div>
+</header>
+<div id="lightbox-main" class="lb-main">
+<aside id="lightbox-compare" class="lb-compare"></aside>
+<div id="image-stage" class="lb-stage" tabindex="-1"><img id="large-image" alt="" draggable="false"><button id="previous" class="lb-arrow previous" type="button" data-i18n-title="previous" data-i18n-label="previous">‹</button><button id="next" class="lb-arrow next" type="button" data-i18n-title="next" data-i18n-label="next">›</button><div id="lightbox-hint" class="lb-hint gone" data-i18n="viewerHint"></div></div>
+<aside id="lightbox-info" class="lb-info"></aside>
+</div>
+<nav id="lightbox-strip" class="lb-strip" data-i18n-label="collection"></nav>
+</dialog>
+<noscript>请启用 JavaScript，以浏览图册和打开图片预览。 / Enable JavaScript to browse the gallery and open image previews.</noscript>
+<script id="gallery-data" type="application/json">GALLERY_DATA</script>
+<script>/* GALLERY_JS */</script>
+</body>
+</html>

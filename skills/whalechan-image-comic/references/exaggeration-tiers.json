@@ -1,0 +1,294 @@
+{
+  "schema_version": 1,
+  "order": [
+    "C",
+    "B",
+    "A"
+  ],
+  "axes": [
+    {
+      "id": "camera",
+      "layer": "frame",
+      "label": "camera and composition",
+      "label_zh": "镜头"
+    },
+    {
+      "id": "background",
+      "layer": "frame",
+      "label": "background",
+      "label_zh": "背景"
+    },
+    {
+      "id": "lighting",
+      "layer": "frame",
+      "label": "lighting and value contrast",
+      "label_zh": "明暗"
+    },
+    {
+      "id": "effect_lines",
+      "layer": "frame",
+      "label": "effect lines",
+      "label_zh": "效果线"
+    },
+    {
+      "id": "expression",
+      "layer": "character",
+      "label": "facial expression",
+      "label_zh": "脸"
+    },
+    {
+      "id": "body_action",
+      "layer": "character",
+      "label": "body action",
+      "label_zh": "肢体"
+    },
+    {
+      "id": "manpu",
+      "layer": "character",
+      "label": "manpu marks on the character",
+      "label_zh": "漫符"
+    },
+    {
+      "id": "balloons",
+      "layer": "lettering",
+      "label": "speech balloons and line lettering",
+      "label_zh": "气泡"
+    },
+    {
+      "id": "sfx",
+      "layer": "lettering",
+      "label": "drawn sound effects",
+      "label_zh": "拟声字"
+    },
+    {
+      "id": "world_reaction",
+      "layer": "world",
+      "label": "reaction of the cast and objects around her",
+      "label_zh": "周遭"
+    }
+  ],
+  "identity_anchors": [
+    {
+      "id": "hair",
+      "description": "deep-blue hair mass with cyan curled ends"
+    },
+    {
+      "id": "fin_ears",
+      "description": "paired whale-fin ears"
+    },
+    {
+      "id": "ahoge",
+      "description": "forward-curving ahoge"
+    },
+    {
+      "id": "tail",
+      "description": "one coherent whale tail"
+    },
+    {
+      "id": "maid_outfit",
+      "description": "navy-and-white maid outfit"
+    }
+  ],
+  "identity_anchor_minimum": 3,
+  "manga_burst": {
+    "cues": [
+      "blank white eyes or dot eyes",
+      "giant open mouth",
+      "tear rivers",
+      "sudden chibi shrink",
+      "soul leaving the body",
+      "petrified cracks",
+      "a face-only gekiga rendering with heavy hatching"
+    ],
+    "guard": "Deform only the face or body silhouette. Keep the rest of the canvas in the frozen style, and keep at least three identity anchors clearly visible."
+  },
+  "tiers": {
+    "A": {
+      "label": "manga impact",
+      "summary": "Full Japanese-manga impact: a detailed scene, a bold camera, effect lines, manga_burst faces, stylized lettering and a world that reacts.",
+      "axes": {
+        "camera": "extreme low or high angle, fisheye, extreme close-up or diagonal composition; a full frame",
+        "background": "detailed location scene with perspective and props; every sign, screen, page and label surface is blank or turned away",
+        "lighting": "high value contrast or backlight; local black-and-white or screentone allowed",
+        "effect_lines": "concentration lines, speed lines, a black-and-white impact flash or a collapsing background",
+        "expression": "manga_burst deformation",
+        "body_action": "squash and stretch, afterimages, flying out of frame, sudden chibi shift or petrification",
+        "manpu": "large manpu marks with no count limit, each tied to the beat",
+        "balloons": "burst balloons, oversized hand-lettered lines, stacked exclamation marks",
+        "sfx": "at most two drawn sound effects of at most four characters each",
+        "world_reaction": "partners blown back or petrified; objects shatter or fly"
+      },
+      "markers": [
+        {
+          "id": "A-background",
+          "axes": [
+            "background"
+          ],
+          "text": "A recognizable location with perspective and props fills the landing panel, with no readable writing on any surface.",
+          "waived_by_user_background": true
+        },
+        {
+          "id": "A-effects",
+          "axes": [
+            "effect_lines"
+          ],
+          "text": "Concentration lines, speed lines or an impact flash frame the landing beat."
+        },
+        {
+          "id": "A-face",
+          "axes": [
+            "expression"
+          ],
+          "text": "Whale-chan's landing face reaches manga_burst deformation."
+        },
+        {
+          "id": "A-lettering",
+          "axes": [
+            "balloons",
+            "sfx"
+          ],
+          "text": "A burst balloon, an oversized hand-lettered line or a drawn sound effect delivers the landing text."
+        }
+      ],
+      "allowed_performance": [
+        "grounded",
+        "heightened",
+        "punchline_peak",
+        "manga_burst"
+      ],
+      "manpu_cap": null,
+      "sfx_limit": {
+        "count": 2,
+        "max_characters": 4
+      },
+      "default_background": "detailed text-free location scene with perspective and props",
+      "forbidden": [
+        "a style shift beyond the face",
+        "readable or pseudo writing on scene surfaces",
+        "more than two drawn sound effects or one longer than four characters"
+      ]
+    },
+    "B": {
+      "label": "comic outburst",
+      "summary": "A clear comic outburst: desk-slamming accusations, situations getting out of hand, comic collapse.",
+      "axes": {
+        "camera": "normal camera height with a possible tilt",
+        "background": "effect background (speed lines, concentration lines, flat burst color or screentone) or a simplified scene",
+        "lighting": "normal palette with an accent color",
+        "effect_lines": "local motion lines, vibration lines, sparse concentration lines",
+        "expression": "punchline_peak",
+        "body_action": "slamming the desk, pointing, charging, clutching the head",
+        "manpu": "manpu within each expression preset's limits",
+        "balloons": "jagged balloons and bold lettering",
+        "sfx": "at most one drawn sound effect of at most four characters",
+        "world_reaction": "partners recoil or point back; objects tip over"
+      },
+      "markers": [
+        {
+          "id": "B-action",
+          "axes": [
+            "body_action"
+          ],
+          "text": "A large readable body action: slamming the desk, pointing, charging, clutching the head or a comic collapse."
+        },
+        {
+          "id": "B-face",
+          "axes": [
+            "expression"
+          ],
+          "text": "Whale-chan's landing face reaches punchline_peak."
+        },
+        {
+          "id": "B-effects",
+          "axes": [
+            "effect_lines",
+            "manpu"
+          ],
+          "text": "At least one motion line, vibration line or manpu mark punctuates the beat."
+        }
+      ],
+      "allowed_performance": [
+        "grounded",
+        "heightened",
+        "punchline_peak"
+      ],
+      "manpu_cap": "preset",
+      "sfx_limit": {
+        "count": 1,
+        "max_characters": 4
+      },
+      "default_background": "comic effect background of speed lines, concentration lines, a flat burst color or screentone",
+      "forbidden": [
+        "manga_burst deformation or a gekiga face",
+        "an impact flash or collapsing background",
+        "partners blown away or petrified, or objects shattering",
+        "more than one drawn sound effect"
+      ]
+    },
+    "C": {
+      "label": "restrained deadpan",
+      "summary": "Restrained or moderate delivery: gentle, dry, bittersweet, or carried by a sharp line.",
+      "axes": {
+        "camera": "eye level, centered, generous negative space",
+        "background": "pure white or a minimal setting",
+        "lighting": "flat, soft light",
+        "effect_lines": "none, or one or two lines at most",
+        "expression": "grounded or heightened",
+        "body_action": "small gestures, stillness, a glance",
+        "manpu": "at most one manpu mark",
+        "balloons": "plain round balloons, small lettering, captions, ellipses",
+        "sfx": "no drawn sound effects",
+        "world_reaction": "partners freeze or the room goes quiet; objects stay put"
+      },
+      "markers": [
+        {
+          "id": "C-palette",
+          "axes": [
+            "camera",
+            "background",
+            "lighting",
+            "effect_lines",
+            "body_action",
+            "manpu",
+            "balloons",
+            "sfx",
+            "world_reaction"
+          ],
+          "text": "Nothing on any axis exceeds the C palette."
+        },
+        {
+          "id": "C-face",
+          "axes": [
+            "expression"
+          ],
+          "text": "Whale-chan's face stays at grounded or heightened."
+        },
+        {
+          "id": "C-carrier",
+          "axes": [
+            "balloons",
+            "expression",
+            "camera"
+          ],
+          "text": "The laugh is carried by the line, a glance or held negative space."
+        }
+      ],
+      "allowed_performance": [
+        "grounded",
+        "heightened"
+      ],
+      "manpu_cap": 1,
+      "sfx_limit": {
+        "count": 0,
+        "max_characters": 0
+      },
+      "default_background": "pure white #FFFFFF",
+      "forbidden": [
+        "concentration or speed lines",
+        "burst or jagged balloons",
+        "drawn sound effects",
+        "more than one manpu mark"
+      ]
+    }
+  }
+}

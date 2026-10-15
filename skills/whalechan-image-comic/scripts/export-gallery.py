@@ -1,0 +1,370 @@
+#!/usr/bin/env python3
+"""Export completed runs to an offline gallery; never mutate run records."""
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timezone
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+COMIC = SKILL_ROOT.name == "whalechan-image-comic"
+SPEC = importlib.util.spec_from_file_location("gallery_language", Path(__file__).with_name("language_policy.py"))
+language_policy = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(language_policy)
+
+
+class GalleryError(ValueError):
+    pass
+
+
+def read_json(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def tier_info(spec):
+    """Describe the planned exaggeration tier and contrast."""
+    tier = spec.get("exaggeration")
+    if not tier:
+        return None
+    contrast = spec.get("contrast")
+    if not contrast:
+        return {"tier": tier}
+    tiers_path = SKILL_ROOT / "references" / "exaggeration-tiers.json"
+    labels = ({axis["id"]: {"zh": axis["label_zh"], "en": axis["label"]} for axis in read_json(tiers_path)["axes"]}
+              if tiers_path.is_file() else {})
+    return {"tier": tier, "lowered_to": contrast["lowered_to"],
+            "axes": [{"id": axis, **labels.get(axis, {"zh": axis, "en": axis})} for axis in contrast["axes"]]}
+
+
+def picture_name(kind, label, language):
+    return language_policy.locale({}, language, "gallery")["pictures"][kind].format(label=label)
+
+
+def localized_warning(warning, words):
+    subject = warning["subject"]
+    if isinstance(subject, dict):
+        subject = words["pictures"][subject["kind"]].format(label=subject["label"])
+    return words["warnings"][warning["code"]].format(subject=subject, record=words["records"].get(warning.get("record"), ""))
+
+
+def as_text(value):
+    if value is None:
+        return ""
+    return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, indent=2)
+
+
+class RunReader:
+    def __init__(self, run, assets):
+        self.run = run
+        self.assets = assets
+        self.warnings = []
+        self.assignment = read_json(run / "assignment.json")
+        self.manifest = read_json(run / "manifest.json")
+        if self.assignment.get("schema_version") not in ((19, 20) if COMIC else (6, 7)):
+            raise GalleryError(f"Unsupported assignment schema: {run.name}")
+        if self.manifest.get("schema_version") != (1 if COMIC else 3):
+            raise GalleryError(f"Unsupported manifest schema: {run.name}")
+        if self.manifest.get("status") not in {"complete", "partial", "complete_with_failures"}:
+            raise GalleryError(f"Finalize the run before exporting: {run.name}")
+        if digest(run / "assignment.json") != self.manifest.get("assignment_sha256"):
+            raise GalleryError(f"Assignment hash mismatch: {run.name}")
+        ids = [item["id"] for item in self.assignment["images"]]
+        if len(ids) != len(set(ids)) or set(ids) != set(self.manifest["images"]):
+            raise GalleryError(f"Image inventory mismatch: {run.name}")
+
+    def locate(self, value, external=False):
+        if not value:
+            return None
+        path = Path(value)
+        old_root = Path(self.assignment.get("run_dir", str(self.run)))
+        candidates = []
+        if path.is_absolute() and path.is_relative_to(old_root):
+            candidates.append(self.run / path.relative_to(old_root))
+        if not path.is_absolute():
+            candidates.append(self.run / path)
+        if external:
+            candidates.append(path if path.is_absolute() else SKILL_ROOT / path)
+            original = self.assignment.get("source_assignment")
+            if original and not path.is_absolute():
+                candidates.append(Path(original).parent / path)
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if (external or resolved.is_relative_to(self.run)) and resolved.is_file():
+                return resolved
+        return None
+
+    def picture(self, path, label, expected=None, kind="final"):
+        if path is None:
+            self.warnings.append({"code": "image_missing", "subject": {"kind": kind, "label": label}})
+            return {"label": label, "kind": kind, "src": None}
+        sha = digest(path)
+        if expected and sha != expected:
+            raise GalleryError(f"Image hash mismatch: {picture_name(kind, label, 'en')}")
+        result = subprocess.run(["magick", "identify", "-ping", "-format", "%m %w %h", f"{path}[0]"],
+                                check=True, capture_output=True, text=True, timeout=30)
+        format_name, width, height = result.stdout.split()
+        extension = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp", "GIF": "gif"}.get(format_name)
+        width, height = int(width), int(height)
+        if extension is None and kind == "source" and format_name in {"HEIC", "HEIF"}:
+            native = self.assets / (sha + path.suffix.lower())
+            if not native.exists():
+                shutil.copyfile(path, native)
+            preview = self.assets / (".preview-" + sha + ".png")
+            subprocess.run(["magick", f"{path}[0]", str(preview)], check=True,
+                           capture_output=True, timeout=60)
+            result = self.picture(preview, label, kind=kind)
+            preview.unlink()
+            return {**result, "original_src": "assets/" + native.name,
+                    "original_sha256": sha, "display_conversion": "HEIC/HEIF source to PNG"}
+        if extension is None:
+            raise GalleryError(f"Unsupported image format: {picture_name(kind, label, 'en')}")
+        name = f"{sha}.{extension}"
+        target = self.assets / name
+        if not target.exists():
+            shutil.copyfile(path, target)
+        return {"label": label, "kind": kind, "src": f"assets/{name}", "width": width, "height": height}
+
+    def sidecar(self, value, subject, record, json_file=False):
+        if isinstance(value, dict):
+            return value
+        path = self.locate(value)
+        if path is None:
+            self.warnings.append({"code": "record_missing", "subject": subject, "record": record})
+            return {} if json_file else ""
+        return read_json(path) if json_file else path.read_text(encoding="utf-8")
+
+    def attempt(self, record):
+        key = record["attempt_id"] if COMIC else str(record["candidate_attempt"])
+        role = record.get("role", "candidate")
+        qa = self.sidecar(record.get("visual_qa"), key, "visual_qa", True) if record.get("visual_qa") else {}
+        auto = self.sidecar(record.get("automatic_qa"), key, "automatic_qa", True) if record.get("automatic_qa") else {}
+        prompt = (
+            self.sidecar(record.get("prompt"), key, "prompt") if COMIC else record.get("prompt", ""))
+        try:
+            picture = self.picture(self.locate(record.get("candidate", record.get("candidate_path"))),
+                                   key, record.get("candidate_sha256"), "candidate")
+        except subprocess.SubprocessError:
+            if not record.get("technical_error"):
+                raise
+            # Preserve undecodable output as a counted technical failure, not a final or a regeneration request.
+            picture = self.picture(None, key, kind="candidate")
+        return {"id": key, "role": role, "picture": picture,
+                "sha256": record.get("candidate_sha256"), "prompt": prompt,
+                "provider": record.get("provider"), "model": record.get("model"),
+                "verdict": record.get("verdict"), "created_at": record.get("created_at"),
+                "defects": qa.get("defects", qa.get("core_defects", [])) or ([record["technical_error"]] if record.get("technical_error") else []),
+                "minor_issues": qa.get("minor_issues", []), "targeted_retry": qa.get("targeted_retry"),
+                "automatic": auto.get("overall"), "visual": qa.get("verdict")}
+
+    def image(self, spec):
+        state = self.manifest["images"][spec["id"]]
+        records = state.get("attempts", [])
+        attempts = [self.attempt(record) for record in records]
+        final = None
+        if state.get("status") == "passed":
+            final = self.picture(self.locate(state.get("final_path")), spec["id"], state.get("final_sha256"))
+        matches = [item for item in attempts if item["sha256"] and item["sha256"] == state.get("final_sha256")
+                   and item["verdict"] == "PASS"]
+        origin = matches[0] if len(matches) == 1 else None
+        if final and not origin:
+            self.warnings.append({"code": "final_ambiguous" if matches else "final_unrecorded", "subject": spec["id"]})
+        return {"id": spec["id"], "title": spec.get("title"), "name": spec.get("title", spec.get("name", spec["id"])),
+                "note": spec.get("execution_note", ""), "status": state.get("status"),
+                "tier": tier_info(spec) if COMIC else None,
+                "final": final, "final_sha256": state.get("final_sha256"),
+                "origin": origin, "attempts": attempts,
+                "calls": sum(item.get("consumes_candidate_budget", True) is not False
+                             for item in state.get("attempts", [])),
+                "errors": [{key: error.get(key) for key in ("provider", "model", "category", "details", "created_at")}
+                           for error in state.get("provider_errors", [])]}
+
+    def gallery_images(self, proposals):
+        pictures = []
+        for proposal in proposals:
+            for image in proposal["images"]:
+                matched = False
+                for index, attempt in enumerate(image["attempts"]):
+                    if not attempt["picture"].get("src"):
+                        continue
+                    matches_final = bool(image["final"] and attempt["sha256"]
+                                         and attempt["sha256"] == image["final_sha256"]
+                                         and attempt["verdict"] == "PASS")
+                    matched |= matches_final
+                    pictures.append({"image_id": image["id"], "proposal_choice": proposal["choice"],
+                                     "attempt_index": index, "picture": attempt["picture"],
+                                     "created_at": attempt["created_at"],
+                                     "is_final": attempt is image["origin"], "matches_final": matches_final})
+                if image["final"] and image["final"].get("src") and not matched:
+                    origin = image["origin"]
+                    pictures.append({"image_id": image["id"], "proposal_choice": proposal["choice"],
+                                     "attempt_index": image["attempts"].index(origin) if origin else None,
+                                     "picture": image["final"], "created_at": origin["created_at"] if origin else None,
+                                     "is_final": True, "matches_final": True})
+
+        def recorded_time(item):
+            value = item["created_at"]
+            if value:
+                try:
+                    stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                    return (0, stamp.replace(tzinfo=stamp.tzinfo or timezone.utc).timestamp())
+                except ValueError:
+                    pass
+            return (1, 0)
+
+        return sorted(pictures, key=recorded_time)
+
+    def sources(self):
+        source = self.assignment.get("input", {})
+        content = source.get("content")
+        originals = []
+        if source.get("type") in {"image", "screenshot"}:
+            values = content if isinstance(content, list) else [content]
+            for index, value in enumerate(values, 1):
+                archived = sorted((self.run / "source").glob(f"original-{index:02d}.*"))
+                path = archived[0] if archived else None
+                originals.append(self.picture(path, str(index), kind="source"))
+            # A source analysis is an interpretation, never the user's original words.
+            request = ""
+        else:
+            request = "\n".join(as_text(item) for item in content) if isinstance(content, list) else as_text(content)
+        analysis = source.get("source_analysis", {}).get("source_event", "")
+        return request, originals, analysis
+
+    def build(self):
+        assignment = self.assignment
+        options = assignment.get("proposal", {}).get("options", [])
+        counts = {item["choice"]: item["count"] for item in assignment.get("selection", {}).get("choices", [])}
+        proposals = []
+        assigned = set()
+        ranked_comic = COMIC
+        for index, option in enumerate(options, 1):
+            choice = str(index) if ranked_comic else option["choice"]
+            specs = [spec for spec in assignment["images"]
+                     if (spec.get("idea_id") == option.get("idea_id") if COMIC
+                         else spec.get("proposal_choice") == option["choice"])]
+            assigned.update(spec["id"] for spec in specs)
+            proposals.append({"choice": choice, "title": option["title"],
+                              "scene": option.get("scene", ""),
+                              "detail": option.get("twist", option.get("action_expression", "")),
+                              "selected": option["idea_id"] in assignment.get("ranked_ideas", []) if ranked_comic else choice in counts,
+                              "planned": 1 if ranked_comic else counts.get(choice, 0),
+                              "images": [self.image(spec) for spec in specs]})
+        if assigned != set(self.manifest["images"]):
+            raise GalleryError(f"Unlinked proposal images: {self.run.name}")
+        if COMIC:
+            included = {option.get("idea_id") for option in options}
+            for candidate in assignment.get("creative_pool", []):
+                if candidate["id"] in included:
+                    continue
+                proposals.append({"choice": str(len(proposals) + 1), "title": candidate["premise"],
+                                  "scene": candidate["scene"], "detail": candidate["punchline"],
+                                  "selected": False, "planned": 0, "images": []})
+        references = []
+        seen = set()
+        for spec in assignment["images"]:
+            for ref in spec.get("references", []):
+                key = (ref.get("sha256") or ref.get("path"), tuple(ref.get("roles", [])))
+                if key in seen:
+                    continue
+                seen.add(key)
+                picture = self.picture(self.locate(ref.get("path"), external=True),
+                                       ref.get("id", ""), ref.get("sha256"), "reference")
+                references.append({**picture, "roles": ref.get("roles", [])})
+        request, originals, analysis = self.sources()
+        images = [image for proposal in proposals for image in proposal["images"]]
+        group = {"title": assignment.get("run_title", assignment["run_name"]), "status": self.manifest["status"],
+                "date": self.manifest.get("finalized_at", self.manifest.get("completed_at")),
+                "request": request, "originals": originals, "analysis": analysis,
+                "references": references, "proposals": proposals,
+                "planned": len(images), "passed": sum(item["status"] == "passed" for item in images),
+                "calls": sum(item["calls"] for item in images),
+                "errors": sum(len(item["errors"]) for item in images),
+                "warnings": list({json.dumps(item, sort_keys=True): item for item in self.warnings}.values())}
+        if COMIC:
+            group["selection_review"] = assignment["selection_review"]
+        if COMIC:
+            group["gallery_images"] = self.gallery_images(proposals)
+            group["collection_reviews"] = []
+            for review in self.manifest.get("collection", {}).get("reviews", []):
+                review_path = self.locate(review["path"])
+                if review_path is None or digest(review_path) != review["sha256"]:
+                    raise GalleryError("Collection review is missing or changed")
+                sheet = review_path.with_name("sheet.png")
+                picture = self.picture(sheet if sheet.is_file() else None,
+                                       str(review["round"] + 1), review["sheet_sha256"], "reference")
+                group["collection_reviews"].append({"picture": picture, "review": read_json(review_path)})
+            group["task_outcomes"] = {key: value["status"] for key, value in self.manifest["images"].items()}
+            group["stage_events"] = self.manifest.get("events", [])
+        return group
+
+
+def export_gallery(run_dirs, output=None, language=None, locales=None):
+    runs = [Path(path).resolve() for path in run_dirs]
+    if not runs or len(set(runs)) != len(runs):
+        raise GalleryError("Supply distinct run directories")
+    if len(runs) > 1 and output is None:
+        raise GalleryError("Batch export requires --output")
+    assignments = [read_json(run / "assignment.json") for run in runs]
+    language = language or (language_policy.effective(assignments[0], "interface") if assignments[0].get("language") else "zh")
+    strings, names, directions = language_policy.gallery_locales(assignments + [{"language": language}], locales)
+    destination = Path(output).resolve() if output else runs[0] / "gallery"
+    base = destination
+    number = 2
+    while destination.exists():
+        destination = base.with_name(f"{base.name}-{number:02d}")
+        number += 1
+    destination.mkdir(parents=True)
+    try:
+        assets = destination / "assets"
+        assets.mkdir()
+        groups = [RunReader(run, assets).build() for run in runs]
+        data = {"skill": "comic" if COMIC else "character", "language": language, "groups": groups,
+                "exported_at": datetime.now(timezone.utc).isoformat(),
+                "locales": strings, "locale_names": names, "locale_directions": directions,
+                "gallery_id": hashlib.sha256(str(destination).encode()).hexdigest()}
+        template_root = SKILL_ROOT / "assets" / "gallery"
+        template = (template_root / "index.html").read_text(encoding="utf-8")
+        payload = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c").replace(
+            "\u2028", "\\u2028").replace("\u2029", "\\u2029")
+        # Insert data last: user text is never interpreted as HTML or a template token.
+        html = template.replace("/* GALLERY_CSS */", (template_root / "gallery.css").read_text(encoding="utf-8"))
+        html = html.replace("/* GALLERY_JS */", (template_root / "gallery.js").read_text(encoding="utf-8"))
+        html = html.replace('<html lang="zh-CN">', f'<html lang="{language_policy.tag(language)}" dir="{directions[language_policy.tag(language)]}">')
+        html = html.replace("GALLERY_DATA", payload)
+        (destination / "index.html").write_text(html, encoding="utf-8")
+    except Exception:
+        shutil.rmtree(destination)
+        raise
+    return {"gallery": str(destination / "index.html"), "groups": len(groups),
+            "warnings": {str(index + 1): [localized_warning(item, strings[language_policy.tag(language)]) for item in group["warnings"]]
+                         for index, group in enumerate(groups) if group["warnings"]}}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--run-dir", action="append", required=True)
+    parser.add_argument("--output")
+    parser.add_argument("--locales", help="JSON locale packs keyed by BCP-47 tag")
+    parser.add_argument("--language",
+                        help="Initial page language; defaults to the saved task interface language")
+    args = parser.parse_args()
+    try:
+        print(json.dumps(export_gallery(args.run_dir, args.output, args.language, read_json(Path(args.locales)) if args.locales else None), ensure_ascii=False, indent=2))
+    except (GalleryError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+        print(json.dumps({"error": str(error)}, ensure_ascii=False), file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

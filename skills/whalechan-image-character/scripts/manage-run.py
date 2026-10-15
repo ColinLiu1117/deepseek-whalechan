@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import copy
 import hashlib
 import json
@@ -23,7 +24,8 @@ PROVIDERS = ["codex", "openai", "nano-banana", "seedream"]
 FORM_ORDER = ("standard", "compact", "semi-chibi", "chibi", "super-deformed")
 FORMS = set(FORM_ORDER)
 CATALOG_SCHEMA_VERSION = 4
-ASSIGNMENT_SCHEMA_VERSION = 4
+ASSIGNMENT_SCHEMA_VERSION = 7
+SUPPORTED_ASSIGNMENT_VERSIONS = (6, 7)
 MANIFEST_SCHEMA_VERSION = 3
 AUTOMATIC_QA_SCHEMA_VERSION = 2
 INPUT_TYPES = {"text", "screenshot", "chat-log", "dialogue"}
@@ -44,7 +46,7 @@ PROPORTION_MODES = {"preset", "custom"}
 TEXT_DIRECTIONS = {"ltr", "rtl", "vertical"}
 EXECUTION_MODES = {"sequential", "parallel"}
 RESOLUTION_MODES = {"provider-native", "exact"}
-MAX_PARALLELISM = 5
+MAX_PARALLELISM = 10
 MAX_IMAGE_CANDIDATES = 8
 NORMAL_RUN_CANDIDATES = 24
 DEFAULT_BACKGROUND = "warm ivory-beige #F5EADD"
@@ -698,24 +700,61 @@ def normalize_references(
     return normalized
 
 
+def effective_subagents(execution: dict[str, Any], parallelism: int, count: int) -> int:
+    approved = execution["subagent_count"]
+    if type(parallelism) is not int or parallelism < 1:
+        raise RunError("effective parallelism must be a positive integer")
+    if type(count) is not int or not 0 <= count <= approved:
+        raise RunError("effective subagent count exceeds the confirmed limit")
+    if parallelism != max(1, count):
+        raise RunError("effective parallelism must equal max(1, effective subagent count)")
+    return count
+
+
+def plan_execution(ready_images: int, worker_slots: int, provider_limit: int,
+                   user_limit: int = MAX_PARALLELISM, serial: bool = False) -> dict[str, Any]:
+    """Resolve observed capacity before Gate 2; this does not start workers."""
+    for name, value, minimum in (("ready_images", ready_images, 1), ("worker_slots", worker_slots, 0),
+                                 ("provider_limit", provider_limit, 1), ("user_limit", user_limit, 1)):
+        if type(value) is not int or value < minimum:
+            raise RunError(f"{name} must be an integer >= {minimum}")
+    count = 0 if serial else min(ready_images, worker_slots, provider_limit, user_limit, MAX_PARALLELISM)
+    return normalize_execution({
+        "mode": "parallel" if count > 1 else "sequential",
+        "requested_parallelism": max(1, count), "subagent_count": count,
+        "max_parallelism": MAX_PARALLELISM, "commit_strategy": "coordinator-serial",
+    })
+
+
+def execution_markdown(execution: dict[str, Any], language: str = "zh", words=None) -> str:
+    words = words or GATE_TEXT[language or "zh"]
+    count = execution.get("subagent_count")
+    if count == 0:
+        return words["serial_execution"]
+    return words["parallel_execution"].format(count=count)
+
+
 def normalize_execution(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise RunError("execution must be an object")
+    fields = {"mode", "requested_parallelism", "max_parallelism", "commit_strategy"}
+    fields.add("subagent_count")
+    limit = MAX_PARALLELISM
     require_fields(
         value,
-        {"mode", "requested_parallelism", "max_parallelism", "commit_strategy"},
+        fields,
         "execution",
     )
     require_only_fields(
         value,
-        {"mode", "requested_parallelism", "max_parallelism", "commit_strategy"},
+        fields,
         "execution",
     )
     requested = value.get("requested_parallelism")
-    if not isinstance(requested, int) or isinstance(requested, bool) or not 1 <= requested <= MAX_PARALLELISM:
-        raise RunError(f"execution.requested_parallelism must be between 1 and {MAX_PARALLELISM}")
-    if value.get("max_parallelism") != MAX_PARALLELISM:
-        raise RunError(f"execution.max_parallelism must be {MAX_PARALLELISM}")
+    if not isinstance(requested, int) or isinstance(requested, bool) or not 1 <= requested <= limit:
+        raise RunError(f"execution.requested_parallelism must be between 1 and {limit}")
+    if value.get("max_parallelism") != limit:
+        raise RunError(f"execution.max_parallelism must be {limit}")
     mode = value.get("mode")
     if mode not in EXECUTION_MODES:
         raise RunError(f"execution.mode must be one of: {', '.join(sorted(EXECUTION_MODES))}")
@@ -726,12 +765,20 @@ def normalize_execution(value: Any) -> dict[str, Any]:
     strategy = value.get("commit_strategy")
     if strategy != "coordinator-serial":
         raise RunError("execution.commit_strategy must be coordinator-serial")
-    return {
+    result = {
         "mode": mode,
         "requested_parallelism": requested,
-        "max_parallelism": MAX_PARALLELISM,
+        "max_parallelism": limit,
         "commit_strategy": strategy,
     }
+
+    count = value.get("subagent_count")
+    if type(count) is not int or not 0 <= count <= limit:
+        raise RunError(f"execution.subagent_count must be between 0 and {limit}")
+    if requested != max(1, count):
+        raise RunError("requested_parallelism must equal max(1, subagent_count)")
+    result["subagent_count"] = count
+    return result
 
 
 def require_point(value: Any, label: str) -> tuple[float, float]:
@@ -1063,26 +1110,433 @@ def provider_output_request(
     }
 
 
+def normalize_budget(value: Any, image_count: int, require_approval: bool = True) -> dict[str, Any]:
+    budget = copy.deepcopy(value)
+    if not isinstance(budget, dict):
+        raise RunError("budget must be an object")
+    require_fields(
+        budget,
+        {"per_image_candidates", "per_provider_candidates", "run_candidates", "confirmed_over_24"},
+        "budget",
+    )
+    require_only_fields(
+        budget,
+        {"per_image_candidates", "per_provider_candidates", "run_candidates", "confirmed_over_24"},
+        "budget",
+    )
+    per_image = budget.get("per_image_candidates")
+    per_provider = budget.get("per_provider_candidates")
+    run_candidates = budget.get("run_candidates")
+    for value, label in (
+        (per_image, "per_image_candidates"),
+        (per_provider, "per_provider_candidates"),
+        (run_candidates, "run_candidates"),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise RunError(f"budget.{label} must be a positive integer")
+    if per_image > MAX_IMAGE_CANDIDATES:
+        raise RunError(f"budget.per_image_candidates cannot exceed {MAX_IMAGE_CANDIDATES}")
+    if per_provider > per_image:
+        raise RunError("budget.per_provider_candidates cannot exceed per-image budget")
+    expected = image_count * per_image
+    confirmed_over_24 = budget.get("confirmed_over_24")
+    if not isinstance(confirmed_over_24, bool):
+        raise RunError("budget.confirmed_over_24 must be boolean")
+    if run_candidates < expected:
+        raise RunError(f"Run budget must be at least the estimated maximum {expected}")
+    if require_approval and expected > NORMAL_RUN_CANDIDATES:
+        if confirmed_over_24 is not True:
+            raise RunError(
+                f"Estimated maximum is {expected}; set budget.confirmed_over_24=true after confirmation"
+            )
+    elif require_approval and run_candidates > NORMAL_RUN_CANDIDATES and confirmed_over_24 is not True:
+        raise RunError("A run budget above 24 requires budget.confirmed_over_24=true")
+    budget.update(
+        {
+            "per_image_candidates": per_image,
+            "per_provider_candidates": per_provider,
+            "run_candidates": run_candidates,
+            "estimated_maximum": expected,
+            "confirmed_over_24": confirmed_over_24,
+        }
+    )
+    return budget
+
+
+def contract_hash(value: Any) -> str:
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def proposal_options(proposal: Any) -> dict[str, dict[str, Any]]:
+    if not isinstance(proposal, dict):
+        raise RunError("Gate 1 requires a proposal")
+    require_fields(proposal, {"revision", "mode", "request", "options", "recommended_choices"}, "proposal")
+    require_only_fields(proposal, {"revision", "mode", "request", "options", "recommended_choices"}, "proposal")
+    if type(proposal["revision"]) is not int or proposal["revision"] < 1:
+        raise RunError("proposal.revision must be a positive integer")
+    require_string(proposal["request"], "proposal.request")
+    options = proposal["options"]
+    if not isinstance(options, list) or not options or any(not isinstance(row, dict) for row in options):
+        raise RunError("proposal.options must be a non-empty list of objects")
+    choices = [row.get("choice") for row in options]
+    if proposal["mode"] not in {"explore", "direct"}:
+        raise RunError("proposal.mode must be explore or direct")
+    if proposal["mode"] == "explore" and choices != list("ABCDE"):
+        raise RunError("explore proposals require five ordered choices A–E")
+    if any(not isinstance(ch, str) or not re.fullmatch(r"[A-Z]+", ch) for ch in choices):
+        raise RunError("proposal choices must be uppercase letters")
+    if len(set(choices)) != len(choices):
+        raise RunError("proposal choices must be unique")
+    for row in options:
+        require_only_fields(row, {"choice", "title", "scene", "action_expression", "composition", "visual_text", "rating", "recommendation_reason"}, "proposal option")
+        for field in ("title", "scene", "action_expression", "composition", "visual_text", "recommendation_reason"):
+            require_string(row.get(field), f"proposal.{row['choice']}.{field}")
+        if type(row.get("rating")) is not int or row["rating"] not in {1, 2, 3}:
+            raise RunError("proposal rating must be 1, 2 or 3")
+    recommended = require_string_list(proposal["recommended_choices"], "proposal.recommended_choices")
+    if len(set(recommended)) != len(recommended) or not set(recommended) <= set(choices):
+        raise RunError("recommendations must name unique displayed choices")
+    return {row["choice"]: row for row in options}
+
+
+def selected_choices(value: dict[str, Any]) -> list[dict[str, Any]]:
+    options = proposal_options(value.get("proposal"))
+    selection = value.get("selection")
+    if not isinstance(selection, dict):
+        raise RunError("Gate 1 selection is required")
+    require_only_fields(selection, {"proposal_sha256", "user_reply", "choices", "adjustments"}, "selection")
+    require_string(selection.get("user_reply"), "Gate 1 user_reply")
+    if selection.get("proposal_sha256") != contract_hash(value["proposal"]):
+        raise RunError("Proposal changed; repeat Gate 1")
+    choices = selection.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise RunError("selection.choices must be non-empty")
+    rows, seen = [], set()
+    for item in choices:
+        if not isinstance(item, dict):
+            raise RunError("selection choice must be an object")
+        require_only_fields(item, {"choice", "count"}, "selection choice")
+        choice, count = item.get("choice"), item.get("count", 1)
+        if not isinstance(choice, str) or choice not in options or choice in seen:
+            raise RunError("selection must contain unique displayed choices")
+        if type(count) is not int or count < 1:
+            raise RunError("selection count must be a positive integer")
+        seen.add(choice)
+        rows.append({"choice": choice, "title": options[choice]["title"], "count": count})
+    adjustments = selection.get("adjustments")
+    if not isinstance(adjustments, list) or any(not isinstance(item, str) or not item.strip() for item in adjustments):
+        raise RunError("selection.adjustments must list explicit user changes")
+    return rows
+
+
+SCOPE_FIELDS = {
+    "subject", "action", "composition", "style", "costume", "background",
+    "text", "proportion", "references", "output",
+}
+OPTIONAL_SCOPE_FIELDS = {"expression", "props", "objects", "counterpart", "pairwise_minimum_head_ratio_gap"}
+
+
+def normalize_requirements(value: Any, path: Path, catalog: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise RunError("scope requirements must be an object")
+    require_fields(value, SCOPE_FIELDS, "scope requirements")
+    require_only_fields(value, SCOPE_FIELDS | OPTIONAL_SCOPE_FIELDS, "scope requirements")
+    result = copy.deepcopy(value)
+    for field in ("subject", "action", "composition"):
+        result[field] = require_string(result[field], f"scope.{field}")
+    if "expression" in result:
+        result["expression"] = require_string(result["expression"], "scope.expression")
+    for field in ("props", "objects"):
+        if field in result and not isinstance(result[field], list):
+            raise RunError(f"scope.{field} must be a list")
+    if result.get("counterpart") is not None:
+        require_string(result["counterpart"], "scope.counterpart")
+    if "pairwise_minimum_head_ratio_gap" in result:
+        gap = result["pairwise_minimum_head_ratio_gap"]
+        if isinstance(gap, bool) or not isinstance(gap, (int, float)) or not math.isfinite(gap) or gap <= 0:
+            raise RunError("scope pairwise minimum gap must be positive and finite")
+    for field, modes, default in (("style", STYLE_MODES, DEFAULT_STYLE), ("costume", COSTUME_MODES, DEFAULT_COSTUME)):
+        result[field] = normalize_named_mode(result[field], modes, default, f"scope.{field}")
+    result["background"] = normalize_background(result["background"], "scope.background")
+    result["text"] = normalize_text(result["text"], "scope.text")
+    result["output"] = normalize_output(result["output"], result["background"], "scope.output")
+    result["proportion"], anchor = normalize_proportion(result, catalog, "scope")
+    roles = default_primary_roles(result["style"], result["costume"], result["proportion"])
+    result["references"] = normalize_references(result, path, catalog, anchor, roles, "scope")
+    return result
+
+
+def requirement_contract(requirements: dict[str, Any]) -> dict[str, Any]:
+    result = copy.deepcopy(requirements)
+    result["references"] = [
+        {key: reference[key] for key in ("id", "sha256", "roles", "instruction")}
+        for reference in result["references"]
+    ]
+    return result
+
+
+def language_policy():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("task_language_policy", Path(__file__).with_name("language_policy.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def language_contract(value, images=True):
+    if value.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+        return {}
+    try:
+        return language_policy().validate(value, comic=False, images=images)
+    except ValueError as error:
+        raise RunError(str(error)) from error
+
+
+def selection_summary(value: dict[str, Any], path: Path) -> dict[str, Any]:
+    language_contract(value, images=False)
+    choices = selected_choices(value)
+    scope = value.get("scope")
+    if not isinstance(scope, dict) or set(scope) != {"configurations"}:
+        raise RunError("Gate 2 requires scope.configurations")
+    configs = scope["configurations"]
+    if not isinstance(configs, list) or not configs:
+        raise RunError("scope.configurations must be non-empty")
+    catalog, _ = load_catalog()
+    normalized, seen, counts = [], set(), Counter()
+    for config in configs:
+        if not isinstance(config, dict):
+            raise RunError("scope configuration must be an object")
+        fields = {"id", "choice", "count", "variation", "requirements"}
+        require_fields(config, fields, "configuration")
+        require_only_fields(config, fields, "configuration")
+        name = require_string(config["id"], "configuration.id")
+        if not re.fullmatch(r"[a-z0-9]+(?:_[a-z0-9]+)*", name) or name in seen:
+            raise RunError("configuration ids must be unique snake_case")
+        if not isinstance(config["choice"], str) or type(config["count"]) is not int or config["count"] < 1:
+            raise RunError("configuration requires a choice and positive count")
+        require_string(config["variation"], "configuration.variation")
+        seen.add(name)
+        counts[config["choice"]] += config["count"]
+        normalized.append({**config, "requirements": normalize_requirements(config["requirements"], path, catalog)})
+    if counts != {row["choice"]: row["count"] for row in choices}:
+        raise RunError("scope configurations must match selected counts")
+    total = sum(counts.values())
+    run_name = require_string(value.get("run_name"), "run_name")
+    if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", run_name):
+        raise RunError("run_name must be lowercase kebab-case")
+    execution = normalize_execution(value.get("execution"))
+    if execution.get("subagent_count", 0) > total:
+        raise RunError("subagent_count exceeds the selected image count")
+    if not isinstance(value.get("budget"), dict):
+        raise RunError("budget must be an object")
+    raw_budget = {key: item for key, item in value["budget"].items() if key != "estimated_maximum"}
+    budget = normalize_budget(raw_budget, total, require_approval=False)
+    contract = {
+        "proposal": value["proposal"], "selection": value["selection"],
+        "run_name": run_name, "execution": execution,
+        "budget": {key: budget[key] for key in ("per_image_candidates", "per_provider_candidates", "run_candidates")},
+        "configurations": [{**config, "requirements": requirement_contract(config["requirements"])} for config in normalized],
+    }
+    if value.get("schema_version") == 7:
+        contract["language_contract"] = language_contract(value, images=False)
+    return {"choices": choices, "proposal_count": len(choices), "image_count": total,
+            "configurations": normalized, "execution": execution, "budget": budget,
+            "run_name": run_name, "adjustments": value["selection"]["adjustments"],
+            "summary_sha256": contract_hash(contract)}
+
+
+def validate_approval(value: dict[str, Any], path: Path) -> None:
+    summary = selection_summary(value, path)
+    confirmation = value.get("confirmation")
+    if not isinstance(confirmation, dict) or confirmation.get("status") != "confirmed":
+        raise RunError("Gate 2 confirmation is required")
+    require_only_fields(confirmation, {"status", "user_reply", "confirmed_at", "summary_sha256"}, "confirmation")
+    require_string(confirmation.get("user_reply"), "Gate 2 user_reply")
+    require_iso8601(confirmation.get("confirmed_at"), "confirmation.confirmed_at")
+    if confirmation.get("summary_sha256") != summary["summary_sha256"]:
+        raise RunError("Gate 2 confirmation is stale; show the updated summary and wait again")
+    configs = {config["id"]: config for config in summary["configurations"]}
+    images = value.get("images")
+    if not isinstance(images, list) or any(not isinstance(image, dict) for image in images):
+        raise RunError("images must match confirmed configuration counts")
+    for image in images:
+        require_string(image.get("configuration_id"), "image.configuration_id")
+    if Counter(image.get("configuration_id") for image in images) != {key: config["count"] for key, config in configs.items()}:
+        raise RunError("images must match confirmed configuration counts")
+    for image in images:
+        config = configs[image["configuration_id"]]
+        if image.get("proposal_choice") != config["choice"]:
+            raise RunError("image proposal_choice must match its confirmed configuration")
+        require_string(image.get("execution_note"), "image.execution_note")
+        requirements = config["requirements"]
+        actual = {key: image.get(key) for key in requirements}
+        if requirement_contract(actual) != requirement_contract(requirements):
+            raise RunError("image differs from confirmed requirements; repeat Gate 2")
+    normalize_budget({key: item for key, item in value["budget"].items() if key != "estimated_maximum"}, summary["image_count"])
+    value["scope"] = {"configurations": summary["configurations"]}
+
+
+def markdown_cell(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("|", "\\|").replace("\r", " ").replace("\n", "<br>")
+
+
+# Legacy UI renderings; new assignments use saved locale packs.
+GATE_TEXT = {
+    "zh": {
+        "proposal_header": "| 选择 | 方案 | 核心场景 | 动作与表情 | 构图 | 视觉配置／文字 | 推荐程度与理由 |",
+        "colon": "：", "semicolon": "；", "bar": "｜", "plus": "＋",
+        "proposal_question": "**你想生成哪些方案？** 可选一个或多个。推荐 {choices}。",
+        "proposal_strategy": "**生成策略：**每个入选方案默认 1 张，也可指定如“A 两张、C 一张”。选择后会汇总配置、数量和候选预算，确认后再开始生成。",
+        "selected": "已选择 **{proposals} 个方案，共 {images} 张图片**：",
+        "choice_count": "{count} 张", "config_count": "（{count} 张）",
+        "subject": "主体／动作／构图", "variation": "演绎范围",
+        "fields": {"style": "风格", "costume": "服装", "background": "背景", "expression": "表情",
+                   "props": "道具", "objects": "物体", "counterpart": "比例对照图",
+                   "pairwise_minimum_head_ratio_gap": "最小头身比差值"},
+        "proportion": "- 比例：{preset}，目标 {target} 头身，接受范围 {range}", "custom": "自定义",
+        "no_text": "- 文字：无文字", "exact_text": "精确文案", "text_settings": "文字语言／方向／位置／样式",
+        "native": "原生分辨率（默认方图建议 1024×1024，非硬性尺寸）", "exact": "精确 {width}×{height}",
+        "output": "- 输出：PNG；{ratio}；{size}；透明：{alpha}", "yes": "是", "no": "否",
+        "reference": "参考图", "declared_only": "仅限声明的用途", "adjustments": "**同步修改：**",
+        "budget": "候选估算：{images} × {per_image} = {estimate}；批准的运行上限：{run}；每供应商／每图最多 {per_provider} 个。",
+        "raised": "**超过常规 24 候选预算，本次确认同时批准上述提高后的上限。**",
+        "route": "生图通道：优先 Codex ImageGen（不在 Codex 中运行时，通过本机 Codex CLI 调用，消耗 ChatGPT 订阅额度）→ OpenAI → Nano Banana → Seedream。",
+        "location": "默认输出位置：artifacts/whalechan-image-character/{run}/（如用户指定其他目录，则遵从该目录）。",
+        "question": "**确认按以上方案、数量、配置、候选预算和子代理安排开始生成吗？**",
+        "serial_execution": "执行安排：不启动子代理，由主 Agent 串行生成与检查。",
+        "parallel_execution": ("执行安排：将启动 **{count} 个子代理**，每个同时处理 1 张图片，完成后继续领取剩余任务；"
+                               "主 Agent 统一核验并归档。并行不增加生成数量或候选预算。"
+                               "若可用容量下降，会告知并降低数量；超过本次确认数量须重新确认。"),
+    },
+    "en": {
+        "proposal_header": "| Choice | Proposal | Core scene | Action & expression | Composition | Visual settings / text | Recommendation |",
+        "colon": ": ", "semicolon": "; ", "bar": " · ", "plus": " + ",
+        "proposal_question": "**Which proposals should I generate?** Pick one or more. Recommended: {choices}.",
+        "proposal_strategy": "**Strategy:** each selected proposal yields 1 image by default; you can also say, for example, \"two of A, one of C\". After you choose, I will summarize settings, counts and candidate budget, and generate only after you confirm.",
+        "selected": "Selected **{proposals} proposal(s), {images} image(s) in total**:",
+        "choice_count": "{count} image(s)", "config_count": " ({count} image(s))",
+        "subject": "Subject / action / composition", "variation": "Allowed variation",
+        "fields": {"style": "Style", "costume": "Costume", "background": "Background", "expression": "Expression",
+                   "props": "Props", "objects": "Objects", "counterpart": "Proportion counterpart",
+                   "pairwise_minimum_head_ratio_gap": "Minimum head-ratio gap"},
+        "proportion": "- Proportion: {preset}, target {target} heads, accepted range {range}", "custom": "custom",
+        "no_text": "- Text: none", "exact_text": "Exact text", "text_settings": "Text language / direction / placement / style",
+        "native": "provider-native resolution (1024×1024 recommended for square, not required)", "exact": "exactly {width}×{height}",
+        "output": "- Output: PNG; {ratio}; {size}; transparent: {alpha}", "yes": "yes", "no": "no",
+        "reference": "Reference", "declared_only": "declared roles only", "adjustments": "**Adjustments:**",
+        "budget": "Candidate estimate: {images} × {per_image} = {estimate}; approved run ceiling: {run}; at most {per_provider} per provider per image.",
+        "raised": "**This exceeds the usual 24-candidate budget; confirming also approves the raised ceiling above.**",
+        "route": "Providers: Codex ImageGen first (outside Codex, through the local Codex CLI, using ChatGPT plan quota) → OpenAI → Nano Banana → Seedream.",
+        "location": "Default output: artifacts/whalechan-image-character/{run}/ (or a directory you specify).",
+        "question": "**Start generating with the proposals, counts, settings, candidate budget and sub-agent plan above?**",
+        "serial_execution": "Execution: no sub-agents; the main agent generates and checks serially.",
+        "parallel_execution": ("Execution: start **{count} sub-agents**, each handling one image at a time and taking the "
+                               "next task when done; the main agent verifies and archives everything. Parallelism does "
+                               "not add images or candidate budget. If capacity drops, you will be told and the count "
+                               "lowered; exceeding the confirmed count needs a new confirmation."),
+    },
+}
+
+
+def proposal_markdown(proposal: dict[str, Any], language: str = "zh", words=None) -> str:
+    words = words or GATE_TEXT[language or "zh"]
+    options = proposal_options(proposal)
+    lines = [words["proposal_header"], "|---|---|---|---|---|---|---|"]
+    for choice, row in options.items():
+        rating = "★" * row["rating"] + "☆" * (3 - row["rating"])
+        cells = [choice, row["title"], row["scene"], row["action_expression"], row["composition"], row["visual_text"],
+                 rating + words["colon"] + row["recommendation_reason"]]
+        lines.append("| " + " | ".join(markdown_cell(cell) for cell in cells) + " |")
+    lines.extend(["", words["proposal_question"].format(choices=words["plus"].join(proposal["recommended_choices"])),
+                  "", words["proposal_strategy"]])
+    return "\n".join(lines) + "\n"
+
+
+def selection_markdown(summary: dict[str, Any], language: str = "zh", words=None) -> str:
+    words = words or GATE_TEXT[language or "zh"]
+    colon, semicolon, bar = words["colon"], words["semicolon"], words["bar"]
+    lines = [words["selected"].format(proposals=summary["proposal_count"], images=summary["image_count"]), ""]
+    for row in summary["choices"]:
+        lines.append(f"- **{row['choice']}{bar}{markdown_cell(row['title'])}**{colon}" + words["choice_count"].format(count=row["count"]))
+    titles = {row["choice"]: row["title"] for row in summary["choices"]}
+    for config in summary["configurations"]:
+        req = config["requirements"]
+        lines.extend(["", f"**{config['choice']}{bar}{markdown_cell(titles[config['choice']])}"
+                      + words["config_count"].format(count=config["count"]) + "**",
+                      "", f"- {words['subject']}{colon}" + markdown_cell(semicolon.join(req[field] for field in ("subject", "action", "composition"))),
+                      f"- {words['variation']}{colon}" + markdown_cell(config["variation"])])
+        for field in ("style", "costume", "background"):
+            lines.append(f"- {words['fields'][field]}{colon}" + markdown_cell(words.get("canonical_" + field, req[field]["description"]) if req[field]["mode"] == "canonical" else req[field]["description"]))
+        proportion = req["proportion"]
+        lines.append(words["proportion"].format(preset=words.get("forms", {}).get(proportion["preset"], proportion["preset"] or words["custom"]),
+                                                target=proportion["target_head_ratio"], range=proportion["acceptance_range"]))
+        for field in sorted(OPTIONAL_SCOPE_FIELDS & req.keys()):
+            lines.append(f"- {words['fields'][field]}{colon}" + markdown_cell(str(req[field])))
+        lettering = req["text"]
+        if lettering is None:
+            lines.append(words["no_text"])
+        else:
+            lines.append(f"- {words['exact_text']}{colon}" + markdown_cell(lettering["content"]))
+            lines.append(f"- {words['text_settings']}{colon}" + markdown_cell(semicolon.join([
+                ", ".join(lettering["languages"]), lettering["direction"], lettering["placement"], lettering["style"]])))
+        output = req["output"]
+        resolution = output["resolution"]
+        size = (words["native"] if resolution["mode"] == "provider-native"
+                else words["exact"].format(width=resolution["width"], height=resolution["height"]))
+        lines.append(words["output"].format(ratio=output["aspect_ratio"], size=size,
+                                            alpha=words["yes"] if output["alpha"] else words["no"]))
+        for ref in req["references"]:
+            lines.append(f"- {words['reference']}{colon}" + markdown_cell(
+                bar.join([ref["id"], ref["path"], ", ".join(ref["roles"]), ref["instruction"] or words["declared_only"]])))
+    if summary["adjustments"]:
+        lines.extend(["", words["adjustments"], ""] + ["- " + markdown_cell(item) for item in summary["adjustments"]])
+    budget, execution = summary["budget"], summary["execution"]
+    lines.extend(["", words["budget"].format(images=summary["image_count"], per_image=budget["per_image_candidates"],
+                                             estimate=budget["estimated_maximum"], run=budget["run_candidates"],
+                                             per_provider=budget["per_provider_candidates"])])
+    if budget["run_candidates"] > NORMAL_RUN_CANDIDATES:
+        lines.append(words["raised"])
+    lines.extend([words["route"], execution_markdown(execution, language, words),
+                  words["location"].format(run=summary["run_name"]), "", words["question"]])
+    return "\n".join(lines) + "\n"
+
+
+def cmd_render_proposal(args: argparse.Namespace) -> dict[str, Any]:
+    value = read_json(Path(args.draft).resolve())
+    proposal = value.get("proposal")
+    words = language_policy().locale(value, language_policy().effective(value, "communication"), "gate") if value.get("schema_version") == 7 else None
+    return {"markdown": proposal_markdown(proposal, getattr(args, "language", "zh"), words),
+            "proposal_sha256": contract_hash(proposal)}
+
+
+def cmd_summarize_selection(args: argparse.Namespace) -> dict[str, Any]:
+    path = Path(args.draft).resolve()
+    value = read_json(path)
+    summary = selection_summary(value, path)
+    words = language_policy().locale(value, language_policy().effective(value, "communication"), "gate") if value.get("schema_version") == 7 else None
+    markdown = selection_markdown(summary, getattr(args, "language", "zh"), words)
+    if words:
+        markdown = "# " + value["run_title"] + "\n\n" + words["language"].format(language=value["language"], overrides=language_policy().overrides_text(value, words)) + "\n\n" + markdown
+    return {**summary, "markdown": markdown}
+
+
 def validate_assignment(path: Path) -> dict[str, Any]:
     assignment = read_json(path)
     catalog, catalog_sha256 = load_catalog()
-    if assignment.get("schema_version") != ASSIGNMENT_SCHEMA_VERSION:
+    language_contract(assignment)
+    if assignment.get("schema_version") not in SUPPORTED_ASSIGNMENT_VERSIONS:
         raise RunError(f"assignment schema_version must be {ASSIGNMENT_SCHEMA_VERSION}")
     require_fields(
         assignment,
-        {"confirmation", "input", "run_name", "image_count", "images", "execution", "budget"},
+        {"proposal", "selection", "scope", "confirmation", "input", "run_name", "image_count", "images", "execution", "budget"},
         "assignment",
     )
     require_only_fields(
         assignment,
-        {"schema_version", "confirmation", "input", "run_name", "image_count", "images", "execution", "budget"},
+        {"schema_version", "proposal", "selection", "scope", "confirmation", "input", "run_name", "image_count", "images", "execution", "budget"} | language_policy().FIELDS,
         "assignment",
     )
-
-    confirmation = assignment.get("confirmation")
-    if not isinstance(confirmation, dict) or confirmation.get("confirmed") is not True:
-        raise RunError("assignment requires confirmation.confirmed=true")
-    require_iso8601(confirmation.get("confirmed_at"), "confirmation.confirmed_at")
 
     source = assignment.get("input")
     if not isinstance(source, dict) or source.get("type") not in INPUT_TYPES:
@@ -1090,6 +1544,13 @@ def validate_assignment(path: Path) -> dict[str, Any]:
     content = source.get("content")
     if not isinstance(content, (str, list)) or not content:
         raise RunError("input.content must be a non-empty string or list")
+    if source["type"] == "screenshot":
+        for item in content if isinstance(content, list) else [content]:
+            source_path = Path(require_string(item, "input.content"))
+            if not source_path.is_absolute():
+                source_path = path.parent / source_path
+            if not source_path.is_file():
+                raise RunError("Screenshot input.content must name existing source files")
 
     run_name = require_string(assignment.get("run_name"), "run_name")
     if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", run_name):
@@ -1118,7 +1579,7 @@ def validate_assignment(path: Path) -> dict[str, Any]:
             {
                 "name", "subject", "expression", "action", "composition", "props", "objects",
                 "style", "costume", "background", "text", "proportion", "references", "output",
-                "counterpart",
+                "counterpart", "proposal_choice", "configuration_id", "execution_note",
             },
             label,
         )
@@ -1127,7 +1588,8 @@ def validate_assignment(path: Path) -> dict[str, Any]:
             {
                 "name", "subject", "expression", "action", "composition", "props", "objects",
                 "style", "costume", "background", "text", "proportion", "references", "output",
-                "counterpart", "pairwise_minimum_head_ratio_gap",
+                "counterpart", "pairwise_minimum_head_ratio_gap", "title",
+                "proposal_choice", "configuration_id", "execution_note",
             },
             label,
         )
@@ -1216,55 +1678,7 @@ def validate_assignment(path: Path) -> dict[str, Any]:
         if other_gap is not None and not math.isclose(float(other_gap), float(configured_gap), abs_tol=1e-9):
             raise RunError(f"Counterpart pair must use one pairwise_minimum_head_ratio_gap: {name}")
 
-    budget = assignment.get("budget")
-    if not isinstance(budget, dict):
-        raise RunError("budget must be an object")
-    require_fields(
-        budget,
-        {"per_image_candidates", "per_provider_candidates", "run_candidates", "confirmed_over_24"},
-        "budget",
-    )
-    require_only_fields(
-        budget,
-        {"per_image_candidates", "per_provider_candidates", "run_candidates", "confirmed_over_24"},
-        "budget",
-    )
-    per_image = budget.get("per_image_candidates")
-    per_provider = budget.get("per_provider_candidates")
-    run_candidates = budget.get("run_candidates")
-    for value, label in (
-        (per_image, "per_image_candidates"),
-        (per_provider, "per_provider_candidates"),
-        (run_candidates, "run_candidates"),
-    ):
-        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-            raise RunError(f"budget.{label} must be a positive integer")
-    if per_image > MAX_IMAGE_CANDIDATES:
-        raise RunError(f"budget.per_image_candidates cannot exceed {MAX_IMAGE_CANDIDATES}")
-    if per_provider > per_image:
-        raise RunError("budget.per_provider_candidates cannot exceed per-image budget")
-    expected = image_count * per_image
-    confirmed_over_24 = budget.get("confirmed_over_24")
-    if not isinstance(confirmed_over_24, bool):
-        raise RunError("budget.confirmed_over_24 must be boolean")
-    if run_candidates < expected:
-        raise RunError(f"Run budget must be at least the estimated maximum {expected}")
-    if expected > NORMAL_RUN_CANDIDATES:
-        if confirmed_over_24 is not True:
-            raise RunError(
-                f"Estimated maximum is {expected}; set budget.confirmed_over_24=true after confirmation"
-            )
-    elif run_candidates > NORMAL_RUN_CANDIDATES and confirmed_over_24 is not True:
-        raise RunError("A run budget above 24 requires budget.confirmed_over_24=true")
-    budget.update(
-        {
-            "per_image_candidates": per_image,
-            "per_provider_candidates": per_provider,
-            "run_candidates": run_candidates,
-            "estimated_maximum": expected,
-            "confirmed_over_24": confirmed_over_24,
-        }
-    )
+    budget = normalize_budget(assignment.get("budget"), image_count)
     assignment["budget"] = budget
     assignment["execution"] = normalize_execution(assignment.get("execution"))
     assignment["reference_catalog"] = {
@@ -1272,6 +1686,7 @@ def validate_assignment(path: Path) -> dict[str, Any]:
         "sha256": catalog_sha256,
     }
     assignment["image_count"] = image_count
+    validate_approval(assignment, path)
     return assignment
 
 
@@ -1286,12 +1701,13 @@ def unique_run_dir(root: Path, run_name: str) -> Path:
 
 def validate_frozen_assignment_structure(assignment: dict[str, Any]) -> None:
     root_fields = {
-        "schema_version", "confirmation", "input", "run_name", "image_count", "images",
+        "schema_version", "proposal", "selection", "scope", "confirmation", "input", "run_name", "image_count", "images",
         "execution", "budget", "reference_catalog", "source_assignment", "run_dir", "frozen_at",
     }
     require_fields(assignment, root_fields, "frozen assignment")
-    require_only_fields(assignment, root_fields, "frozen assignment")
-    if assignment["schema_version"] != ASSIGNMENT_SCHEMA_VERSION:
+    language_contract(assignment)
+    require_only_fields(assignment, root_fields | language_policy().FIELDS, "frozen assignment")
+    if assignment["schema_version"] not in SUPPORTED_ASSIGNMENT_VERSIONS:
         raise RunError(f"Frozen assignment schema_version must be {ASSIGNMENT_SCHEMA_VERSION}")
     images = assignment["images"]
     if not isinstance(images, list) or not images or assignment["image_count"] != len(images):
@@ -1299,6 +1715,7 @@ def validate_frozen_assignment_structure(assignment: dict[str, Any]) -> None:
     require_iso8601(assignment["frozen_at"], "frozen assignment frozen_at")
 
     execution_fields = {"mode", "requested_parallelism", "max_parallelism", "commit_strategy"}
+    execution_fields.add("subagent_count")
     execution = assignment["execution"]
     if not isinstance(execution, dict):
         raise RunError("Frozen assignment execution must be an object")
@@ -1319,6 +1736,7 @@ def validate_frozen_assignment_structure(assignment: dict[str, Any]) -> None:
         "name", "subject", "expression", "action", "composition", "props", "objects",
         "style", "costume", "background", "text", "proportion", "references", "output",
         "counterpart", "proportion_sha256", "identity_anchor_form", "id",
+        "proposal_choice", "configuration_id", "execution_note",
     }
     reference_fields = {
         "id", "path", "roles", "instruction", "source", "sha256", "format",
@@ -1334,7 +1752,7 @@ def validate_frozen_assignment_structure(assignment: dict[str, Any]) -> None:
         label = f"frozen assignment images[{index}]"
         if not isinstance(image, dict):
             raise RunError(f"{label} must be an object")
-        allowed_image_fields = image_fields | {"pairwise_minimum_head_ratio_gap"}
+        allowed_image_fields = image_fields | {"pairwise_minimum_head_ratio_gap", "title"}
         require_fields(image, image_fields, label)
         require_only_fields(image, allowed_image_fields, label)
         if image["counterpart"] is not None and "pairwise_minimum_head_ratio_gap" not in image:
@@ -1399,14 +1817,20 @@ def validate_manifest_structure(
         "mode", "requested_parallelism", "max_parallelism", "commit_strategy",
         "effective_parallelism", "initial_ready_image_count",
     }
+    execution_fields.update({"subagent_count", "effective_subagent_count"})
     execution = manifest["execution"]
     if not isinstance(execution, dict):
         raise RunError("manifest execution must be an object")
     require_fields(execution, execution_fields, "manifest execution")
     require_only_fields(execution, execution_fields, "manifest execution")
-    for field in ("mode", "requested_parallelism", "max_parallelism", "commit_strategy"):
+    for field in assignment["execution"]:
         if execution[field] != assignment["execution"][field]:
             raise RunError(f"manifest execution.{field} does not match the frozen assignment")
+
+    effective_subagents(assignment["execution"], execution["effective_parallelism"],
+                       execution["effective_subagent_count"])
+    if not 1 <= execution["effective_parallelism"] <= execution["initial_ready_image_count"]:
+        raise RunError("manifest effective parallelism exceeds the ready-image limit")
 
     images = manifest["images"]
     expected_ids = {image["id"] for image in assignment["images"]}
@@ -1452,7 +1876,9 @@ def validate_manifest_structure(
                 if not isinstance(record, dict):
                     raise RunError(f"{record_label} must be an object")
                 require_fields(record, fields, record_label)
-                require_only_fields(record, fields, record_label)
+                # provider_audit and transport are optional so runs recorded before them still load.
+                allowed = fields | {"provider_audit", "transport"} if field == "attempts" else fields
+                require_only_fields(record, allowed, record_label)
                 if field == "attempts":
                     if record["requested_output"] != image_specs[image_id]["output"]:
                         raise RunError(
@@ -1492,6 +1918,7 @@ def load_run(value: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
             reference_path = Path(reference["path"])
             if not reference_path.is_file() or sha256(reference_path) != reference.get("sha256"):
                 raise RunError(f"Frozen reference SHA-256 mismatch: {reference_path}")
+    validate_approval(assignment, assignment_path)
     return run_dir, assignment, manifest
 
 
@@ -1604,6 +2031,10 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
         raise RunError(
             "effective parallelism must be between 1 and the current requested/ready-image limit"
         )
+    actual_count = getattr(args, "effective_subagents", None)
+    if actual_count is None:
+        actual_count = min(assignment["execution"]["subagent_count"], effective_parallelism)
+    subagents = effective_subagents(assignment["execution"], effective_parallelism, actual_count)
     root = Path(args.root).resolve()
     root.mkdir(parents=True, exist_ok=True)
     run_dir = unique_run_dir(root, assignment["run_name"])
@@ -1612,9 +2043,20 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
     (run_dir / "staging").mkdir()
     frozen_references = run_dir / "inputs" / "references"
     frozen_references.mkdir(parents=True)
+    source_dir = run_dir / "source"
+    source_dir.mkdir()
+    write_json(source_dir / "input.json", assignment["input"])
+    if assignment["input"]["type"] == "screenshot":
+        content = assignment["input"]["content"]
+        for index, item in enumerate(content if isinstance(content, list) else [content], 1):
+            source_path = Path(item)
+            if not source_path.is_absolute():
+                source_path = assignment_path.parent / source_path
+            shutil.copy2(source_path, source_dir / f"original-{index:02d}{source_path.suffix.lower()}")
 
     copied: dict[tuple[str, str], str] = {}
-    for image in assignment["images"]:
+    reference_owners = assignment["images"] + [config["requirements"] for config in assignment["scope"]["configurations"]]
+    for image in reference_owners:
         for reference in image["references"]:
             if reference["source"] != "external":
                 continue
@@ -1662,6 +2104,7 @@ def cmd_init(args: argparse.Namespace) -> dict[str, Any]:
         "execution": {
             **assignment["execution"],
             "effective_parallelism": effective_parallelism,
+            "effective_subagent_count": subagents,
             "initial_ready_image_count": ready_image_count,
         },
         "created_at": created,
@@ -1712,6 +2155,34 @@ def cmd_record_error(args: argparse.Namespace) -> dict[str, Any]:
     return {"recorded": str(error_path), "candidate_count": manifest["candidate_count"]}
 
 
+def load_provider_audit(path: Path, provider: str, candidate_hash: str) -> dict[str, Any]:
+    audit = read_json(path)
+    if audit.get("provider") != provider:
+        raise RunError("Provider audit belongs to a different provider")
+    if audit.get("output_sha256") != candidate_hash:
+        raise RunError("Provider audit does not match the candidate image")
+    # usable is true (verified), false (prompt rewritten or references dropped) or null (unverifiable).
+    if audit.get("usable") not in (True, False, None) or "usable" not in audit:
+        raise RunError("Provider audit must state usable as true, false or null")
+    return audit
+
+
+def resolve_transport(args: argparse.Namespace, audit_path: Path | None) -> str | None:
+    """Codex through the CLI must bring its audit; built-in Codex calls have none."""
+    transport = getattr(args, "transport", None)
+    if args.provider != "codex":
+        if transport is not None:
+            raise RunError("--transport only applies to codex candidates")
+        return None
+    if transport not in {"cli", "builtin"}:
+        raise RunError("codex candidates require --transport cli or --transport builtin")
+    if transport == "cli" and audit_path is None:
+        raise RunError("Codex CLI candidates require --provider-audit from generate-codex.py")
+    if transport == "builtin" and audit_path is not None:
+        raise RunError("Built-in Codex calls have no provider audit; use --transport cli for generate-codex.py output")
+    return transport
+
+
 def cmd_record_candidate(args: argparse.Namespace) -> dict[str, Any]:
     run_dir, assignment, manifest = load_run(args.run_dir)
     if manifest["status"] != "in_progress":
@@ -1751,6 +2222,11 @@ def cmd_record_candidate(args: argparse.Namespace) -> dict[str, Any]:
 
     image_spec = next(item for item in assignment["images"] if item["id"] == args.image)
     candidate_sha256 = sha256(candidate)
+    audit_file = Path(args.provider_audit).resolve() if getattr(args, "provider_audit", None) else None
+    if audit_file is not None and not audit_file.is_file():
+        raise RunError(f"Missing provider audit: {audit_file}")
+    transport = resolve_transport(args, audit_file)
+    audit = load_provider_audit(audit_file, args.provider, candidate_sha256) if audit_file else None
     validate_automatic_qa(
         automatic,
         image_spec,
@@ -1793,8 +2269,26 @@ def cmd_record_candidate(args: argparse.Namespace) -> dict[str, Any]:
         stored_overlay.relative_to(run_dir)
     )
 
+    provider_audit = None
+    if audit is not None:
+        stored_audit = attempt_dir / f"{base}_provider_audit.json"
+        if stored_audit.exists():
+            raise RunError(f"Attempt provider audit path already exists: {stored_audit}")
+        shutil.copy2(audit_file, stored_audit)
+        provider_audit = {
+            "path": str(stored_audit.relative_to(run_dir)), "sha256": sha256(stored_audit),
+            **{key: audit.get(key) for key in ("thread_id", "prompt_verbatim", "usable")},
+            "verified": audit["usable"] is True,
+        }
+
     references = copy.deepcopy(image_spec["references"])
-    passed = automatic.get("overall") == "PASS" and visual.get("verdict") == "PASS"
+    # A provider that rewrote the prompt or dropped references cannot yield a PASS;
+    # an unverifiable audit may pass but stays flagged in the record and the final report.
+    passed = (
+        (audit is None or audit["usable"] is not False)
+        and automatic.get("overall") == "PASS"
+        and visual.get("verdict") == "PASS"
+    )
     record = {
         "candidate_attempt": attempt_number,
         "provider": args.provider,
@@ -1821,6 +2315,10 @@ def cmd_record_candidate(args: argparse.Namespace) -> dict[str, Any]:
         "verdict": "PASS" if passed else "FAIL",
         "consumes_candidate_budget": True,
     }
+    if transport is not None:
+        record["transport"] = transport
+    if provider_audit is not None:
+        record["provider_audit"] = provider_audit
     write_json(record_path, record)
     attempts.append(record)
     state["attempts"] = attempts
@@ -1897,6 +2395,12 @@ def cmd_finalize(args: argparse.Namespace) -> dict[str, Any]:
         "passed": sum(item["status"] == "passed" for item in states),
         "total": len(states),
         "candidate_count": manifest["candidate_count"],
+        "unverified_provider_audits": [
+            key for key, value in manifest["images"].items()
+            if value["status"] == "passed" and any(
+                item.get("verdict") == "PASS" and (item.get("provider_audit") or {}).get("usable", True) is None
+                for item in value["attempts"])
+        ],
     }
 
 
@@ -1921,9 +2425,54 @@ def cmd_status(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def cmd_build_request(args: argparse.Namespace) -> dict[str, Any]:
+    """Write the external adapter request from the frozen image spec and an agent-written prompt."""
+    run_dir, assignment, manifest = load_run(args.run_dir)
+    image_state(manifest, args.image)
+    image = next(item for item in assignment["images"] if item["id"] == args.image)
+    prompt_file = Path(args.prompt_file).resolve()
+    if not prompt_file.is_file():
+        raise RunError(f"Missing prompt file: {prompt_file}")
+    prompt = prompt_file.read_text(encoding="utf-8")
+    if not prompt.strip():
+        raise RunError("Prompt file is empty")
+    output = image["output"]
+    request = {
+        "prompt": prompt,
+        "references": [
+            {key: reference.get(key) for key in ("id", "path", "roles", "instruction", "sha256")}
+            for reference in image["references"]
+        ],
+        "aspect_ratio": output["aspect_ratio"],
+        "resolution": copy.deepcopy(output["resolution"]),
+        "output": {"format": output["format"], "alpha": output["alpha"]},
+    }
+    destination = Path(args.output).resolve() if args.output else prompt_file.with_name(prompt_file.stem + ".request.json")
+    if destination.exists():
+        raise RunError(f"Request already exists: {destination}")
+    write_json(destination, request)
+    return {"request_file": str(destination), "references": [item["path"] for item in request["references"]]}
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     commands = result.add_subparsers(dest="command", required=True)
+
+    for name, handler in (("render-proposal", cmd_render_proposal), ("summarize-selection", cmd_summarize_selection)):
+        command = commands.add_parser(name, help="Display a user gate without approving or initializing")
+        command.add_argument("--draft", required=True)
+        command.add_argument("--language", default=None,
+                             help="Legacy rendering language; new assignments use their saved communication language")
+        command.set_defaults(func=handler)
+
+    plan = commands.add_parser("plan-execution", help="Resolve observed capacity before Gate 2; no workers are started")
+    plan.add_argument("--ready-images", type=int, required=True)
+    plan.add_argument("--worker-slots", type=int, required=True)
+    plan.add_argument("--provider-limit", type=int, required=True)
+    plan.add_argument("--user-limit", type=int, default=MAX_PARALLELISM)
+    plan.add_argument("--serial", action="store_true")
+    plan.set_defaults(func=lambda args: {"execution": plan_execution(
+        args.ready_images, args.worker_slots, args.provider_limit, args.user_limit, args.serial)})
 
     validate = commands.add_parser("validate-assignment", help="Validate a confirmed assignment")
     validate.add_argument("--assignment", required=True)
@@ -1932,6 +2481,7 @@ def parser() -> argparse.ArgumentParser:
     init = commands.add_parser("init", help="Create a non-overwriting run directory")
     init.add_argument("--assignment", required=True)
     init.add_argument("--root", default="artifacts/whalechan-image-character")
+    init.add_argument("--effective-subagents", type=int, help="Actual worker count, including 0 for main-agent fallback")
     init.add_argument("--effective-parallelism", type=int)
     init.set_defaults(func=cmd_init)
 
@@ -1967,6 +2517,9 @@ def parser() -> argparse.ArgumentParser:
     candidate.add_argument("--automatic-json", required=True)
     candidate.add_argument("--visual-json", required=True)
     candidate.add_argument("--provider-size")
+    candidate.add_argument("--provider-audit", help="Adapter audit JSON, e.g. generate-codex.py's <output>.codex.json")
+    candidate.add_argument("--transport", choices=("cli", "builtin"),
+                           help="How a codex candidate was produced: generate-codex.py (cli) or the built-in tool")
     candidate.set_defaults(func=cmd_record_candidate)
 
     promote = commands.add_parser("promote", help="Copy one PASS candidate into final")
@@ -1979,6 +2532,13 @@ def parser() -> argparse.ArgumentParser:
     finalize.add_argument("--run-dir", required=True)
     finalize.add_argument("--allow-failures", action="store_true")
     finalize.set_defaults(func=cmd_finalize)
+
+    request = commands.add_parser("build-request", help="Write the adapter request for one frozen image")
+    request.add_argument("--run-dir", required=True)
+    request.add_argument("--image", required=True)
+    request.add_argument("--prompt-file", required=True)
+    request.add_argument("--output", help="Defaults to <prompt>.request.json; never overwritten")
+    request.set_defaults(func=cmd_build_request)
 
     status = commands.add_parser("status", help="Print a compact run summary")
     status.add_argument("--run-dir", required=True)

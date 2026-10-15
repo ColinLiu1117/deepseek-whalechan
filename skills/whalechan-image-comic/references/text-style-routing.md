@@ -15,7 +15,15 @@ Choose exactly one primary template **per image**, after deciding that image's s
 | `09_vertical-panic` | escalating panic, urgent failure, helpless state |
 | `10_manga-impact` | extreme disaster, black comedy, abstract breakdown |
 
-Record `text_style_reason` with the specific setup, reversal, or emotional contrast that the lettering should emphasize. "Consistent series", "English text", "cute", or a repeated generic sentence does not explain a choice. English uses the same routing table; adapt lettering language rather than routing every English comic to `07_casual-dialogue`.
+Templates often suit these exaggeration tiers. This is a starting point, not a check; choose by the joke:
+
+| Tier | Usually suits |
+| --- | --- |
+| `A` | `10_manga-impact`, `04_burst-command`, `09_vertical-panic`, `08_confrontation-dialogue` |
+| `B` | `04_burst-command`, `08_confrontation-dialogue`, `09_vertical-panic`, `06_top-bottom-punchline`, `03_blue-banner`, `02_keyword-bubble` |
+| `C` | `07_casual-dialogue`, `01_shy-blue-sticker`, `02_keyword-bubble`, `05_outline-poster`, `06_top-bottom-punchline` |
+
+Record `text_style_reason` with the specific setup, reversal, exposure, escalation step or emotional contrast that the lettering should emphasize. "Consistent series", "English text", "cute", or a repeated generic sentence does not explain a choice. English uses the same routing table; adapt lettering language rather than routing every English comic to `07_casual-dialogue`.
 
 The default `semantic` policy has no template-count quota. Select for semantic fit, then review repetitive executions; do not randomly rotate IDs. For example, an accusation can use `04_burst-command`, a shameless claim `03_blue-banner`, and a sincere returning-user moment `07_casual-dialogue`. These are examples, not a slot schedule. A repeated template needs a source-grounded reason for each execution, not a fabricated user override.
 
@@ -25,8 +33,8 @@ Adapt a template's composition to `dialogue_plan`: keep different speakers in di
 
 The template's composition notes are suggestions, not shot or panel mandates. `composition` and `action_plan` determine framing and placement; a `typography` reference controls letterforms and treatment only. Do not inherit a top-headline/character-below layout just because it appears in a lettering example. Do not map image number to a template.
 
-Follow the input's main language. Prefer Simplified Chinese for Chinese or mixed Chinese input. Preserve useful model names, error tokens, and technical terms in their original language when that is funnier. Do not mix languages without a reason.
+Letter in `input.language`: the session language, or the language the user specified (see SKILL.md). Preserve useful model names, error tokens, and technical terms in their original language when that is funnier. Do not mix languages without a reason.
 
-Quote every required semantic string verbatim in the prompt. Separate semantic `core_text` from nonverbal `flavor_text`. Do not use local fonts or programmatic typesetting.
+Quote every required semantic string verbatim in the prompt. There is no separate flavor-text field: nonverbal marks (anger veins, sweat drops, motion lines) are drawn symbols, and any written word, including a sound effect or prop writing, belongs in `core_text` with exact wording. Do not use local fonts or programmatic typesetting.
 
-For a text-only failure, spend the second slot on a text-free but composition-matched base with empty bubbles/headline areas. Spend the third slot editing that base with exact core text and the same template reference. Recheck every character; plausible pseudo-text is a failure.
+For QA11 text-only core failures, use the complete-canvas targeted retry or edit in [review-workflow.md](review-workflow.md#failure), retaining the exact frozen text.

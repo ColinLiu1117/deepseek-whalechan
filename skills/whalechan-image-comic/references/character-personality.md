@@ -8,7 +8,7 @@ Primary anchors:
 
 - `standard`: `assets/character-references/standard/01_gentle_wave.webp`
 - `compact`: `assets/character-references/compact/0102_intimate_relationship_question_rendered_isolated.webp`
-- `semi-chibi`: `assets/character-references/semi-chibi/0092_enduring_release_delay_rendered_isolated.webp`
+- `semi-chibi`: `assets/character-references/semi-chibi/neutral_standing_front_isolated.webp`
 - `chibi`: `assets/character-references/chibi/0067_angry_you_are_silly_reply_rendered_isolated.webp`
 - `super-deformed`: `assets/character-references/super-deformed/0019_literal_love_reply_rendered_isolated.webp`
 
@@ -17,6 +17,8 @@ Default to `semi-chibi`. The five forms are recommended presets; a user may inst
 ## Identity lock
 
 Draw one ageless humanoid Whale-chan with the permanent identity above. Default to bold near-black navy contours, clean rounded shapes, restrained cel shading, and glossy accents, but replace those rendering choices when `style.mode` is `custom`.
+
+An `A`-tier `manga_burst` panel may deform the face and silhouette freely — blank eyes, giant mouths, chibi shifts, a face-only gekiga rendering. Identity then rests on the anchors rather than the face: keep at least three of hair, fin ears, ahoge, tail and maid outfit clearly visible, and keep any gekiga rendering on the face instead of the whole canvas.
 
 Default to the complete ornate navy-and-white maid outfit: white frilled headpiece, navy bow with blue gem, dark navy bodice and sleeves, white frilled collar and apron with small blue whale emblem, muted-gold details, white socks, and dark-blue strap shoes. When `costume.mode` is `custom`, match the frozen custom costume instead and do not require canonical garments.
 

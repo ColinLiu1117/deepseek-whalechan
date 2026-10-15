@@ -1,75 +1,69 @@
-# Proposal selection and quantity confirmation
+# Final plan and one user confirmation
 
-Use two distinct user turns before generation. First obtain proposal choices; then show their quantities and obtain permission to begin. The agent must quote actual replies, not manufacture approval records. A recommendation, silence, a preselected UI answer or a Gate 1 choice is not Gate 2 confirmation.
+Complete creative planning before the single generation gate: freeze 2N concise candidates, have another real sub-agent priority-rank all 2N, select the first N, then return to the original author for detailed visual plans. The table reports the result; the user confirms or revises the whole plan.
 
-## Gate 1: compare five proposals
+## Display the complete plan
 
-Prepare exactly five reviewed, materially different proposals. Use this exact seven-column Markdown layout, one row per choice; replace every placeholder with concrete content. Letters identify choices, not rank, layout or humor mechanism.
+Show one eight-column Markdown table per source, with N rows (the following is an N=5 example). Render headers, distribution and confirmation with the saved communication-language `plan` locale. Write the cells in the communication language and keep the exact visible text unchanged:
 
-| 选择 | 方案 | 核心场景 | 笑点与反转 | 分镜／构图 | 关键台词 | 推荐程度与理由 |
-|---|---|---|---|---|---|---|
-| A | 具体标题 | 画面中的事件 | 预期与反转 | 格数、镜头、互动 | 准备上图的关键文字 | 星级＋推荐结论＋具体理由 |
-| B | … | … | … | … | … | … |
-| C | … | … | … | … | … | … |
-| D | … | … | … | … | … | … |
-| E | … | … | … | … | … | … |
+| 序号 | 创意 | 方向 | 格数 | 档位 | 场景／分镜 | 关键台词 | 入选理由 |
+|---|---|---|---|---|---|---|---|
+| 1 | 具体创意 | 方向及笑点如何落地 | 1 | A-日漫冲击 | 画面事件、镜头、互动 | 准备上图的关键文字 | 排序中体现的具体优势 |
+| 2 | … | … | 2 | C-克制冷幽默 | … | … | … |
+| 3 | … | … | 4 | B-漫画爆发 | … | … | … |
+| 4 | … | … | 2 | A-日漫冲击（脸→C） | … | … | … |
+| 5 | … | … | 1 | A-日漫冲击 | … | … | … |
 
-Use ★★★ 首推, ★★☆ 推荐 or ★☆☆ 可选 with a source-specific reason. Do not force a rating distribution or fill slots with rejected ideas. Keep cells concise; escape pipes and use `<br>` for line breaks. Key lines describe the selected joke; render only each execution's frozen `core_text`, retaining any user-locked wording.
+> 格数分布：1 格 ×2 · 2 格 ×2 · 4 格 ×1 ✓ ｜ 档位分布：A-日漫冲击 ×3 · B-漫画爆发 ×1 · C-克制冷幽默 ×1 ✓
 
-Below the table, ask:
+> 档位目标 A:B:C＝3:1:1（60% / 20% / 20%）；实际占比 60% / 20% / 20%；偏差 0 / 0 / 0 个百分点。五张配比已满足。
 
-> **你想生成哪些方案？** 可选一个或多个。推荐〈编号〉，因为〈具体理由〉。
->
-> **生成策略：**每个入选方案默认生成 **5 张**，围绕该创意展开不同演绎。选一个共 5 张，选两个共 10 张，全选共 25 张；也可以指定“五种方案各一张”，共 5 张。选择后，我会汇总方案和张数，请你确认后再开始生成。
+> 本次目标头身比：2.8 头身（半 Q 版，semi-chibi），适用于全部 5 张。
 
-Stop and wait. Do not create a full image assignment or spend image calls just to fill unselected alternatives.
+Numbers identify rows, not mechanisms, layouts or tiers. Name the actual comedy direction; optionally mark a native-direction idea with “（原）” and explain the marker. Use localized equivalents of the descriptive labels `A-日漫冲击`, `B-漫画爆发`, `C-克制冷幽默` in both the tier column and distribution line (`A-Manga impact`, `B-Comic outburst`, `C-Restrained deadpan` in English). Write a declared contrast after the descriptive label, such as “A-日漫冲击（脸→C）”. The helper computes the distribution line and marks each coverage policy as satisfied or user-overridden. Do not impose native/character quotas. Keep cells concise, escape pipes and use `<br>` for line breaks.
 
-## Gate 2: summarize, then wait again
+Show the target head-to-body ratio immediately below the distribution line and before image totals, never as another table column. Record `proportion` in every new `proposal.options` entry before rendering, including the default `{"mode": "preset", "preset": "semi-chibi"}`. Resolve targets from the preset catalog or the explicit custom ratio. When all N match, show one shared target; otherwise group table row numbers by target, for example “第 1、3、5 张为 2.8 头身（半 Q 版，semi-chibi）；第 2、4 张为 2.5 头身（Q 版，chibi）”. Custom ratios read “3.0 头身（自定义）”. These are planned targets, not measurements of generated images.
 
-Resolve replies using the displayed choices and recommendations. A choice without a quantity means five images. Explicit positive integer quantities override that default; never confuse five proposals with five total images.
+Below the table, show:
 
-| Gate 1 reply | Gate 2 summary |
-|---|---|
-| A | 1 proposal, 5 images |
-| A＋C | 2 proposals, 5 each, 10 total |
-| 全部默认 | 5 proposals, 5 each, 25 total |
-| 五种各一张 | 5 proposals, 1 each, 5 total |
-| A 两张，C 一张 | 2 proposals, 3 total |
-| 按推荐来 | The explicitly displayed recommended combination, five each unless another quantity was specified |
+- N ideas, one image each, N total images per source (default N=5); for multiple sources include each source's count and the grand total.
+- Independent role caps (planning 5, selection 2, generation 5 / Codex 3, collection 2, delivery 1), actual observed runtime slots, shared batch limit, dynamic assignment and main-agent orchestration-only duties. Independent selection requires another real agent; report unavailable delegation instead of silently self-reviewing.
+- A maximum of three image-producing calls per image, 3N per source, and the provider route.
+- Any explicit user overrides, including a nondefault panel-count or exaggeration policy.
 
-For A＋C, say:
+Then ask once:
 
-> 已选择 **2 个方案，共 10 张图片**：
->
-> - **A｜完美启动率**：5 张
-> - **C｜马上正在路上**：5 张
->
-> 每个方案围绕已选创意展开不同演绎，生成后进行质量验证。
->
-> **确认按以上方案和数量开始生成吗？** 回复“确认”即可开始，也可以调整方案或数量。
+> **确认按以上创意、张数和 sub-agent 分配开始生成吗？** 每个创意生成一张；确认后执行生成、验收和交付。
 
-Include explicit user changes in the summary. For a small wording or staging correction, preserve the displayed proposal and record the override in `selection.adjustments`; it takes precedence during execution. If the core joke is replaced, issue a revised proposal (increment revision) and repeat Gate 1. Preserve earlier draft files rather than editing frozen history.
+Wait for an actual affirmative reply to this plan. Silence, a recommendation, an automatically selected UI answer or a planning-only request is not permission to generate. Honor authorization already given for this exact displayed scope; do not invent an additional gate.
 
-Stop and wait even if Gate 1 said “A, start now”: show the actual total first. At Gate 2, an affirmative reply to the current summary authorizes execution. A changed choice, quantity or content override requires a new summary and a new reply; “change A to two and go” still changes the scope being confirmed. Do not reuse an earlier confirmation. Clarify ambiguous replies. Planning-only instructions remain in effect until the user explicitly authorizes generation.
+Before displaying the plan, inspect runtime capacity and use plan-roles from agent-orchestration.md. Save one shared batch execution policy and dynamic worker_plan. Planning workers author the content; main displays their rendered plan plus current capacity. Role caps are not guaranteed available slots.
 
-For multiple sources, present one labeled table per source, collect choices, then give one consolidated Gate 2 summary with per-source/per-proposal counts and a grand total. Bind that reply separately to each source's current summary. If any part changes, refresh the combined summary before generating the batch.
+## Record the decision
 
-After Gate 2, expand only the selected proposals into the confirmed quantities, validate/freeze internally, and generate without a third routine approval. Do not silently increase counts or replace the selected joke. Keep retries within each image's three-call budget; proposal count does not change concurrency limits.
+Use the current schema and the helper commands in `run-schema.md`. Save drafts under `artifacts/whalechan-image-comic/<run-name>-planning/` unless the user specifies another location. Preserve revisions as separate files. Complete image plans and the worker allocation before rendering the plan; drafts do not require visual QA.
 
-## Save and check the two decisions
-
-Use the proposal, selection and confirmation structures in `run-schema.md`. Before Gate 1, keep a draft under `artifacts/whalechan-image-comic/<run-name>-planning/` (or the user's destination). Name revisions separately, for example `draft-01.json`, `draft-02.json`. A draft needs no `images` or visual QA.
+Render the plan with either read-only helper:
 
 ```bash
 python3 scripts/manage-run.py render-proposal --draft <draft.json>
-```
-
-Display the returned `markdown` directly as a table, not inside a code block. Save its `proposal_sha256` in the selection only after the actual Gate 1 reply. Record the reply, resolved choices and explicit changes, then run:
-
-```bash
 python3 scripts/manage-run.py summarize-selection --draft <draft.json>
 ```
 
-Display its `markdown` and wait for Gate 2. Only after that reply, save `confirmation.status: confirmed`, the actual reply and the returned `summary_sha256`. Copy the current proposal and both decision records into the assignment. Both helpers are read-only; neither approves nor initializes a run. Their output hashes are audit metadata, not UI text.
+`summarize-selection` is an alias of `render-proposal`; both return the complete table, counts, budget, worker allocation, question and `summary_sha256`. Display the Markdown directly, not inside a code block. After the real reply, save `confirmation` with `status: confirmed`, the actual `user_reply` and the returned `summary_sha256`, binding the count, worker allocation and normalized execution settings. Use `worker_plan`, `panel_policy` and `exaggeration_policy` as specified in `run-schema.md`; full v20 `images` records must exist before this display. The scene/staging cells come from their panel actions and expression descriptions; the confirmation also binds the visual projection used by the prompt builder. See `prompt-design.md`. Hashes are audit metadata, not user-facing text. Helpers render and validate records; they cannot approve on the user's behalf.
 
-`validate-assignment`, `init`, frozen-run loading and prompt construction require matching approval records and image counts. Hashes detect changed records; they do not prove that a human spoke, that the reply was affirmative, or that the shown table matched the saved proposal. The agent must verify those facts from the conversation and must not bypass the gates by calling a provider directly. Do not fabricate confirmation for an older schema; historical runs stay unchanged.
+Changes to creative content, quantity or approved role/batch limits require updated consent. Normal role switching and capacity changes within those limits do not. Preserve previous versions for substantive revisions. For multiple sources show one combined execution summary and bind the same actual reply to each current source plan; never multiply quotas by source count. Generation worker assignments remain dynamic; frozen author/reviewer identities and task IDs are part of v20 selection provenance and its confirmation hash.
+
+Disclose the QA 11 policy in the execution summary: one candidate inspection, minor-issue tolerance, one collection contact-sheet review and at most one repair round within the same three-call budget.
+
+After confirmation, assign validation/freezing to a planning worker. Main dispatches actual sub-agents through runtime tools. Generation workers own isolated image journals and permitted retries; collection/delivery workers reconcile and mutate shared manifests serially. Follow agent-orchestration.md for capacity reductions, resident reuse, ownership and recovery.
+
+For v20 use batch-proposal to combine per-source tables, tool/capacity disclosures and budgets. Bind the actual single user reply to its returned batch summary; batch-start derives each source confirmation from the bound summaries without another question. Report structural-warning dispositions in the authored cross-source observation. Tool preflight does not authorize generation; provider selection is locked before this gate. See batch-commands.md.
+
+## Selection handoff
+
+Candidate authors submit only input and creative_pool via concepts-submit. Candidates carry no scores, preselected winners or complete images. The selection worker reads the original source and frozen pool and submits exactly 2N ordered {idea_id, reason} rows and selection_reason, optionally attention_points. The script fills provenance and derives the first N IDs. Use one concise reason per row; no new candidate pool, low-score regeneration or second semantic ranking.
+
+The detail worker preserves the frozen pool, selected order and exact candidate key_lines while completing N proposal.options and images. Copy the source exaggeration_policy from the task packet. New N=5 sets require exactly 3 A, 1 B and 1 C; for other N allocate by content close to 60%/20%/20% and review the displayed percentage deviations. N>=3 retains independent panel/tier coverage; N=1/2 relaxes coverage. Candidate authors and selectors consider this target before the author assigns tiers in detail work. A real content/constraint conflict is reported, not hidden by replacing selected ideas. User-requested changes to N/core content start an explicit new planning revision.
+
+See batch-commands.md for staged submissions and run-schema.md for record shapes.

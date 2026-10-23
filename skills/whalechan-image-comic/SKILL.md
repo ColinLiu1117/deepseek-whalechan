@@ -18,6 +18,7 @@ Role references:
 - `references/batch-commands.md` for v20 fixed commands, task packets, tool preflight/locking, pause/resume and delivery; workers load their role section.
 
 - `references/prompt-design.md` for drawing-only visual plans authored before confirmation.
+- `references/style-presets/full-color-narrative.md` when the user selects 精致全彩叙事漫画, 全彩韩漫风, or `full-color-narrative`. This opt-in rendering preset maps to existing custom style fields; it does not change identity, costume, proportions, panel support, or the default style.
 - `references/proposal-selection.md` for the information-only eight-column table with its panel and tier distribution, the single user confirmation and its record.
 - `references/comedy-engine.md` for source analysis, the five comedy directions, native-direction preferences, the optional rhythm layer, selection, and where exaggeration tiers fit.
 - `references/character-personality.md` for Whale-chan, form, outfit, and abstract-supporting-character locks.
